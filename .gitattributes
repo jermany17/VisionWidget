@@ -1,0 +1,14 @@
+# Normalize to LF in the repo so the build works on Linux/CI from a Windows checkout.
+* text=auto eol=lf
+
+# gradlew is run by /bin/sh — CRLF here breaks it on Unix.
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# Binaries git must not touch.
+*.jar binary
+*.ttf binary
+*.otf binary
+*.png binary
+*.jpg binary
+*.webp binary

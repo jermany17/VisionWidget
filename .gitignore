@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/claudeCodeEditorTabs.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx
+.kotlin
+local.properties
+
+# Emulator screenshots captured while verifying the UI.
+.screenshots/
