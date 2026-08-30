@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
@@ -245,30 +246,7 @@ private fun EmptyVisionCard(userFont: UserFontChoice, onCreate: () -> Unit) {
         HorizontalDivider(color = Rule, thickness = 1.dp)
         Spacer(Modifier.height(14.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Create vision",
-                style = VisionType.promptAction(userFont),
-                color = OnCanvas,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onCreate)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            )
-            Text(
-                text = "ONE MINUTE →",
-                style = VisionType.eyebrow,
-                color = OnCanvasMuted,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onCreate)
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            )
-        }
+        CreateVisionRow(userFont = userFont, onClick = onCreate)
     }
 }
 

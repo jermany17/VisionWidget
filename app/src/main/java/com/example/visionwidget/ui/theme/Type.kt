@@ -62,12 +62,20 @@ object VisionType {
         lineHeight = 22.sp
     )
 
-    /** Headline of an empty-state prompt — "What's your vision?". */
+    /** Empty-state headline inside a card, where it shares the page with other sections. */
     fun promptTitle(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
         fontSize = 24.sp,
         lineHeight = 30.sp
+    )
+
+    /** Empty-state headline that owns a whole screen, so it carries more weight. */
+    fun screenPromptTitle(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 32.sp,
+        lineHeight = 38.sp
     )
 
     /** The call to action in an empty-state prompt — "Create vision". */
@@ -109,6 +117,17 @@ object VisionType {
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         lineHeight = 18.sp
+    )
+
+    /**
+     * Directional arrow beside a mono label. Sized above the label it sits next to,
+     * because at eyebrow size the arrow's strokes all but disappear.
+     */
+    val arrow = TextStyle(
+        fontFamily = DMMono,
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+        lineHeight = 16.sp
     )
 
     /** Supporting sentence under an empty-state title. */

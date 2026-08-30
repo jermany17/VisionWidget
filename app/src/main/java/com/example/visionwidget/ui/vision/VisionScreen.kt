@@ -1,32 +1,27 @@
 package com.example.visionwidget.ui.vision
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
@@ -76,8 +71,10 @@ fun VisionScreen(
 
             HorizontalDivider(color = Rule, thickness = 1.dp)
             Spacer(Modifier.height(18.dp))
-            ActionRow(userFont = userFont, onCreateVision = onCreateVision)
-            Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+            CreateVisionRow(userFont = userFont, onClick = onCreateVision)
+            // The floating nav sits right under this row, so clear it by more than the
+            // bar's own margin or the two read as one block.
+            Spacer(Modifier.height(24.dp + contentPadding.calculateBottomPadding()))
         }
     }
 }
@@ -86,43 +83,15 @@ fun VisionScreen(
 private fun Prompt(userFont: UserFontChoice) {
     Text(
         text = "What's your vision?",
-        style = VisionType.promptTitle(userFont),
+        style = VisionType.screenPromptTitle(userFont),
         color = OnCanvas
     )
     Spacer(Modifier.height(10.dp))
     Text(
-        text = "You deleted your last one. The future starts with one goal.",
+        text = "The future starts with one goal.",
         style = VisionType.promptSubtitle,
         color = OnCanvasMuted
     )
-}
-
-@Composable
-private fun ActionRow(userFont: UserFontChoice, onCreateVision: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "Create vision",
-            style = VisionType.promptAction(userFont),
-            color = OnCanvas,
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onCreateVision)
-                .padding(horizontal = 4.dp, vertical = 2.dp)
-        )
-        Text(
-            text = "ONE MINUTE →",
-            style = VisionType.eyebrow,
-            color = OnCanvasMuted,
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onCreateVision)
-                .padding(horizontal = 6.dp, vertical = 4.dp)
-        )
-    }
 }
 
 /**
