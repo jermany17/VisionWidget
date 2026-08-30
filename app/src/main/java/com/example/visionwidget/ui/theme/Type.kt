@@ -1,6 +1,5 @@
 package com.example.visionwidget.ui.theme
 
-import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -39,10 +38,64 @@ val DMMono = FontFamily(
 )
 
 /**
- * Semantic styles for the app chrome. Named by role rather than by size so the
- * three interface faces stay in their lanes: serif displays, sans speaks, mono counts.
+ * Semantic styles for the app.
+ *
+ * Styles that render the user's own content take a [UserFontChoice] and are functions;
+ * chrome styles are fixed vals. [DMMono] is the chrome default, with the bottom
+ * navigation and empty-state subtitles the exceptions on [DMSans].
  */
 object VisionType {
+    // --- User-selectable face, resolved from the id the DB stores ---
+
+    fun greeting(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 34.sp,
+        lineHeight = 40.sp
+    )
+
+    /** Streak and weekly counts — "17 days", "18 / 21". */
+    fun metricValue(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 18.sp,
+        lineHeight = 22.sp
+    )
+
+    /** Headline of an empty-state prompt — "What's your vision?". */
+    fun promptTitle(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 24.sp,
+        lineHeight = 30.sp
+    )
+
+    /** The call to action in an empty-state prompt — "Create vision". */
+    fun promptAction(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 20.sp,
+        lineHeight = 26.sp
+    )
+
+    /** The daily wisdom quote inside its card. */
+    fun quote(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 22.sp,
+        lineHeight = 30.sp
+    )
+
+    /** The initial in the avatar chip. */
+    fun avatar(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 13.sp,
+        lineHeight = 16.sp
+    )
+
+    // --- Chrome, always DMMono ---
+
     val eyebrow = TextStyle(
         fontFamily = DMMono,
         fontWeight = FontWeight.Normal,
@@ -51,25 +104,19 @@ object VisionType {
         letterSpacing = 1.6.sp
     )
 
-    val greeting = TextStyle(
-        fontFamily = InstrumentSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 34.sp,
-        lineHeight = 40.sp
-    )
-
-    val metricValue = TextStyle(
-        fontFamily = InstrumentSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,
-        lineHeight = 22.sp
-    )
-
     val action = TextStyle(
-        fontFamily = DMSans,
+        fontFamily = DMMono,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         lineHeight = 18.sp
+    )
+
+    /** Supporting sentence under an empty-state title. */
+    val promptSubtitle = TextStyle(
+        fontFamily = DMSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
     )
 
     val navLabel = TextStyle(
@@ -78,32 +125,5 @@ object VisionType {
         fontSize = 13.sp,
         lineHeight = 18.sp
     )
-
-    val avatar = TextStyle(
-        fontFamily = DMMono,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 16.sp
-    )
 }
 
-val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = DMSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = DMSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = DMSans,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    )
-)

@@ -29,11 +29,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.home.TodayScreen
 import com.example.visionwidget.ui.theme.Canvas
-import com.example.visionwidget.ui.theme.CreamMuted
-import com.example.visionwidget.ui.theme.Ink
-import com.example.visionwidget.ui.theme.InkMuted
-import com.example.visionwidget.ui.theme.Plum
+import com.example.visionwidget.ui.theme.NavBar
+import com.example.visionwidget.ui.theme.OnCanvas
+import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.VisionScreen
 
 enum class VisionTab(val label: String) {
     Today("Today"),
@@ -44,6 +44,7 @@ enum class VisionTab(val label: String) {
 
 private val NavBarHeight = 52.dp
 private val NavBarMargin = 12.dp
+private const val NavBarWidthFraction = 0.8f
 
 @Composable
 fun VisionApp() {
@@ -60,8 +61,11 @@ fun VisionApp() {
             .background(Canvas)
     ) {
         when (selectedTab) {
-            VisionTab.Today -> TodayScreen(contentPadding = screenPadding)
-            VisionTab.Vision -> PlaceholderScreen(VisionTab.Vision.label)
+            VisionTab.Today -> TodayScreen(
+                contentPadding = screenPadding,
+                onOpenVision = { selectedTab = VisionTab.Vision }
+            )
+            VisionTab.Vision -> VisionScreen(contentPadding = screenPadding)
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
             VisionTab.Insights -> PlaceholderScreen(VisionTab.Insights.label)
         }
@@ -72,7 +76,7 @@ fun VisionApp() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = NavBarMargin)
+                .padding(vertical = NavBarMargin)
         )
     }
 }
@@ -86,13 +90,15 @@ private fun BottomNav(
     val barShape = RoundedCornerShape(NavBarHeight / 2)
     Row(
         modifier = modifier
-            .fillMaxWidth()
+            // A fraction rather than fixed side margins, so the bar keeps its
+            // proportions instead of stretching wide on large screens.
+            .fillMaxWidth(NavBarWidthFraction)
             .height(NavBarHeight)
-            // The wisdom card behind the bar is the same plum, so the bar needs a
-            // shadow to read as floating rather than merging into it.
+            // A card may sit directly behind the bar in the same colour, so the
+            // shadow is what makes it read as floating rather than merging in.
             .shadow(elevation = 12.dp, shape = barShape, clip = false)
             .clip(barShape)
-            .background(Plum)
+            .background(NavBar)
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -120,14 +126,15 @@ private fun NavItem(
         modifier = modifier
             .fillMaxSize()
             .clip(pillShape)
-            .background(if (isSelected) Canvas else Plum)
+            // Selected tab inverts the bar: white pill, black label.
+            .background(if (isSelected) OnNavBar else NavBar)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = tab.label,
             style = VisionType.navLabel,
-            color = if (isSelected) Ink else CreamMuted,
+            color = if (isSelected) NavBar else OnNavBar,
             textAlign = TextAlign.Center
         )
     }
@@ -141,6 +148,6 @@ private fun PlaceholderScreen(title: String) {
             .background(Canvas),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = title.uppercase(), style = VisionType.eyebrow, color = InkMuted)
+        Text(text = title.uppercase(), style = VisionType.eyebrow, color = OnCanvas)
     }
 }

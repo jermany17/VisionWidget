@@ -8,6 +8,8 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 /.idea/claudeCodeEditorTabs.xml
+/.idea/compiler.xml
+/.idea/runConfigurations.xml
 /.idea/deploymentTargetSelector.xml
 /.idea/deviceManager.xml
 .DS_Store

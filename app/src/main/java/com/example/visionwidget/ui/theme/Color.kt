@@ -2,25 +2,24 @@ package com.example.visionwidget.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Canvas — background the whole app sits on.
+// Canvas — the app background. Fixed white, never themed.
 val Canvas = Color(0xFFFFFFFF)
-val Rule = Color(0xFFE4DBD1)
 
-// Ink — text on canvas.
-val Ink = Color(0xFF241C22)
-val InkMuted = Color(0xFF8B7F87)
+/** Text on the white canvas is always pure black. Card interiors use [CardTheme] instead. */
+val OnCanvas = Color(0xFF000000)
 
-// Accents.
-val Amber = Color(0xFFB9773C)
-val Indigo = Color(0xFF3D4E7C)
+/** Secondary text on the canvas — same black ink, held back so it reads as support. */
+val OnCanvasMuted = OnCanvas.copy(alpha = 0.55f)
 
-// Plum — card and nav surface.
-val Plum = Color(0xFF43303F)
-val PlumRule = Color(0xFF5B4757)
+// Hairline divider on the canvas — derived the same way as card borders, so every
+// hairline sitting on white is the same colour.
+val Rule = hairlineFor(Canvas)
 
-// Cream — text on plum.
-val Cream = Color(0xFFF4EDE6)
-val CreamMuted = Color(0xFFB6A2B2)
+// Avatar chip fill. Neutral grey to match the hairlines, a touch lighter so the
+// chip reads as a fill rather than competing with the borders around it.
+val AvatarFill = Color(0xFFE6E6E6)
 
-// Avatar chip.
-val AvatarFill = Color(0xFFE9E1D6)
+// Bottom navigation is fixed chrome, never themed from the DB: a black bar with
+// white labels, and a white pill with a black label for the selected tab.
+val NavBar = Color(0xFF000000)
+val OnNavBar = Color(0xFFFFFFFF)
