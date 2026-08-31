@@ -294,9 +294,10 @@ private fun EmptyTopThreeCard(
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "+ Add a task",
-                style = VisionType.taskText,
+                style = VisionType.helperText,
                 color = theme.onSurfaceMuted,
                 modifier = Modifier
+                    .align(Alignment.End)
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onAddTask)
                     .padding(horizontal = 4.dp, vertical = 2.dp)

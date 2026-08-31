@@ -130,15 +130,11 @@ object VisionType {
         lineHeight = 21.sp
     )
 
-    /** The control that adds a task — chrome around the list, not content in it. */
-    val taskText = TextStyle(
-        fontFamily = DMSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 21.sp
-    )
-
-    /** Explanatory line beneath a group of controls, set below [taskText]. */
+    /**
+     * Chrome around a list rather than content in it — the hint under a group of
+     * controls and the control that adds to it, which share a size so neither
+     * outweighs the other.
+     */
     val helperText = TextStyle(
         fontFamily = DMSans,
         fontWeight = FontWeight.Normal,
