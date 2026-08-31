@@ -39,6 +39,9 @@ data class CardTheme(
      * [onSurface] so it stays readable whichever surface the DB picks.
      */
     val onSurfaceMuted: Color = onSurface.copy(alpha = 0.55f)
+
+    /** Hairline drawn on the card itself — dividers between rows of its content. */
+    val onSurfaceRule: Color = onSurface.copy(alpha = 0.20f)
 }
 
 object CardThemes {

@@ -32,13 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,7 +42,6 @@ import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
 import com.example.visionwidget.ui.theme.OnCanvas
-import com.example.visionwidget.ui.theme.OnCanvasMuted
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
@@ -63,8 +55,7 @@ private const val MOCK_STREAK = "17 days"
 private const val MOCK_THIS_WEEK = "18 / 21"
 private const val MOCK_TOP_3_DONE = "0 / 3"
 
-private val CardCornerRadius = 16.dp
-private val CardShape = RoundedCornerShape(CardCornerRadius)
+private val CardShape = RoundedCornerShape(16.dp)
 
 /**
  * Card and font ids default to their registry defaults; once the DB is wired up the
@@ -120,7 +111,11 @@ fun TodayScreen(
                     onClick = onOpenVision
                 )
             } else {
-                EmptyVisionCard(userFont = userFont, onCreate = onOpenVision)
+                EmptyVisionCard(
+                    theme = CardThemes[visionThemeId],
+                    userFont = userFont,
+                    onCreate = onOpenVision
+                )
             }
 
             Spacer(Modifier.height(22.dp))
@@ -219,57 +214,41 @@ private fun SectionLabel(
 }
 
 /**
- * Placeholder shown until a vision exists. It sits on the canvas rather than on a card
- * surface — there is nothing to theme yet — so a dashed outline marks the slot instead.
+ * Placeholder shown until a vision exists. Takes the same themed surface as the filled
+ * card, so the slot keeps its colour whether or not a vision is set.
  */
 @Composable
-private fun EmptyVisionCard(userFont: UserFontChoice, onCreate: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .dashedBorder(color = Rule, cornerRadius = CardCornerRadius)
-            .padding(20.dp)
-    ) {
-        Text(
-            text = "What's your vision?",
-            style = VisionType.promptTitle(userFont),
-            color = OnCanvas
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = "The future starts with one goal.",
-            style = VisionType.promptSubtitle,
-            color = OnCanvasMuted
-        )
+private fun EmptyVisionCard(
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    onCreate: () -> Unit
+) {
+    ThemedCard(theme = theme, minHeight = 150.dp) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                text = "What's your vision?",
+                style = VisionType.promptTitle(userFont),
+                color = theme.onSurface
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "The future starts with one goal.",
+                style = VisionType.promptSubtitle,
+                color = theme.onSurfaceMuted
+            )
 
-        Spacer(Modifier.height(18.dp))
-        HorizontalDivider(color = Rule, thickness = 1.dp)
-        Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
+            HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+            Spacer(Modifier.height(14.dp))
 
-        CreateVisionRow(userFont = userFont, onClick = onCreate)
+            CreateVisionRow(
+                userFont = userFont,
+                onClick = onCreate,
+                contentColor = theme.onSurface,
+                mutedColor = theme.onSurfaceMuted
+            )
+        }
     }
-}
-
-/** Rounded dashed outline. Compose has no dashed equivalent of Modifier.border. */
-private fun Modifier.dashedBorder(
-    color: Color,
-    cornerRadius: Dp,
-    strokeWidth: Dp = 1.dp,
-    dash: Dp = 6.dp,
-    gap: Dp = 5.dp
-) = drawBehind {
-    val stroke = strokeWidth.toPx()
-    drawRoundRect(
-        color = color,
-        // Inset by half the stroke so the outline sits fully inside the bounds.
-        topLeft = Offset(stroke / 2, stroke / 2),
-        size = Size(size.width - stroke, size.height - stroke),
-        cornerRadius = CornerRadius(cornerRadius.toPx()),
-        style = Stroke(
-            width = stroke,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash.toPx(), gap.toPx()))
-        )
-    )
 }
 
 /**

@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
@@ -22,11 +23,16 @@ import com.example.visionwidget.ui.theme.VisionType
 /**
  * The "create a vision" call to action, shared by the Today card and the Vision tab so
  * the two empty states can't drift apart. Both halves trigger [onClick].
+ *
+ * Colours default to the canvas pair; on a themed card the caller passes the card's
+ * own pair so the row never sits on a surface it wasn't coloured for.
  */
 @Composable
 fun CreateVisionRow(
     userFont: UserFontChoice,
     onClick: () -> Unit,
+    contentColor: Color = OnCanvas,
+    mutedColor: Color = OnCanvasMuted,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -37,7 +43,7 @@ fun CreateVisionRow(
         Text(
             text = "Create vision",
             style = VisionType.promptAction(userFont),
-            color = OnCanvas,
+            color = contentColor,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onClick)
@@ -55,7 +61,7 @@ fun CreateVisionRow(
             Text(
                 text = "ONE MINUTE",
                 style = VisionType.eyebrow,
-                color = OnCanvasMuted,
+                color = mutedColor,
                 modifier = Modifier.alignByBaseline()
             )
             Spacer(Modifier.width(6.dp))
@@ -64,7 +70,7 @@ fun CreateVisionRow(
             Text(
                 text = "→",
                 style = VisionType.arrow,
-                color = OnCanvas,
+                color = contentColor,
                 modifier = Modifier.alignByBaseline()
             )
         }
