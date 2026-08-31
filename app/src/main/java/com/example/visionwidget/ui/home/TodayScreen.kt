@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -54,6 +59,17 @@ private const val MOCK_INITIAL = "J"
 private const val MOCK_STREAK = "17 days"
 private const val MOCK_THIS_WEEK = "18 / 21"
 private const val MOCK_TOP_3_DONE = "0 / 3"
+private const val MOCK_VISION_TITLE = "Harvard Law"
+private const val MOCK_VISION_BODY = "Become the lawyer I promised myself I would be."
+private const val MOCK_VISION_TARGET_DATE = "1 DECEMBER 2028"
+private const val MOCK_VISION_REMAINING = "121 WEEKS LEFT"
+
+/** Shown in place of tasks before any exist — examples of what belongs in the slot. */
+private val TOP_3_PROMPTS = listOf(
+    "What matters most today?",
+    "What have you been putting off?",
+    "One small thing for the vision"
+)
 
 private val CardShape = RoundedCornerShape(16.dp)
 
@@ -69,7 +85,9 @@ fun TodayScreen(
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
     hasVision: Boolean = false,
+    hasTopThree: Boolean = false,
     onOpenVision: () -> Unit = {},
+    onAddTask: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
@@ -105,10 +123,10 @@ fun TodayScreen(
             )
             Spacer(Modifier.height(10.dp))
             if (hasVision) {
-                ThemedCard(
+                VisionCard(
                     theme = CardThemes[visionThemeId],
-                    minHeight = 150.dp,
-                    onClick = onOpenVision
+                    userFont = userFont,
+                    onOpen = onOpenVision
                 )
             } else {
                 EmptyVisionCard(
@@ -119,9 +137,20 @@ fun TodayScreen(
             }
 
             Spacer(Modifier.height(22.dp))
-            SectionLabel(label = "TODAY'S TOP 3", trailing = MOCK_TOP_3_DONE)
+            SectionLabel(
+                label = "TODAY'S TOP 3",
+                trailing = if (hasTopThree) MOCK_TOP_3_DONE else "NOT SET"
+            )
             Spacer(Modifier.height(10.dp))
-            ThemedCard(theme = CardThemes[topThreeThemeId], minHeight = 190.dp)
+            if (hasTopThree) {
+                ThemedCard(theme = CardThemes[topThreeThemeId], minHeight = 190.dp)
+            } else {
+                EmptyTopThreeCard(
+                    theme = CardThemes[topThreeThemeId],
+                    userFont = userFont,
+                    onAddTask = onAddTask
+                )
+            }
 
             Spacer(Modifier.height(22.dp))
             SectionLabel(label = "DAILY WISDOM")
@@ -194,9 +223,11 @@ private fun SectionLabel(
     ) {
         Text(text = label, style = VisionType.eyebrow, color = OnCanvas)
         when {
+            // Same style as the trailing label: the two swap places in this slot, so a
+            // difference in size would read as the row shifting rather than the state.
             action != null -> Text(
                 text = action,
-                style = VisionType.action,
+                style = VisionType.eyebrow,
                 color = OnCanvas,
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
@@ -209,6 +240,135 @@ private fun SectionLabel(
                 style = VisionType.eyebrow,
                 color = OnCanvas
             )
+        }
+    }
+}
+
+/**
+ * Placeholder shown until tasks exist. The circles are deliberately inert — they mark
+ * where a checkbox will appear rather than offering one to tick, so only the prompt
+ * text and the add action respond to a tap.
+ */
+@Composable
+private fun EmptyTopThreeCard(
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    onAddTask: () -> Unit
+) {
+    ThemedCard(theme = theme) {
+        Column(Modifier.padding(20.dp)) {
+            TOP_3_PROMPTS.forEachIndexed { index, prompt ->
+                if (index > 0) {
+                    HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+                }
+                Row(
+                    modifier = Modifier.padding(vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DashedCheckMark(color = theme.onSurfaceMuted)
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        text = prompt,
+                        style = VisionType.bodyText(userFont),
+                        color = theme.onSurfaceMuted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(onClick = onAddTask)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = "Choose three things that truly matter today.",
+                style = VisionType.helperText,
+                color = theme.onSurfaceMuted
+            )
+            Text(
+                text = "Three is the whole rule.",
+                style = VisionType.helperText,
+                color = theme.onSurfaceMuted
+            )
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "+ Add a task",
+                style = VisionType.taskText,
+                color = theme.onSurfaceMuted,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onAddTask)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+/** The empty circle that marks where a task's checkbox will sit. */
+@Composable
+private fun DashedCheckMark(color: Color) {
+    Spacer(
+        Modifier
+            .size(22.dp)
+            .drawBehind {
+                val stroke = 1.5.dp.toPx()
+                drawCircle(
+                    color = color,
+                    // Inset by half the stroke so the ring stays inside the 22dp box.
+                    radius = (size.minDimension - stroke) / 2,
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(3.dp.toPx(), 3.dp.toPx())
+                        )
+                    )
+                )
+            }
+    )
+}
+
+/** The vision itself, once one is set. Tapping anywhere on it opens the Vision tab. */
+@Composable
+private fun VisionCard(
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    onOpen: () -> Unit
+) {
+    ThemedCard(theme = theme, minHeight = 150.dp, onClick = onOpen) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                text = MOCK_VISION_TITLE,
+                style = VisionType.cardTitle(userFont),
+                color = theme.onSurface
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = MOCK_VISION_BODY,
+                style = VisionType.bodyText(userFont),
+                color = theme.onSurfaceMuted
+            )
+
+            Spacer(Modifier.height(18.dp))
+            HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = MOCK_VISION_TARGET_DATE,
+                    style = VisionType.eyebrow,
+                    color = theme.onSurfaceMuted
+                )
+                Text(
+                    text = MOCK_VISION_REMAINING,
+                    style = VisionType.eyebrow,
+                    color = theme.onSurfaceMuted
+                )
+            }
         }
     }
 }
@@ -227,13 +387,13 @@ private fun EmptyVisionCard(
         Column(Modifier.padding(20.dp)) {
             Text(
                 text = "What's your vision?",
-                style = VisionType.promptTitle(userFont),
+                style = VisionType.cardTitle(userFont),
                 color = theme.onSurface
             )
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "The future starts with one goal.",
-                style = VisionType.promptSubtitle,
+                style = VisionType.bodyText(userFont),
                 color = theme.onSurfaceMuted
             )
 
@@ -241,12 +401,7 @@ private fun EmptyVisionCard(
             HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
             Spacer(Modifier.height(14.dp))
 
-            CreateVisionRow(
-                userFont = userFont,
-                onClick = onCreate,
-                contentColor = theme.onSurface,
-                mutedColor = theme.onSurfaceMuted
-            )
+            CreateVisionRow(onClick = onCreate, mutedColor = theme.onSurfaceMuted)
         }
     }
 }

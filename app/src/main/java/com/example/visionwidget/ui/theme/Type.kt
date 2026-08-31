@@ -62,8 +62,12 @@ object VisionType {
         lineHeight = 22.sp
     )
 
-    /** Empty-state headline inside a card, where it shares the page with other sections. */
-    fun promptTitle(font: UserFontChoice) = TextStyle(
+    /**
+     * Headline inside a card, where it shares the page with other sections. The same
+     * slot holds the vision's name once set and the prompt to create one before that,
+     * so both use this size.
+     */
+    fun cardTitle(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
         fontSize = 24.sp,
@@ -76,14 +80,6 @@ object VisionType {
         fontWeight = font.weight,
         fontSize = 32.sp,
         lineHeight = 38.sp
-    )
-
-    /** The call to action in an empty-state prompt — "Create vision". */
-    fun promptAction(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 20.sp,
-        lineHeight = 26.sp
     )
 
     /** The daily wisdom quote inside its card. */
@@ -112,13 +108,6 @@ object VisionType {
         letterSpacing = 1.6.sp
     )
 
-    val action = TextStyle(
-        fontFamily = DMMono,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
-    )
-
     /**
      * Directional arrow beside a mono label. Sized above the label it sits next to,
      * because at eyebrow size the arrow's strokes all but disappear.
@@ -130,12 +119,31 @@ object VisionType {
         lineHeight = 16.sp
     )
 
-    /** Supporting sentence under an empty-state title. */
-    val promptSubtitle = TextStyle(
+    /**
+     * The sentence under a headline — the vision's own line, and the prompt shown in
+     * its place before one is set.
+     */
+    fun bodyText(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 15.sp,
+        lineHeight = 21.sp
+    )
+
+    /** The control that adds a task — chrome around the list, not content in it. */
+    val taskText = TextStyle(
         fontFamily = DMSans,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
+        fontSize = 15.sp,
+        lineHeight = 21.sp
+    )
+
+    /** Explanatory line beneath a group of controls, set below [taskText]. */
+    val helperText = TextStyle(
+        fontFamily = DMSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 19.sp
     )
 
     val navLabel = TextStyle(

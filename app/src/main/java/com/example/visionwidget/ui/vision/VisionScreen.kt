@@ -71,7 +71,7 @@ fun VisionScreen(
 
             HorizontalDivider(color = Rule, thickness = 1.dp)
             Spacer(Modifier.height(18.dp))
-            CreateVisionRow(userFont = userFont, onClick = onCreateVision)
+            CreateVisionRow(onClick = onCreateVision)
             // The floating nav sits right under this row, so clear it by more than the
             // bar's own margin or the two read as one block.
             Spacer(Modifier.height(24.dp + contentPadding.calculateBottomPadding()))
@@ -89,7 +89,7 @@ private fun Prompt(userFont: UserFontChoice) {
     Spacer(Modifier.height(10.dp))
     Text(
         text = "The future starts with one goal.",
-        style = VisionType.promptSubtitle,
+        style = VisionType.bodyText(userFont),
         color = OnCanvasMuted
     )
 }

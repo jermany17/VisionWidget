@@ -15,23 +15,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
-import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.VisionType
 
 /**
  * The "create a vision" call to action, shared by the Today card and the Vision tab so
- * the two empty states can't drift apart. Both halves trigger [onClick].
+ * the two empty states can't drift apart.
  *
- * Colours default to the canvas pair; on a themed card the caller passes the card's
- * own pair so the row never sits on a surface it wasn't coloured for.
+ * Only "ONE MINUTE →" triggers [onClick]; "Create vision" reads as the heading for it.
+ *
+ * The whole row is set in [mutedColor]; on a themed card the caller passes the card's
+ * own muted tone so the row never sits on a surface it wasn't coloured for.
  */
 @Composable
 fun CreateVisionRow(
-    userFont: UserFontChoice,
     onClick: () -> Unit,
-    contentColor: Color = OnCanvas,
     mutedColor: Color = OnCanvasMuted,
     modifier: Modifier = Modifier
 ) {
@@ -41,13 +39,9 @@ fun CreateVisionRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Create vision",
-            style = VisionType.promptAction(userFont),
-            color = contentColor,
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 4.dp, vertical = 2.dp)
+            text = "CREATE VISION",
+            style = VisionType.eyebrow,
+            color = mutedColor
         )
         Row(
             modifier = Modifier
@@ -65,12 +59,10 @@ fun CreateVisionRow(
                 modifier = Modifier.alignByBaseline()
             )
             Spacer(Modifier.width(6.dp))
-            // Full strength rather than muted: the arrow is the affordance, and at this
-            // size a 55% black one reads as a smudge.
             Text(
                 text = "→",
                 style = VisionType.arrow,
-                color = contentColor,
+                color = mutedColor,
                 modifier = Modifier.alignByBaseline()
             )
         }
