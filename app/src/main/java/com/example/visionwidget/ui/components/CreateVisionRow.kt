@@ -1,11 +1,9 @@
 package com.example.visionwidget.ui.components
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -33,38 +31,41 @@ fun CreateVisionRow(
     mutedColor: Color = OnCanvasMuted,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "CREATE VISION",
-            style = VisionType.eyebrow,
-            color = mutedColor
-        )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Aligned by baseline, not by box: the arrow is set larger than the label,
-            // so centring their boxes would drop the glyph below the label's midline.
+    CardFooterRow(
+        modifier = modifier,
+        start = {
             Text(
-                text = "ONE MINUTE",
+                text = "CREATE VISION",
                 style = VisionType.eyebrow,
-                color = mutedColor,
-                modifier = Modifier.alignByBaseline()
+                color = mutedColor
             )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "→",
-                style = VisionType.arrow,
-                color = mutedColor,
-                modifier = Modifier.alignByBaseline()
-            )
+        },
+        end = {
+            // Fills the row's height for a usable tap target, but adds no padding of
+            // its own — that would inset the arrow from the edge the labels sit on.
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onClick),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Aligned by baseline, not by box: the arrow is set larger than the
+                // label, so centring their boxes would drop it below the label's midline.
+                Text(
+                    text = "ONE MINUTE",
+                    style = VisionType.eyebrow,
+                    color = mutedColor,
+                    modifier = Modifier.alignByBaseline()
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "→",
+                    style = VisionType.arrow,
+                    color = mutedColor,
+                    modifier = Modifier.alignByBaseline()
+                )
+            }
         }
-    }
+    )
 }

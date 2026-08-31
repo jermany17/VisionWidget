@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
@@ -72,6 +74,9 @@ private val TOP_3_PROMPTS = listOf(
 )
 
 private val CardShape = RoundedCornerShape(16.dp)
+
+/** Section labels share a height so every card below one starts at the same offset. */
+private val SectionLabelHeight = 20.dp
 
 /**
  * Card and font ids default to their registry defaults; once the DB is wired up the
@@ -216,24 +221,27 @@ private fun SectionLabel(
     trailing: String? = null,
     onActionClick: (() -> Unit)? = null
 ) {
+    // Fixed height, and the action carries no padding of its own: the two trailing
+    // labels swap places as the state changes, so any difference in their box would
+    // move the row and the card under it.
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SectionLabelHeight),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(text = label, style = VisionType.eyebrow, color = OnCanvas)
         when {
-            // Same style as the trailing label: the two swap places in this slot, so a
-            // difference in size would read as the row shifting rather than the state.
-            action != null -> Text(
-                text = action,
-                style = VisionType.eyebrow,
-                color = OnCanvas,
+            action != null -> Box(
                 modifier = Modifier
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable(enabled = onActionClick != null) { onActionClick?.invoke() }
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            )
+                    .clickable(enabled = onActionClick != null) { onActionClick?.invoke() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = action, style = VisionType.eyebrow, color = OnCanvas)
+            }
 
             trailing != null -> Text(
                 text = trailing,
@@ -354,22 +362,24 @@ private fun VisionCard(
             HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
             Spacer(Modifier.height(14.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = MOCK_VISION_TARGET_DATE,
-                    style = VisionType.eyebrow,
-                    color = theme.onSurfaceMuted
-                )
-                Text(
-                    text = MOCK_VISION_REMAINING,
-                    style = VisionType.eyebrow,
-                    color = theme.onSurfaceMuted
-                )
-            }
+            // Same footer row as the empty state's, so the card keeps its height and
+            // its gap under the divider whether or not a vision is set.
+            CardFooterRow(
+                start = {
+                    Text(
+                        text = MOCK_VISION_TARGET_DATE,
+                        style = VisionType.eyebrow,
+                        color = theme.onSurfaceMuted
+                    )
+                },
+                end = {
+                    Text(
+                        text = MOCK_VISION_REMAINING,
+                        style = VisionType.eyebrow,
+                        color = theme.onSurfaceMuted
+                    )
+                }
+            )
         }
     }
 }
