@@ -21,23 +21,37 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,7 +74,6 @@ private const val MOCK_GREETING = "Good morning, Jae."
 private const val MOCK_INITIAL = "J"
 private const val MOCK_STREAK = "17 days"
 private const val MOCK_THIS_WEEK = "18 / 21"
-private const val MOCK_TOP_3_DONE = "0 / 3"
 private const val MOCK_VISION_TITLE = "Harvard Law"
 private const val MOCK_VISION_BODY = "Become the lawyer I promised myself I would be."
 private const val MOCK_VISION_TARGET_DATE = "1 DECEMBER 2028"
@@ -71,6 +84,26 @@ private val TOP_3_PROMPTS = listOf(
     "What matters most today?",
     "What have you been putting off?",
     "One small thing for the vision"
+)
+
+// Which tasks are ticked, one bit per index. An Int needs no Saver to survive process
+// death, where a Set or a List of flags would.
+private fun Int.isTaskChecked(index: Int) = this and (1 shl index) != 0
+
+private fun Int.toggleTask(index: Int) = this xor (1 shl index)
+
+private fun Int.clearTask(index: Int) = this and (1 shl index).inv()
+
+/** No row is being edited. */
+private const val NoTaskEditing = -1
+
+/**
+ * The three slots. A null slot still shows its prompt; a string is a set task. "" stands
+ * in for null on save so the list survives process death without a bespoke parcelable.
+ */
+private val TaskSlotsSaver: Saver<List<String?>, Any> = listSaver<List<String?>, String>(
+    save = { slots -> slots.map { it.orEmpty() } },
+    restore = { stored -> stored.map { it.ifEmpty { null } } }
 )
 
 private val CardShape = RoundedCornerShape(16.dp)
@@ -90,12 +123,16 @@ fun TodayScreen(
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
     hasVision: Boolean = false,
-    hasTopThree: Boolean = false,
     onOpenVision: () -> Unit = {},
-    onAddTask: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
+    var checkedTasks by rememberSaveable { mutableIntStateOf(0) }
+    var tasks by rememberSaveable(stateSaver = TaskSlotsSaver) {
+        mutableStateOf(List<String?>(TOP_3_PROMPTS.size) { null })
+    }
+    var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
+    var draft by rememberSaveable { mutableStateOf("") }
 
     // Outer column owns the background, insets and scrolling at full width; the inner
     // one holds the content at a fixed fraction so every row shares the same edges.
@@ -142,20 +179,48 @@ fun TodayScreen(
             }
 
             Spacer(Modifier.height(22.dp))
+            val setCount = tasks.count { it != null }
+            val doneCount = tasks.indices.count {
+                tasks[it] != null && checkedTasks.isTaskChecked(it)
+            }
             SectionLabel(
                 label = "TODAY'S TOP 3",
-                trailing = if (hasTopThree) MOCK_TOP_3_DONE else "NOT SET"
+                // Measured against the tasks that exist, not the full three — a lone
+                // task ticked off reads as done, not a third done.
+                trailing = if (setCount > 0) "$doneCount / $setCount" else "NOT SET"
             )
             Spacer(Modifier.height(10.dp))
-            if (hasTopThree) {
-                ThemedCard(theme = CardThemes[topThreeThemeId], minHeight = 190.dp)
-            } else {
-                EmptyTopThreeCard(
-                    theme = CardThemes[topThreeThemeId],
-                    userFont = userFont,
-                    onAddTask = onAddTask
-                )
-            }
+            TopThreeCard(
+                theme = CardThemes[topThreeThemeId],
+                userFont = userFont,
+                tasks = tasks,
+                checkedTasks = checkedTasks,
+                editingTask = editingTask,
+                draft = draft,
+                onToggleTask = { checkedTasks = checkedTasks.toggleTask(it) },
+                onStartEdit = { index ->
+                    draft = tasks[index].orEmpty()
+                    editingTask = index
+                },
+                onDraftChange = { draft = it },
+                onCommitEdit = {
+                    // A blank field would leave a nameless row: on an unset slot the
+                    // commit is dropped so the prompt stays, on a set slot the old
+                    // text is kept.
+                    val edited = draft.trim()
+                    if (edited.isNotEmpty() && editingTask in tasks.indices) {
+                        tasks = tasks.toMutableList().also { it[editingTask] = edited }
+                    }
+                    editingTask = NoTaskEditing
+                },
+                onRemoveTask = { index ->
+                    // Back to a prompt, and the tick that belonged to the old task
+                    // clears with it.
+                    tasks = tasks.toMutableList().also { it[index] = null }
+                    checkedTasks = checkedTasks.clearTask(index)
+                    if (editingTask == index) editingTask = NoTaskEditing
+                }
+            )
 
             Spacer(Modifier.height(22.dp))
             SectionLabel(label = "DAILY WISDOM")
@@ -253,64 +318,233 @@ private fun SectionLabel(
 }
 
 /**
- * Placeholder shown until tasks exist. The circles are deliberately inert — they mark
- * where a checkbox will appear rather than offering one to tick, so only the prompt
- * text and the add action respond to a tap.
+ * Today's three slots. Each is either a prompt waiting to be filled or a set task that
+ * ticks off; the meter appears under them once any task exists.
  */
 @Composable
-private fun EmptyTopThreeCard(
+private fun TopThreeCard(
     theme: CardTheme,
     userFont: UserFontChoice,
-    onAddTask: () -> Unit
+    tasks: List<String?>,
+    checkedTasks: Int,
+    editingTask: Int,
+    draft: String,
+    onToggleTask: (Int) -> Unit,
+    onStartEdit: (Int) -> Unit,
+    onDraftChange: (String) -> Unit,
+    onCommitEdit: () -> Unit,
+    onRemoveTask: (Int) -> Unit
 ) {
     ThemedCard(theme = theme) {
-        Column(Modifier.padding(20.dp)) {
-            TOP_3_PROMPTS.forEachIndexed { index, prompt ->
+        // Less room above the first row than around it: the row's own 16dp and the
+        // card's inset were stacking into too deep a gap at the top.
+        Column(Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)) {
+            tasks.forEachIndexed { index, task ->
                 if (index > 0) {
                     HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
                 }
-                Row(
-                    modifier = Modifier.padding(vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DashedCheckMark(color = theme.onSurfaceMuted)
-                    Spacer(Modifier.width(14.dp))
-                    Text(
-                        text = prompt,
-                        style = VisionType.bodyText(userFont),
-                        color = theme.onSurfaceMuted,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(onClick = onAddTask)
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
+                TaskRow(
+                    task = task,
+                    prompt = TOP_3_PROMPTS[index],
+                    checked = checkedTasks.isTaskChecked(index),
+                    editing = editingTask == index,
+                    draft = draft,
+                    theme = theme,
+                    userFont = userFont,
+                    onToggle = { onToggleTask(index) },
+                    onStartEdit = { onStartEdit(index) },
+                    onDraftChange = onDraftChange,
+                    onCommitEdit = onCommitEdit,
+                    onRemove = { onRemoveTask(index) }
+                )
             }
 
-            Spacer(Modifier.height(18.dp))
-            Text(
-                text = "Choose three things that truly matter today.",
-                style = VisionType.helperText,
-                color = theme.onSurfaceMuted
-            )
-            Text(
-                text = "Three is the whole rule.",
-                style = VisionType.helperText,
-                color = theme.onSurfaceMuted
-            )
+            Spacer(Modifier.height(10.dp))
+            if (tasks.all { it == null }) {
+                // Same guidance as before the first task exists — the meter would only
+                // read 0% and say nothing.
+                Text(
+                    text = "Choose three things that truly matter today. Three is the whole rule.",
+                    style = VisionType.helperText(userFont),
+                    color = theme.onSurfaceMuted
+                )
+            } else {
+                TaskProgress(
+                    done = tasks.indices.count {
+                        tasks[it] != null && checkedTasks.isTaskChecked(it)
+                    },
+                    total = tasks.count { it != null },
+                    theme = theme
+                )
+            }
+        }
+    }
+}
 
-            Spacer(Modifier.height(16.dp))
+/**
+ * One slot: its prompt, the field that fills it, or the task it now holds. The leading
+ * mark stays a dashed ring until a task exists; the trailing control follows the mode —
+ * absent on a prompt, a confirm while editing, a dismiss on a set task.
+ */
+@Composable
+private fun TaskRow(
+    task: String?,
+    prompt: String,
+    checked: Boolean,
+    editing: Boolean,
+    draft: String,
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    onToggle: () -> Unit,
+    onStartEdit: () -> Unit,
+    onDraftChange: (String) -> Unit,
+    onCommitEdit: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier.padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (task == null) {
+            DashedCheckMark(color = theme.onSurfaceMuted)
+        } else {
+            TaskCheck(checked = checked, theme = theme, onClick = onToggle)
+        }
+        Spacer(Modifier.width(14.dp))
+
+        if (editing) {
+            TaskField(
+                draft = draft,
+                theme = theme,
+                userFont = userFont,
+                onDraftChange = onDraftChange,
+                onCommitEdit = onCommitEdit,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
             Text(
-                text = "+ Add a task",
-                style = VisionType.helperText,
-                color = theme.onSurfaceMuted,
+                text = task ?: prompt,
+                style = VisionType.bodyText(userFont).copy(
+                    // Struck through and dimmed together: either alone reads as a
+                    // styling quirk, the pair reads as done.
+                    textDecoration = if (checked) TextDecoration.LineThrough else null
+                ),
+                // A prompt sits muted like a hint; a set task only dims once it's done.
+                color = if (task == null || checked) theme.onSurfaceMuted else theme.onSurface,
                 modifier = Modifier
-                    .align(Alignment.End)
+                    .weight(1f)
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onAddTask)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .clickable(onClick = onStartEdit)
             )
         }
+
+        if (editing || task != null) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (editing) "✓" else "✕",
+                style = VisionType.glyph,
+                color = theme.onSurfaceMuted,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = if (editing) onCommitEdit else onRemove)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TaskField(
+    draft: String,
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    onDraftChange: (String) -> Unit,
+    onCommitEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val focusRequester = remember { FocusRequester() }
+    // Tapping the text is the whole gesture: without this the field would open silently
+    // and wait for a second tap to take focus.
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    BasicTextField(
+        value = draft,
+        onValueChange = onDraftChange,
+        singleLine = true,
+        textStyle = VisionType.bodyText(userFont).copy(color = theme.onSurface),
+        cursorBrush = SolidColor(theme.onSurface),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { onCommitEdit() }),
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                val y = size.height - stroke / 2
+                drawLine(
+                    color = theme.onSurface,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = stroke
+                )
+            }
+            .padding(bottom = 4.dp)
+    )
+}
+
+/** Empty ring until ticked, then a filled disc carrying the mark. */
+@Composable
+private fun TaskCheck(checked: Boolean, theme: CardTheme, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .then(
+                if (checked) {
+                    Modifier.background(theme.onSurfaceMuted)
+                } else {
+                    Modifier.border(1.5.dp, theme.onSurfaceMuted, CircleShape)
+                }
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Text(text = "✓", style = VisionType.eyebrow, color = theme.surface)
+        }
+    }
+}
+
+/**
+ * Progress as a proportion of the three, rounded to a whole percent. The bar is filled
+ * from the same rounded figure as the label, so the two can't disagree.
+ */
+@Composable
+private fun TaskProgress(done: Int, total: Int, theme: CardTheme) {
+    val percent = if (total == 0) 0 else Math.round(done * 100f / total)
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(2.dp)
+                .clip(CircleShape)
+                .background(theme.onSurfaceRule)
+        ) {
+            if (percent > 0) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(percent / 100f)
+                        .fillMaxHeight()
+                        .background(theme.onSurface)
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = "$percent%",
+            style = VisionType.eyebrow,
+            color = theme.onSurfaceMuted
+        )
     }
 }
 

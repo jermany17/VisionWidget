@@ -50,9 +50,8 @@ private const val NavBarWidthFraction = 0.8f
 @Composable
 fun VisionApp() {
     var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
-    // Stand in for the DB until it exists, driven by the dev panel below.
+    // Stands in for the DB until it exists, driven by the dev panel below.
     var hasVision by rememberSaveable { mutableStateOf(true) }
-    var hasTopThree by rememberSaveable { mutableStateOf(false) }
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
@@ -68,7 +67,6 @@ fun VisionApp() {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
                 hasVision = hasVision,
-                hasTopThree = hasTopThree,
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(contentPadding = screenPadding)
@@ -88,8 +86,6 @@ fun VisionApp() {
         DevPanel(
             hasVision = hasVision,
             onToggleVision = { hasVision = !hasVision },
-            hasTopThree = hasTopThree,
-            onToggleTopThree = { hasTopThree = !hasTopThree },
             // Sits clear of the nav bar, on the left so it can't cover the wisdom
             // card's shuffle control.
             modifier = Modifier
@@ -101,16 +97,14 @@ fun VisionApp() {
 }
 
 /**
- * Temporary switches for the states a database will own, so each can be seen before one
- * exists. Collapsed to a single chip by default — two open chips cover too much of the
- * screen. Delete this along with the state it drives once the DB is wired up.
+ * Temporary switch for the one state a database will still own before it exists —
+ * whether a vision is set. Collapsed behind a chip so it stays out of the way. Delete
+ * this along with the state it drives once the DB is wired up.
  */
 @Composable
 private fun DevPanel(
     hasVision: Boolean,
     onToggleVision: () -> Unit,
-    hasTopThree: Boolean,
-    onToggleTopThree: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -121,10 +115,6 @@ private fun DevPanel(
             DevChip(
                 text = if (hasVision) "VISION ON" else "VISION OFF",
                 onClick = onToggleVision
-            )
-            DevChip(
-                text = if (hasTopThree) "TOP 3 ON" else "TOP 3 OFF",
-                onClick = onToggleTopThree
             )
         }
         DevChip(

@@ -42,7 +42,7 @@ val DMMono = FontFamily(
  *
  * Styles that render the user's own content take a [UserFontChoice] and are functions;
  * chrome styles are fixed vals. [DMMono] is the chrome default, with the bottom
- * navigation and empty-state subtitles the exceptions on [DMSans].
+ * navigation the exception on [DMSans].
  */
 object VisionType {
     // --- User-selectable face, resolved from the id the DB stores ---
@@ -98,6 +98,18 @@ object VisionType {
         lineHeight = 16.sp
     )
 
+    /**
+     * The note under the list of slots — the rule the reader is being asked to keep.
+     * Set in the user's own face, like the prompts it sits beneath, a size down from
+     * them so it reads as an aside.
+     */
+    fun helperText(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    )
+
     // --- Chrome, always DMMono ---
 
     val eyebrow = TextStyle(
@@ -109,10 +121,10 @@ object VisionType {
     )
 
     /**
-     * Directional arrow beside a mono label. Sized above the label it sits next to,
-     * because at eyebrow size the arrow's strokes all but disappear.
+     * A symbol standing beside or inside a row — an arrow, a dismiss mark. Set above
+     * the label it accompanies, because at eyebrow size these strokes all but vanish.
      */
-    val arrow = TextStyle(
+    val glyph = TextStyle(
         fontFamily = DMMono,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
@@ -128,18 +140,6 @@ object VisionType {
         fontWeight = font.weight,
         fontSize = 15.sp,
         lineHeight = 21.sp
-    )
-
-    /**
-     * Chrome around a list rather than content in it — the hint under a group of
-     * controls and the control that adds to it, which share a size so neither
-     * outweighs the other.
-     */
-    val helperText = TextStyle(
-        fontFamily = DMSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 19.sp
     )
 
     val navLabel = TextStyle(

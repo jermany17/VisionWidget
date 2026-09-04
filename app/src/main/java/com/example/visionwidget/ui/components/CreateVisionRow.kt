@@ -61,7 +61,7 @@ fun CreateVisionRow(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = "→",
-                    style = VisionType.arrow,
+                    style = VisionType.glyph,
                     color = mutedColor,
                     modifier = Modifier.alignByBaseline()
                 )
