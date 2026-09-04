@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -45,6 +49,7 @@ fun VisionScreen(
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
+    var showCreateSheet by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -71,11 +76,23 @@ fun VisionScreen(
 
             HorizontalDivider(color = Rule, thickness = 1.dp)
             Spacer(Modifier.height(18.dp))
-            CreateVisionRow(onClick = onCreateVision)
+            CreateVisionRow(onClick = { showCreateSheet = true })
             // The floating nav sits right under this row, so clear it by more than the
             // bar's own margin or the two read as one block.
             Spacer(Modifier.height(24.dp + contentPadding.calculateBottomPadding()))
         }
+    }
+
+    if (showCreateSheet) {
+        CreateVisionSheet(
+            userFontId = userFontId,
+            onDismiss = { showCreateSheet = false },
+            onCreate = { _, _, _ ->
+                // No success screen yet — pass the event up and close the sheet.
+                onCreateVision()
+                showCreateSheet = false
+            }
+        )
     }
 }
 
