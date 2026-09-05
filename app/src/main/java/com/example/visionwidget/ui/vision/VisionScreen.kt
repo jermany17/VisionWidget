@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,9 +25,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,8 +48,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.Canvas
@@ -74,6 +77,12 @@ private val ChipShape = RoundedCornerShape(percent = 50)
 
 /** The one spot of color in an otherwise monochrome app — reserved for what can't be undone. */
 private val DestructiveFill = Color(0xFF7A3A3A)
+
+/** How much of the goal the delete prompt quotes before trailing off into an ellipsis. */
+private const val DeleteGoalMaxChars = 15
+
+private fun String.ellipsized(maxChars: Int): String =
+    if (length <= maxChars) this else take(maxChars).trimEnd() + "..."
 
 /**
  * The Vision tab. With nothing set it is a single prompt; once visions exist it becomes
@@ -473,9 +482,12 @@ private fun VisionLimitAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
 }
 
 /**
- * Confirms before a vision is removed. Keeping it is the plain, outlined choice; deleting
- * gets the one splash of color the app allows itself, so it can't be mistaken for routine.
+ * Confirms before a vision is removed — a bottom sheet like the create and edit flows,
+ * not a centred dialog, so all three read as the same kind of action on this screen.
+ * Keeping it is the plain, outlined choice; deleting gets the one splash of color the
+ * app allows itself, so it can't be mistaken for routine.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DeleteVisionDialog(
     goal: String,
@@ -483,19 +495,25 @@ private fun DeleteVisionDialog(
     onKeep: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Dialog(onDismissRequest = onKeep, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onKeep,
+        sheetState = sheetState,
+        containerColor = Canvas,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
         Column(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Canvas)
-                .padding(24.dp)
+                .padding(top = 4.dp, bottom = 20.dp)
+                .navigationBarsPadding()
         ) {
             Text(text = "DELETE VISION", style = SheetLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "Delete “$goal”?",
+                text = "Delete “${goal.ellipsized(DeleteGoalMaxChars)}”?",
                 style = VisionType.screenPromptTitle(userFont),
                 color = OnCanvas
             )
@@ -529,7 +547,7 @@ private fun DeleteVisionDialog(
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "DELETE VISION", style = SheetLabel, color = OnNavBar)
+                    Text(text = "DELETE", style = SheetLabel, color = OnNavBar)
                 }
             }
         }
