@@ -99,6 +99,20 @@ fun VisionApp() {
                     visions = visions + created
                     // A vision just made is the one the user wants to look at.
                     selectedVisionId = created.id
+                },
+                onEditVision = { id, goal, why, targetDateMillis ->
+                    visions = visions.map {
+                        if (it.id == id) {
+                            it.copy(goal = goal, why = why, targetDateMillis = targetDateMillis)
+                        } else {
+                            it
+                        }
+                    }
+                },
+                onDeleteVision = { id ->
+                    visions = visions.filterNot { it.id == id }
+                    // The fallback in VisionScreen picks another once this one is gone.
+                    if (selectedVisionId == id) selectedVisionId = null
                 }
             )
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)

@@ -83,14 +83,14 @@ private object TodayOrLater : SelectableDates {
 }
 
 /**
- * First step of creating a vision: a bottom sheet that collects the goal, the reason it
- * matters, and a target date.
+ * A bottom sheet that collects the goal, the reason it matters, and a target date — for
+ * a new vision, or for [editing] an existing one, whose fields it opens pre-filled.
  *
  * The primary button stays on its disabled "NAME IT FIRST" label until the goal and a
- * date are both in, then flips to "CREATE VISION". [onCreate] hands back the trimmed
- * text and the date as epoch millis — unformatted, so the caller can recompute how long
- * is left as the days pass; [onDismiss] fires on the drag-to-close, the scrim, and
- * CANCEL alike.
+ * date are both in, then flips to "CREATE VISION" (or "SAVE CHANGES" while editing).
+ * [onCreate] hands back the trimmed text and the date as epoch millis — unformatted, so
+ * the caller can recompute how long is left as the days pass; [onDismiss] fires on the
+ * drag-to-close, the scrim, and CANCEL alike.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,14 +98,15 @@ fun CreateVisionSheet(
     onDismiss: () -> Unit,
     onCreate: (goal: String, why: String, targetDateMillis: Long) -> Unit,
     modifier: Modifier = Modifier,
-    userFontId: Int = UserFonts.DEFAULT_ID
+    userFontId: Int = UserFonts.DEFAULT_ID,
+    editing: Vision? = null
 ) {
     val userFont = UserFonts[userFontId]
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var goal by rememberSaveable { mutableStateOf("") }
-    var why by rememberSaveable { mutableStateOf("") }
-    var targetDateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var goal by rememberSaveable { mutableStateOf(editing?.goal.orEmpty()) }
+    var why by rememberSaveable { mutableStateOf(editing?.why.orEmpty()) }
+    var targetDateMillis by rememberSaveable { mutableStateOf(editing?.targetDateMillis) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Bumped on every open so the picker is rebuilt seeded with the committed date,
     // rather than restoring whatever state it was left in last time.
@@ -131,10 +132,14 @@ fun CreateVisionSheet(
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            Text(text = "NEW VISION", style = SheetLabel, color = OnCanvasMuted)
+            Text(
+                text = if (editing != null) "EDIT VISION" else "NEW VISION",
+                style = SheetLabel,
+                color = OnCanvasMuted
+            )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "What are you actually after?",
+                text = if (editing != null) "Edit this vision" else "What are you actually after?",
                 style = VisionType.screenPromptTitle(userFont),
                 color = OnCanvas
             )
@@ -150,9 +155,9 @@ fun CreateVisionSheet(
 
             Spacer(Modifier.height(24.dp))
             SheetField(
-                label = "WHY IT MATTERS",
+                label = "WHY IT MATTERS · OPTIONAL",
                 value = why,
-                placeholder = "The sentence you'd say at 11pm",
+                placeholder = "Why does this matter to you?",
                 textStyle = VisionType.cardTitle(userFont),
                 onValueChange = { why = it }
             )
@@ -170,6 +175,7 @@ fun CreateVisionSheet(
             Spacer(Modifier.height(28.dp))
             PrimaryAction(
                 ready = ready,
+                readyLabel = if (editing != null) "SAVE CHANGES" else "CREATE VISION",
                 // Only reachable once both are set, so the date can't be absent here.
                 onClick = {
                     targetDateMillis?.let { onCreate(goal.trim(), why.trim(), it) }
@@ -323,11 +329,12 @@ private fun TargetDateRow(
 }
 
 /**
- * The full-width pill. Black and live once the goal and date are in; until then it wears
- * the disabled fill and reads "NAME IT FIRST", and taps do nothing.
+ * The full-width pill. Black and live once the goal and date are in, reading
+ * [readyLabel]; until then it wears the disabled fill and reads "NAME IT FIRST", and
+ * taps do nothing.
  */
 @Composable
-private fun PrimaryAction(ready: Boolean, onClick: () -> Unit) {
+private fun PrimaryAction(ready: Boolean, readyLabel: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -338,7 +345,7 @@ private fun PrimaryAction(ready: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = if (ready) "CREATE VISION" else "NAME IT FIRST",
+            text = if (ready) readyLabel else "NAME IT FIRST",
             style = SheetLabel,
             color = if (ready) OnNavBar else OnCanvasMuted
         )

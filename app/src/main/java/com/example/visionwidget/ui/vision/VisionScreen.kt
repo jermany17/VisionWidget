@@ -39,9 +39,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.Canvas
@@ -69,6 +72,9 @@ private val RingTrack = OnCanvas.copy(alpha = 0.09f)
 
 private val ChipShape = RoundedCornerShape(percent = 50)
 
+/** The one spot of color in an otherwise monochrome app — reserved for what can't be undone. */
+private val DestructiveFill = Color(0xFF7A3A3A)
+
 /**
  * The Vision tab. With nothing set it is a single prompt; once visions exist it becomes
  * a switcher over them, showing the selected one in full underneath.
@@ -82,6 +88,8 @@ fun VisionScreen(
     selectedVisionId: Long?,
     onSelectVision: (Long) -> Unit,
     onCreateVision: (goal: String, why: String, targetDateMillis: Long) -> Unit,
+    onEditVision: (id: Long, goal: String, why: String, targetDateMillis: Long) -> Unit,
+    onDeleteVision: (id: Long) -> Unit,
     contentPadding: PaddingValues = PaddingValues(),
     userFontId: Int = UserFonts.DEFAULT_ID,
     modifier: Modifier = Modifier
@@ -89,6 +97,8 @@ fun VisionScreen(
     val userFont = UserFonts[userFontId]
     var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var showLimitAlert by rememberSaveable { mutableStateOf(false) }
+    var showEditSheet by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
     // Falling back to the first vision covers both the first visit and a selection whose
     // vision is gone, so the screen always has something to show.
@@ -124,7 +134,9 @@ fun VisionScreen(
                     userFont = userFont,
                     contentPadding = contentPadding,
                     onSelectVision = onSelectVision,
-                    onRequestCreate = requestCreate
+                    onRequestCreate = requestCreate,
+                    onRequestEdit = { showEditSheet = true },
+                    onRequestDelete = { showDeleteDialog = true }
                 )
             }
         }
@@ -141,8 +153,32 @@ fun VisionScreen(
         )
     }
 
+    if (showEditSheet && selected != null) {
+        CreateVisionSheet(
+            userFontId = userFontId,
+            editing = selected,
+            onDismiss = { showEditSheet = false },
+            onCreate = { goal, why, targetDateMillis ->
+                onEditVision(selected.id, goal, why, targetDateMillis)
+                showEditSheet = false
+            }
+        )
+    }
+
     if (showLimitAlert) {
         VisionLimitAlert(userFont = userFont, onDismiss = { showLimitAlert = false })
+    }
+
+    if (showDeleteDialog && selected != null) {
+        DeleteVisionDialog(
+            goal = selected.goal,
+            userFont = userFont,
+            onKeep = { showDeleteDialog = false },
+            onDelete = {
+                onDeleteVision(selected.id)
+                showDeleteDialog = false
+            }
+        )
     }
 }
 
@@ -181,7 +217,9 @@ private fun VisionDetail(
     userFont: UserFontChoice,
     contentPadding: PaddingValues,
     onSelectVision: (Long) -> Unit,
-    onRequestCreate: () -> Unit
+    onRequestCreate: () -> Unit,
+    onRequestEdit: () -> Unit,
+    onRequestDelete: () -> Unit
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Spacer(Modifier.height(20.dp))
@@ -259,7 +297,52 @@ private fun VisionDetail(
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
         )
 
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = Rule, thickness = 1.dp)
+        Spacer(Modifier.height(20.dp))
+        VisionActions(
+            userFont = userFont,
+            onEdit = onRequestEdit,
+            onDelete = onRequestDelete
+        )
         Spacer(Modifier.height(24.dp + contentPadding.calculateBottomPadding()))
+    }
+}
+
+/**
+ * The selected vision's two actions. Edit takes the row so it reads as the vision's own
+ * button; Delete stays compact and outlined, sized to its label rather than sharing the
+ * weight, so it can't be mistaken for the primary action.
+ */
+@Composable
+private fun VisionActions(userFont: UserFontChoice, onEdit: () -> Unit, onDelete: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(ChipShape)
+                .background(NavBar)
+                .clickable(onClick = onEdit)
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "Edit vision", style = VisionType.cardTitle(userFont), color = OnNavBar)
+        }
+        Box(
+            modifier = Modifier
+                .clip(ChipShape)
+                .background(Canvas)
+                .border(1.dp, Rule, ChipShape)
+                .clickable(onClick = onDelete)
+                .padding(horizontal = 28.dp, vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "Delete", style = VisionType.cardTitle(userFont), color = OnCanvas)
+        }
     }
 }
 
@@ -387,6 +470,70 @@ private fun VisionLimitAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
             }
         }
     )
+}
+
+/**
+ * Confirms before a vision is removed. Keeping it is the plain, outlined choice; deleting
+ * gets the one splash of color the app allows itself, so it can't be mistaken for routine.
+ */
+@Composable
+private fun DeleteVisionDialog(
+    goal: String,
+    userFont: UserFontChoice,
+    onKeep: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Dialog(onDismissRequest = onKeep, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Canvas)
+                .padding(24.dp)
+        ) {
+            Text(text = "DELETE VISION", style = SheetLabel, color = OnCanvasMuted)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Delete “$goal”?",
+                style = VisionType.screenPromptTitle(userFont),
+                color = OnCanvas
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = "Its four milestones go with it. Your Top 3 and everything in " +
+                    "Insights stay exactly as they are.",
+                style = VisionType.bodyText(userFont),
+                color = OnCanvasMuted
+            )
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(ChipShape)
+                        .background(Canvas)
+                        .border(1.dp, Rule, ChipShape)
+                        .clickable(onClick = onKeep)
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "KEEP IT", style = SheetLabel, color = OnCanvas)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(ChipShape)
+                        .background(DestructiveFill)
+                        .clickable(onClick = onDelete)
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "DELETE VISION", style = SheetLabel, color = OnNavBar)
+                }
+            }
+        }
+    }
 }
 
 @Composable
