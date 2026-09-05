@@ -4,14 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -139,34 +137,14 @@ fun AddMilestoneSheet(
                 Spacer(Modifier.height(16.dp))
                 Text(text = "BY", style = SheetLabel, color = OnCanvasMuted)
                 Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = dueDateMillis?.let(::formatShortDate) ?: "Pick a date",
-                        style = VisionType.cardTitle(userFont),
-                        color = if (dueDateMillis == null) SheetHint else OnCanvas,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable(onClick = { showDatePicker = true }),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (dueDateMillis == null) "PICK" else "CHANGE",
-                            style = SheetLabel,
-                            color = OnCanvasMuted,
-                            modifier = Modifier.alignByBaseline()
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "→",
-                            style = VisionType.glyph,
-                            color = OnCanvasMuted,
-                            modifier = Modifier.alignByBaseline()
-                        )
-                    }
-                }
+                Text(
+                    text = dueDateMillis?.let(::formatShortDate) ?: "Pick a date",
+                    style = VisionType.cardTitle(userFont),
+                    color = if (dueDateMillis == null) SheetHint else OnCanvas,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = { showDatePicker = true })
+                )
             }
 
             Spacer(Modifier.height(28.dp))

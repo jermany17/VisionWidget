@@ -4,14 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -282,10 +280,7 @@ private fun SheetField(
     HorizontalDivider(color = Rule, thickness = 1.dp)
 }
 
-/**
- * The date line: a placeholder or the chosen date on the left, and a control on the
- * right that reads PICK before a date is set and CHANGE after — both open the picker.
- */
+/** The date line — a placeholder or the chosen date, tapped directly to open the picker. */
 @Composable
 private fun TargetDateRow(
     date: String,
@@ -294,36 +289,14 @@ private fun TargetDateRow(
 ) {
     Text(text = "TARGET DATE", style = SheetLabel, color = OnCanvasMuted)
     Spacer(Modifier.height(12.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = date.ifEmpty { "Pick a date" },
-            style = VisionType.cardTitle(userFont),
-            color = if (date.isEmpty()) SheetHint else OnCanvas,
-            modifier = Modifier.weight(1f)
-        )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = onPick),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Baseline-aligned so the larger arrow keeps the label's midline, matching
-            // the "ONE MINUTE →" control on the Vision screen.
-            Text(
-                text = if (date.isEmpty()) "PICK" else "CHANGE",
-                style = SheetLabel,
-                color = OnCanvasMuted,
-                modifier = Modifier.alignByBaseline()
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "→",
-                style = VisionType.glyph,
-                color = OnCanvasMuted,
-                modifier = Modifier.alignByBaseline()
-            )
-        }
-    }
+    Text(
+        text = date.ifEmpty { "Pick a date" },
+        style = VisionType.cardTitle(userFont),
+        color = if (date.isEmpty()) SheetHint else OnCanvas,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPick)
+    )
     Spacer(Modifier.height(12.dp))
     HorizontalDivider(color = Rule, thickness = 1.dp)
 }

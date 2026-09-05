@@ -250,7 +250,6 @@ fun VisionScreen(
         ConfirmDeleteSheet(
             label = "DELETE MILESTONE",
             title = "Delete “${milestonePendingDelete.step.ellipsized(DeleteGoalMaxChars)}”?",
-            message = "The vision stays. Only this step goes, and the ring recalculates.",
             userFont = userFont,
             onKeep = { milestonePendingDeleteId = null },
             onDelete = {
@@ -750,10 +749,10 @@ private fun LimitAlert(
 private fun ConfirmDeleteSheet(
     label: String,
     title: String,
-    message: String,
     userFont: UserFontChoice,
     onKeep: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    message: String? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -773,8 +772,10 @@ private fun ConfirmDeleteSheet(
             Text(text = label, style = SheetLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
             Text(text = title, style = VisionType.screenPromptTitle(userFont), color = OnCanvas)
-            Spacer(Modifier.height(14.dp))
-            Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)
+            if (message != null) {
+                Spacer(Modifier.height(14.dp))
+                Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)
+            }
             Spacer(Modifier.height(24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
