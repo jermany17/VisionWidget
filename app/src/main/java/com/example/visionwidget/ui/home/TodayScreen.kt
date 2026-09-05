@@ -67,6 +67,9 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.Vision
+import com.example.visionwidget.ui.vision.formatTargetDate
+import com.example.visionwidget.ui.vision.formatWeeksLeft
 
 // Mock data — pinned to the design reference until the real sources are wired up.
 private const val MOCK_DATE = "SATURDAY 1 AUGUST"
@@ -74,10 +77,6 @@ private const val MOCK_GREETING = "Good morning, Jae."
 private const val MOCK_INITIAL = "J"
 private const val MOCK_STREAK = "17 days"
 private const val MOCK_THIS_WEEK = "18 / 21"
-private const val MOCK_VISION_TITLE = "Harvard Law"
-private const val MOCK_VISION_BODY = "Become the lawyer I promised myself I would be."
-private const val MOCK_VISION_TARGET_DATE = "1 DECEMBER 2028"
-private const val MOCK_VISION_REMAINING = "121 WEEKS LEFT"
 
 /** Shown in place of tasks before any exist — examples of what belongs in the slot. */
 private val TOP_3_PROMPTS = listOf(
@@ -122,7 +121,7 @@ fun TodayScreen(
     topThreeThemeId: Int = CardThemes.DEFAULT_ID,
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
-    hasVision: Boolean = false,
+    vision: Vision? = null,
     onOpenVision: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -159,13 +158,14 @@ fun TodayScreen(
             // the prompt inside the card carries the action instead.
             SectionLabel(
                 label = "VISION",
-                action = if (hasVision) "OPEN" else null,
-                trailing = if (hasVision) null else "NOT SET",
+                action = if (vision != null) "OPEN" else null,
+                trailing = if (vision != null) null else "NOT SET",
                 onActionClick = onOpenVision
             )
             Spacer(Modifier.height(10.dp))
-            if (hasVision) {
+            if (vision != null) {
                 VisionCard(
+                    vision = vision,
                     theme = CardThemes[visionThemeId],
                     userFont = userFont,
                     onOpen = onOpenVision
@@ -571,9 +571,13 @@ private fun DashedCheckMark(color: Color) {
     )
 }
 
-/** The vision itself, once one is set. Tapping anywhere on it opens the Vision tab. */
+/**
+ * The vision itself, once one is set — the goal and its reason, over the target date
+ * and how long is left. Tapping anywhere on it opens the Vision tab.
+ */
 @Composable
 private fun VisionCard(
+    vision: Vision,
     theme: CardTheme,
     userFont: UserFontChoice,
     onOpen: () -> Unit
@@ -581,13 +585,13 @@ private fun VisionCard(
     ThemedCard(theme = theme, minHeight = 150.dp, onClick = onOpen) {
         Column(Modifier.padding(20.dp)) {
             Text(
-                text = MOCK_VISION_TITLE,
+                text = vision.goal,
                 style = VisionType.cardTitle(userFont),
                 color = theme.onSurface
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = MOCK_VISION_BODY,
+                text = vision.why,
                 style = VisionType.bodyText(userFont),
                 color = theme.onSurfaceMuted
             )
@@ -597,18 +601,19 @@ private fun VisionCard(
             Spacer(Modifier.height(14.dp))
 
             // Same footer row as the empty state's, so the card keeps its height and
-            // its gap under the divider whether or not a vision is set.
+            // its gap under the divider whether or not a vision is set. Uppercased to
+            // sit in the mono eyebrow beside the weeks.
             CardFooterRow(
                 start = {
                     Text(
-                        text = MOCK_VISION_TARGET_DATE,
+                        text = formatTargetDate(vision.targetDateMillis).uppercase(),
                         style = VisionType.eyebrow,
                         color = theme.onSurfaceMuted
                     )
                 },
                 end = {
                     Text(
-                        text = MOCK_VISION_REMAINING,
+                        text = formatWeeksLeft(vision.targetDateMillis),
                         style = VisionType.eyebrow,
                         color = theme.onSurfaceMuted
                     )

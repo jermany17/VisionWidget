@@ -61,25 +61,15 @@ import com.example.visionwidget.ui.theme.VisionType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * The sheet's DM Mono labels, a step up from the app's 10sp eyebrow so they hold their
  * own against the serif fields they sit beside. Local to this sheet on purpose.
  */
-private val SheetLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 16.sp)
+internal val SheetLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 16.sp)
 
 /** Placeholder ink for the sheet's fields — fainter than [OnCanvasMuted] body text. */
 private val SheetHint = OnCanvas.copy(alpha = 0.3f)
-
-/** "1 December 2028" — how a chosen target date reads on the row. */
-private val TargetDateFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
-
-// The picker hands back UTC midnight of the chosen day, so read it back in UTC.
-private fun formatTargetDate(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().format(TargetDateFormat)
 
 /** A target date can't be in the past — today is the earliest the picker will take. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,14 +88,15 @@ private object TodayOrLater : SelectableDates {
  *
  * The primary button stays on its disabled "NAME IT FIRST" label until the goal and a
  * date are both in, then flips to "CREATE VISION". [onCreate] hands back the trimmed
- * fields (the date already formatted) and the caller decides what a created vision does
- * next; [onDismiss] fires on the drag-to-close, the scrim, and CANCEL alike.
+ * text and the date as epoch millis — unformatted, so the caller can recompute how long
+ * is left as the days pass; [onDismiss] fires on the drag-to-close, the scrim, and
+ * CANCEL alike.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateVisionSheet(
     onDismiss: () -> Unit,
-    onCreate: (goal: String, why: String, targetDate: String) -> Unit,
+    onCreate: (goal: String, why: String, targetDateMillis: Long) -> Unit,
     modifier: Modifier = Modifier,
     userFontId: Int = UserFonts.DEFAULT_ID
 ) {
@@ -179,7 +170,10 @@ fun CreateVisionSheet(
             Spacer(Modifier.height(28.dp))
             PrimaryAction(
                 ready = ready,
-                onClick = { onCreate(goal.trim(), why.trim(), targetDateLabel) }
+                // Only reachable once both are set, so the date can't be absent here.
+                onClick = {
+                    targetDateMillis?.let { onCreate(goal.trim(), why.trim(), it) }
+                }
             )
 
             Spacer(Modifier.height(6.dp))

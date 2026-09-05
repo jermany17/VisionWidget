@@ -90,6 +90,17 @@ object VisionType {
         lineHeight = 30.sp
     )
 
+    /**
+     * The percentage inside a progress ring. Sized to the ring rather than to the text
+     * around it, so the figure fills the hole the ring leaves without crowding it.
+     */
+    fun ringValue(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 22.sp,
+        lineHeight = 26.sp
+    )
+
     /** The initial in the avatar chip. */
     fun avatar(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,

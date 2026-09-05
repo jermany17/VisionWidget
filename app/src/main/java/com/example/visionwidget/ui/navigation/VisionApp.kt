@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -34,6 +35,8 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.Vision
+import com.example.visionwidget.ui.vision.VisionListSaver
 import com.example.visionwidget.ui.vision.VisionScreen
 
 enum class VisionTab(val label: String) {
@@ -50,8 +53,17 @@ private const val NavBarWidthFraction = 0.8f
 @Composable
 fun VisionApp() {
     var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
-    // Stands in for the DB until it exists, driven by the dev panel below.
-    var hasVision by rememberSaveable { mutableStateOf(true) }
+
+    // The visions live here rather than in the Vision tab, because Today shows the
+    // first of them too — one list, so the two tabs can't disagree. Stands in for the
+    // DB until it exists.
+    var visions by rememberSaveable(stateSaver = VisionListSaver) {
+        mutableStateOf(emptyList<Vision>())
+    }
+    var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Ids are handed out here and never reused, so a chip's identity survives a
+    // neighbour being removed.
+    var nextVisionId by rememberSaveable { mutableLongStateOf(1L) }
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
@@ -66,10 +78,29 @@ fun VisionApp() {
         when (selectedTab) {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
-                hasVision = hasVision,
+                // Today follows the oldest vision, not the one the Vision tab happens
+                // to have selected.
+                vision = visions.firstOrNull(),
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
-            VisionTab.Vision -> VisionScreen(contentPadding = screenPadding)
+            VisionTab.Vision -> VisionScreen(
+                contentPadding = screenPadding,
+                visions = visions,
+                selectedVisionId = selectedVisionId,
+                onSelectVision = { selectedVisionId = it },
+                onCreateVision = { goal, why, targetDateMillis ->
+                    val created = Vision(
+                        id = nextVisionId,
+                        goal = goal,
+                        why = why,
+                        targetDateMillis = targetDateMillis
+                    )
+                    nextVisionId++
+                    visions = visions + created
+                    // A vision just made is the one the user wants to look at.
+                    selectedVisionId = created.id
+                }
+            )
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
             VisionTab.Insights -> PlaceholderScreen(VisionTab.Insights.label)
         }
@@ -82,60 +113,7 @@ fun VisionApp() {
                 .navigationBarsPadding()
                 .padding(vertical = NavBarMargin)
         )
-
-        DevPanel(
-            hasVision = hasVision,
-            onToggleVision = { hasVision = !hasVision },
-            // Sits clear of the nav bar, on the left so it can't cover the wisdom
-            // card's shuffle control.
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(start = 20.dp, bottom = NavBarHeight + NavBarMargin * 2)
-        )
     }
-}
-
-/**
- * Temporary switch for the one state a database will still own before it exists —
- * whether a vision is set. Collapsed behind a chip so it stays out of the way. Delete
- * this along with the state it drives once the DB is wired up.
- */
-@Composable
-private fun DevPanel(
-    hasVision: Boolean,
-    onToggleVision: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-
-    // Bottom-anchored, so opening the panel grows it upward and the trigger stays put.
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (expanded) {
-            DevChip(
-                text = if (hasVision) "VISION ON" else "VISION OFF",
-                onClick = onToggleVision
-            )
-        }
-        DevChip(
-            text = if (expanded) "DEV −" else "DEV +",
-            onClick = { expanded = !expanded }
-        )
-    }
-}
-
-@Composable
-private fun DevChip(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = VisionType.eyebrow,
-        color = OnNavBar,
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(NavBar)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    )
 }
 
 @Composable
