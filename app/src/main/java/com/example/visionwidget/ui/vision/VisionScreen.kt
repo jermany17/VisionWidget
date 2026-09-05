@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.Canvas
@@ -300,9 +301,10 @@ private fun VisionDetail(
         Text(text = "WHY", style = VisionType.eyebrow, color = OnCanvasMuted)
         Spacer(Modifier.height(10.dp))
         Text(
-            // The reason is optional at creation, so it can be absent here.
+            // The reason is optional at creation, so it can be absent here. A size
+            // down from the goal's title so it reads as supporting text, not a peer.
             text = selected.why.ifBlank { "No reason set." },
-            style = VisionType.screenPromptTitle(userFont),
+            style = VisionType.cardTitle(userFont).copy(fontSize = 19.sp, lineHeight = 25.sp),
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
         )
 
