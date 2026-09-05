@@ -569,8 +569,10 @@ private fun MilestonesSection(
     }
     Spacer(Modifier.height(16.dp))
 
-    vision.milestones.forEachIndexed { index, milestone ->
-        val isLast = index == vision.milestones.lastIndex
+    // Soonest due date first, regardless of the order they were added in.
+    val sortedMilestones = vision.milestones.sortedBy { it.dueDateMillis }
+    sortedMilestones.forEachIndexed { index, milestone ->
+        val isLast = index == sortedMilestones.lastIndex
         MilestoneRow(
             milestone = milestone,
             userFont = userFont,
@@ -635,7 +637,12 @@ private fun MilestoneRow(
             Column {
                 Text(
                     text = milestone.step,
+                    // A size down from cardTitle — four of these share the screen with
+                    // the ring, the WHY text, and the vision actions, so none of them
+                    // can afford to read as a headline.
                     style = VisionType.cardTitle(userFont).copy(
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
                         textDecoration = if (milestone.checked) TextDecoration.LineThrough else null
                     ),
                     color = if (milestone.checked) OnCanvasMuted else OnCanvas
