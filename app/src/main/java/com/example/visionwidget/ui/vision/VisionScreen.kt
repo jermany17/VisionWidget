@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -47,6 +49,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
@@ -100,6 +103,9 @@ fun VisionScreen(
     onCreateVision: (goal: String, why: String, targetDateMillis: Long) -> Unit,
     onEditVision: (id: Long, goal: String, why: String, targetDateMillis: Long) -> Unit,
     onDeleteVision: (id: Long) -> Unit,
+    onAddMilestone: (visionId: Long, step: String, dueDateMillis: Long) -> Unit,
+    onToggleMilestone: (visionId: Long, milestoneId: Long) -> Unit,
+    onDeleteMilestone: (visionId: Long, milestoneId: Long) -> Unit,
     contentPadding: PaddingValues = PaddingValues(),
     userFontId: Int = UserFonts.DEFAULT_ID,
     modifier: Modifier = Modifier
@@ -109,6 +115,9 @@ fun VisionScreen(
     var showLimitAlert by rememberSaveable { mutableStateOf(false) }
     var showEditSheet by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddMilestoneSheet by rememberSaveable { mutableStateOf(false) }
+    var showMilestoneLimitAlert by rememberSaveable { mutableStateOf(false) }
+    var milestonePendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     // Falling back to the first vision covers both the first visit and a selection whose
     // vision is gone, so the screen always has something to show.
@@ -146,7 +155,16 @@ fun VisionScreen(
                     onSelectVision = onSelectVision,
                     onRequestCreate = requestCreate,
                     onRequestEdit = { showEditSheet = true },
-                    onRequestDelete = { showDeleteDialog = true }
+                    onRequestDelete = { showDeleteDialog = true },
+                    onToggleMilestone = { milestoneId -> onToggleMilestone(selected.id, milestoneId) },
+                    onRequestDeleteMilestone = { milestone -> milestonePendingDeleteId = milestone.id },
+                    onRequestAddMilestone = {
+                        if (selected.milestones.size >= MAX_MILESTONES_PER_VISION) {
+                            showMilestoneLimitAlert = true
+                        } else {
+                            showAddMilestoneSheet = true
+                        }
+                    }
                 )
             }
         }
@@ -175,18 +193,69 @@ fun VisionScreen(
         )
     }
 
+    if (showAddMilestoneSheet && selected != null) {
+        AddMilestoneSheet(
+            visionTargetDateMillis = selected.targetDateMillis,
+            userFontId = userFontId,
+            onDismiss = { showAddMilestoneSheet = false },
+            onAdd = { step, dueDateMillis ->
+                onAddMilestone(selected.id, step, dueDateMillis)
+                showAddMilestoneSheet = false
+            }
+        )
+    }
+
     if (showLimitAlert) {
-        VisionLimitAlert(userFont = userFont, onDismiss = { showLimitAlert = false })
+        LimitAlert(
+            title = "THREE IS THE LIMIT",
+            message = "You've already created three visions. " +
+                "Remove one before adding another.",
+            userFont = userFont,
+            onDismiss = { showLimitAlert = false }
+        )
+    }
+
+    if (showMilestoneLimitAlert) {
+        LimitAlert(
+            title = "FOUR IS THE LIMIT",
+            message = "This vision already has four milestones. " +
+                "Remove one before adding another.",
+            userFont = userFont,
+            onDismiss = { showMilestoneLimitAlert = false }
+        )
     }
 
     if (showDeleteDialog && selected != null) {
-        DeleteVisionDialog(
-            goal = selected.goal,
+        val milestoneCount = selected.milestones.size
+        val milestoneClause = when (milestoneCount) {
+            0 -> "It has no milestones yet."
+            1 -> "Its one milestone goes with it."
+            else -> "Its $milestoneCount milestones go with it."
+        }
+        ConfirmDeleteSheet(
+            label = "DELETE VISION",
+            title = "Delete “${selected.goal.ellipsized(DeleteGoalMaxChars)}”?",
+            message = "$milestoneClause Your Top 3 and everything in Insights stay exactly as they are.",
             userFont = userFont,
             onKeep = { showDeleteDialog = false },
             onDelete = {
                 onDeleteVision(selected.id)
                 showDeleteDialog = false
+            }
+        )
+    }
+
+    val milestonePendingDelete = selected?.milestones?.firstOrNull { it.id == milestonePendingDeleteId }
+    if (milestonePendingDelete != null && selected != null) {
+        ConfirmDeleteSheet(
+            label = "DELETE MILESTONE",
+            title = "Delete “${milestonePendingDelete.step.ellipsized(DeleteGoalMaxChars)}”?",
+            message = "The vision stays. Only this step goes, and the ring recalculates.",
+            userFont = userFont,
+            onKeep = { milestonePendingDeleteId = null },
+            onDelete = {
+                onDeleteMilestone(selected.id, milestonePendingDelete.id)
+                milestonePendingDeleteId = null
             }
         )
     }
@@ -229,7 +298,10 @@ private fun VisionDetail(
     onSelectVision: (Long) -> Unit,
     onRequestCreate: () -> Unit,
     onRequestEdit: () -> Unit,
-    onRequestDelete: () -> Unit
+    onRequestDelete: () -> Unit,
+    onToggleMilestone: (Long) -> Unit,
+    onRequestDeleteMilestone: (Milestone) -> Unit,
+    onRequestAddMilestone: () -> Unit
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Spacer(Modifier.height(20.dp))
@@ -306,6 +378,18 @@ private fun VisionDetail(
             text = selected.why.ifBlank { "No reason set." },
             style = VisionType.cardTitle(userFont).copy(fontSize = 19.sp, lineHeight = 25.sp),
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
+        )
+
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = Rule, thickness = 1.dp)
+        Spacer(Modifier.height(24.dp))
+
+        MilestonesSection(
+            vision = selected,
+            userFont = userFont,
+            onToggle = onToggleMilestone,
+            onRequestDelete = onRequestDeleteMilestone,
+            onRequestAdd = onRequestAddMilestone
         )
 
         Spacer(Modifier.height(24.dp))
@@ -458,22 +542,187 @@ private fun ProgressRing(percent: Int, userFont: UserFontChoice) {
     }
 }
 
-/** Shown when the add control is used with all three slots taken. */
+private val MilestoneCircleSize = 22.dp
+
+/**
+ * A vision's milestones — the header, the timeline of steps if any exist, the add
+ * control, and the note explaining what checking one does. Always rendered as one
+ * block so the add control and the note appear whether or not steps exist yet.
+ */
 @Composable
-private fun VisionLimitAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
+private fun MilestonesSection(
+    vision: Vision,
+    userFont: UserFontChoice,
+    onToggle: (Long) -> Unit,
+    onRequestDelete: (Milestone) -> Unit,
+    onRequestAdd: () -> Unit
+) {
+    val checkedCount = vision.milestones.count { it.checked }
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text = "MILESTONES · THIS VISION", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Text(
+            text = "$checkedCount / ${vision.milestones.size} REACHED",
+            style = VisionType.eyebrow,
+            color = OnCanvasMuted
+        )
+    }
+    Spacer(Modifier.height(16.dp))
+
+    vision.milestones.forEachIndexed { index, milestone ->
+        val isLast = index == vision.milestones.lastIndex
+        MilestoneRow(
+            milestone = milestone,
+            userFont = userFont,
+            isLast = isLast,
+            onToggle = { onToggle(milestone.id) },
+            onDelete = { onRequestDelete(milestone) }
+        )
+        if (!isLast) Spacer(Modifier.height(8.dp))
+    }
+    Spacer(Modifier.height(16.dp))
+
+    AddMilestoneRow(onClick = onRequestAdd)
+    Spacer(Modifier.height(16.dp))
+    Text(
+        text = "Milestones belong to this vision only. Checking one moves the ring — " +
+            "that's the only progress the app tracks.",
+        style = VisionType.bodyText(userFont),
+        color = OnCanvasMuted
+    )
+}
+
+/**
+ * One milestone: a check circle linked by a hairline to the next one, the step (struck
+ * through once checked) and its date, and a delete control. The step and date sit in
+ * their own clickable region, separate from delete, so a tap anywhere on them toggles
+ * the check without the two controls fighting over the same gesture.
+ */
+@Composable
+private fun MilestoneRow(
+    milestone: Milestone,
+    userFont: UserFontChoice,
+    isLast: Boolean,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.Top
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onToggle),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                MilestoneCheck(checked = milestone.checked)
+                if (!isLast) {
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .weight(1f)
+                            .background(Rule)
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = milestone.step,
+                    style = VisionType.cardTitle(userFont).copy(
+                        textDecoration = if (milestone.checked) TextDecoration.LineThrough else null
+                    ),
+                    color = if (milestone.checked) OnCanvasMuted else OnCanvas
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "BY ${formatTargetDate(milestone.dueDateMillis)}",
+                    style = VisionType.eyebrow,
+                    color = OnCanvasMuted
+                )
+            }
+        }
+        Text(
+            text = "✕",
+            style = VisionType.glyph,
+            color = OnCanvasMuted,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = onDelete)
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/** Hollow ring when unchecked; filled with a check mark once reached. */
+@Composable
+private fun MilestoneCheck(checked: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(MilestoneCircleSize)
+            .clip(CircleShape)
+            .then(
+                if (checked) Modifier.background(OnCanvas)
+                else Modifier.border(1.5.dp, OnCanvas, CircleShape)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) Text(text = "✓", style = VisionType.eyebrow, color = OnNavBar)
+    }
+}
+
+/** The add control, dashed like [NewVisionChip] but spanning the row rather than a chip. */
+@Composable
+private fun AddMilestoneRow(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ChipShape)
+            .clickable(onClick = onClick)
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                drawRoundRect(
+                    color = OnCanvasMuted,
+                    topLeft = Offset(stroke / 2, stroke / 2),
+                    size = Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = CornerRadius(size.height / 2),
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(4.dp.toPx(), 4.dp.toPx())
+                        )
+                    )
+                )
+            }
+            .padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "+ ADD A MILESTONE", style = SheetLabel, color = OnCanvasMuted)
+    }
+}
+
+/** Shown when an add control is used with all its slots already taken. */
+@Composable
+private fun LimitAlert(
+    title: String,
+    message: String,
+    userFont: UserFontChoice,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Canvas,
         title = {
-            Text(text = "THREE IS THE LIMIT", style = SheetLabel, color = OnCanvas)
+            Text(text = title, style = SheetLabel, color = OnCanvas)
         },
         text = {
-            Text(
-                text = "You've already created three visions. " +
-                    "Remove one before adding another.",
-                style = VisionType.bodyText(userFont),
-                color = OnCanvasMuted
-            )
+            Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
@@ -484,15 +733,17 @@ private fun VisionLimitAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
 }
 
 /**
- * Confirms before a vision is removed — a bottom sheet like the create and edit flows,
- * not a centred dialog, so all three read as the same kind of action on this screen.
- * Keeping it is the plain, outlined choice; deleting gets the one splash of color the
- * app allows itself, so it can't be mistaken for routine.
+ * Confirms before a vision or one of its milestones is removed — a bottom sheet like
+ * the create and edit flows, not a centred dialog, so every confirmation on this screen
+ * reads as the same kind of action. Keeping it is the plain, outlined choice; deleting
+ * gets the one splash of color the app allows itself, so it can't be mistaken for routine.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeleteVisionDialog(
-    goal: String,
+private fun ConfirmDeleteSheet(
+    label: String,
+    title: String,
+    message: String,
     userFont: UserFontChoice,
     onKeep: () -> Unit,
     onDelete: () -> Unit
@@ -512,20 +763,11 @@ private fun DeleteVisionDialog(
                 .padding(top = 4.dp, bottom = 20.dp)
                 .navigationBarsPadding()
         ) {
-            Text(text = "DELETE VISION", style = SheetLabel, color = OnCanvasMuted)
+            Text(text = label, style = SheetLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Delete “${goal.ellipsized(DeleteGoalMaxChars)}”?",
-                style = VisionType.screenPromptTitle(userFont),
-                color = OnCanvas
-            )
+            Text(text = title, style = VisionType.screenPromptTitle(userFont), color = OnCanvas)
             Spacer(Modifier.height(14.dp))
-            Text(
-                text = "Its four milestones go with it. Your Top 3 and everything in " +
-                    "Insights stay exactly as they are.",
-                style = VisionType.bodyText(userFont),
-                color = OnCanvasMuted
-            )
+            Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)
             Spacer(Modifier.height(24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(

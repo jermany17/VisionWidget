@@ -69,7 +69,7 @@ import java.time.ZoneOffset
 internal val SheetLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 16.sp)
 
 /** Placeholder ink for the sheet's fields — fainter than [OnCanvasMuted] body text. */
-private val SheetHint = OnCanvas.copy(alpha = 0.3f)
+internal val SheetHint = OnCanvas.copy(alpha = 0.3f)
 
 /** A target date can't be in the past — today is the earliest the picker will take. */
 @OptIn(ExperimentalMaterial3Api::class)

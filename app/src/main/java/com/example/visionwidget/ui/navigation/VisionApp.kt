@@ -35,6 +35,7 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.VisionListSaver
 import com.example.visionwidget.ui.vision.VisionScreen
@@ -64,6 +65,8 @@ fun VisionApp() {
     // Ids are handed out here and never reused, so a chip's identity survives a
     // neighbour being removed.
     var nextVisionId by rememberSaveable { mutableLongStateOf(1L) }
+    // One counter shared across every vision's milestones, same reasoning as above.
+    var nextMilestoneId by rememberSaveable { mutableLongStateOf(1L) }
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
@@ -113,6 +116,33 @@ fun VisionApp() {
                     visions = visions.filterNot { it.id == id }
                     // The fallback in VisionScreen picks another once this one is gone.
                     if (selectedVisionId == id) selectedVisionId = null
+                },
+                onAddMilestone = { visionId, step, dueDateMillis ->
+                    val milestone = Milestone(
+                        id = nextMilestoneId,
+                        step = step,
+                        dueDateMillis = dueDateMillis
+                    )
+                    nextMilestoneId++
+                    visions = visions.map {
+                        if (it.id == visionId) it.copy(milestones = it.milestones + milestone) else it
+                    }
+                },
+                onToggleMilestone = { visionId, milestoneId ->
+                    visions = visions.map { vision ->
+                        if (vision.id != visionId) return@map vision
+                        vision.copy(
+                            milestones = vision.milestones.map {
+                                if (it.id == milestoneId) it.copy(checked = !it.checked) else it
+                            }
+                        )
+                    }
+                },
+                onDeleteMilestone = { visionId, milestoneId ->
+                    visions = visions.map { vision ->
+                        if (vision.id != visionId) return@map vision
+                        vision.copy(milestones = vision.milestones.filterNot { it.id == milestoneId })
+                    }
                 }
             )
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
