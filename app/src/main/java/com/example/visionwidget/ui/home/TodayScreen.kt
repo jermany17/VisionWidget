@@ -589,12 +589,16 @@ private fun VisionCard(
                 style = VisionType.cardTitle(userFont),
                 color = theme.onSurface
             )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = vision.why,
-                style = VisionType.bodyText(userFont),
-                color = theme.onSurfaceMuted
-            )
+            // The reason is optional, so an empty one shouldn't still hold open the
+            // line's height — that's what was reading as a stray gap above the rule.
+            if (vision.why.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = vision.why,
+                    style = VisionType.bodyText(userFont),
+                    color = theme.onSurfaceMuted
+                )
+            }
 
             Spacer(Modifier.height(18.dp))
             HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
