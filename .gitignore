@@ -22,3 +22,5 @@ local.properties
 
 # Emulator screenshots captured while verifying the UI.
 .screenshots/
+.tmp_screens/
+/vw*.png
