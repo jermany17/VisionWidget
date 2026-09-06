@@ -99,7 +99,9 @@ private fun String.ellipsized(maxChars: Int): String =
 fun VisionScreen(
     visions: List<Vision>,
     selectedVisionId: Long?,
+    mainVisionId: Long?,
     onSelectVision: (Long) -> Unit,
+    onSetMainVision: (Long) -> Unit,
     onCreateVision: (goal: String, why: String, targetDateMillis: Long) -> Unit,
     onEditVision: (id: Long, goal: String, why: String, targetDateMillis: Long) -> Unit,
     onDeleteVision: (id: Long) -> Unit,
@@ -150,9 +152,11 @@ fun VisionScreen(
                 VisionDetail(
                     visions = visions,
                     selected = selected,
+                    mainVisionId = mainVisionId,
                     userFont = userFont,
                     contentPadding = contentPadding,
                     onSelectVision = onSelectVision,
+                    onSetMainVision = { onSetMainVision(selected.id) },
                     onRequestCreate = requestCreate,
                     onRequestEdit = { showEditSheet = true },
                     onRequestDelete = { showDeleteDialog = true },
@@ -292,9 +296,11 @@ private fun ColumnScope.EmptyVision(
 private fun VisionDetail(
     visions: List<Vision>,
     selected: Vision,
+    mainVisionId: Long?,
     userFont: UserFontChoice,
     contentPadding: PaddingValues,
     onSelectVision: (Long) -> Unit,
+    onSetMainVision: () -> Unit,
     onRequestCreate: () -> Unit,
     onRequestEdit: () -> Unit,
     onRequestDelete: () -> Unit,
@@ -325,6 +331,7 @@ private fun VisionDetail(
                 VisionChip(
                     vision = vision,
                     selected = vision.id == selected.id,
+                    isMain = vision.id == mainVisionId,
                     onClick = { onSelectVision(vision.id) }
                 )
             }
@@ -377,6 +384,12 @@ private fun VisionDetail(
             text = selected.why.ifBlank { "No reason set." },
             style = VisionType.cardTitle(userFont).copy(fontSize = 19.sp, lineHeight = 25.sp),
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
+        )
+
+        Spacer(Modifier.height(24.dp))
+        VisionMainRow(
+            isMain = selected.id == mainVisionId,
+            onSetMain = onSetMainVision
         )
 
         Spacer(Modifier.height(24.dp))
@@ -441,11 +454,43 @@ private fun VisionActions(userFont: UserFontChoice, onEdit: () -> Unit, onDelete
 }
 
 /**
- * One vision in the switcher. The selected chip inverts to the nav bar's black so the
- * current vision reads at a glance; the rest carry the canvas hairline.
+ * The widgets read from exactly one vision at a time — this row shows whether the
+ * selected one is it, and hands off the job when it isn't. Already being main makes
+ * the row inert: there's nothing a tap here could change.
  */
 @Composable
-private fun VisionChip(vision: Vision, selected: Boolean, onClick: () -> Unit) {
+private fun VisionMainRow(isMain: Boolean, onSetMain: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Canvas)
+            .border(if (isMain) 1.5.dp else 1.dp, if (isMain) OnCanvas else Rule, RoundedCornerShape(16.dp))
+            .clickable(enabled = !isMain, onClick = onSetMain)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "SHOWN ON YOUR WIDGETS",
+            style = SheetLabel,
+            color = if (isMain) OnCanvas else OnCanvasMuted
+        )
+        // No label to tap when it isn't main — the whole row is already the control.
+        if (isMain) {
+            Text(text = "◆ MAIN", style = SheetLabel, color = OnCanvas)
+        }
+    }
+}
+
+/**
+ * One vision in the switcher. The selected chip inverts to the nav bar's black so the
+ * current vision reads at a glance; the rest carry the canvas hairline. The diamond
+ * marks which vision is main — independent of which one is selected here, since a
+ * vision can be viewed without being the one shown on the widgets.
+ */
+@Composable
+private fun VisionChip(vision: Vision, selected: Boolean, isMain: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(ChipShape)
@@ -456,7 +501,7 @@ private fun VisionChip(vision: Vision, selected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = vision.goal,
+            text = if (isMain) "◆ ${vision.goal}" else vision.goal,
             style = VisionType.navLabel,
             color = if (selected) OnNavBar else OnCanvas
         )

@@ -62,6 +62,9 @@ fun VisionApp() {
         mutableStateOf(emptyList<Vision>())
     }
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // The one vision the widgets read from — distinct from selectedVisionId, which is
+    // just whichever one the Vision tab happens to be showing right now.
+    var mainVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Ids are handed out here and never reused, so a chip's identity survives a
     // neighbour being removed.
     var nextVisionId by rememberSaveable { mutableLongStateOf(1L) }
@@ -81,16 +84,18 @@ fun VisionApp() {
         when (selectedTab) {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
-                // Today follows the oldest vision, not the one the Vision tab happens
-                // to have selected.
-                vision = visions.firstOrNull(),
+                // Today follows whichever vision is set as main, falling back to the
+                // oldest one until the user has chosen.
+                vision = visions.firstOrNull { it.id == mainVisionId } ?: visions.firstOrNull(),
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(
                 contentPadding = screenPadding,
                 visions = visions,
                 selectedVisionId = selectedVisionId,
+                mainVisionId = mainVisionId,
                 onSelectVision = { selectedVisionId = it },
+                onSetMainVision = { mainVisionId = it },
                 onCreateVision = { goal, why, targetDateMillis ->
                     val created = Vision(
                         id = nextVisionId,
@@ -99,6 +104,9 @@ fun VisionApp() {
                         targetDateMillis = targetDateMillis
                     )
                     nextVisionId++
+                    // The very first vision is main by default; later ones stay
+                    // secondary until the user says otherwise.
+                    if (visions.isEmpty()) mainVisionId = created.id
                     visions = visions + created
                     // A vision just made is the one the user wants to look at.
                     selectedVisionId = created.id
@@ -116,6 +124,9 @@ fun VisionApp() {
                     visions = visions.filterNot { it.id == id }
                     // The fallback in VisionScreen picks another once this one is gone.
                     if (selectedVisionId == id) selectedVisionId = null
+                    // Main can't point at a vision that no longer exists — hand the
+                    // job to whichever one is left, if any.
+                    if (mainVisionId == id) mainVisionId = visions.firstOrNull()?.id
                 },
                 onAddMilestone = { visionId, step, dueDateMillis ->
                     val milestone = Milestone(

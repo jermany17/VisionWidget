@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
@@ -47,12 +48,18 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
 import com.example.visionwidget.ui.theme.OnNavBar
-import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+
+/** The "adding" card's fill — a warm off-white so the sheet's own fields stand apart. */
+private val AddingFill = Color(0xFFF4F1E8)
+
+/** The rule between STEP and BY — darker than the app's usual hairline so it reads
+ * clearly against [AddingFill] instead of all but disappearing. */
+private val AddingDivider = OnCanvas.copy(alpha = 0.3f)
 
 /** A milestone's date can't come before today or after the vision's own target date. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,6 +121,12 @@ fun AddMilestoneSheet(
                 style = VisionType.screenPromptTitle(userFont),
                 color = OnCanvas
             )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "One step, one date.",
+                style = VisionType.bodyText(userFont),
+                color = OnCanvasMuted
+            )
 
             Spacer(Modifier.height(28.dp))
             Text(text = "ADDING", style = SheetLabel, color = OnCanvasMuted)
@@ -122,7 +135,7 @@ fun AddMilestoneSheet(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(AvatarFill)
+                    .background(AddingFill)
                     .padding(16.dp)
             ) {
                 Text(text = "STEP", style = SheetLabel, color = OnCanvasMuted)
@@ -133,7 +146,7 @@ fun AddMilestoneSheet(
                     textStyle = VisionType.cardTitle(userFont)
                 )
                 Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = Rule, thickness = 1.dp)
+                HorizontalDivider(color = AddingDivider, thickness = 1.dp)
                 Spacer(Modifier.height(16.dp))
                 Text(text = "BY", style = SheetLabel, color = OnCanvasMuted)
                 Spacer(Modifier.height(10.dp))
@@ -145,6 +158,8 @@ fun AddMilestoneSheet(
                         .fillMaxWidth()
                         .clickable(onClick = { showDatePicker = true })
                 )
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = AddingDivider, thickness = 1.dp)
             }
 
             Spacer(Modifier.height(28.dp))
@@ -160,7 +175,7 @@ fun AddMilestoneSheet(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "ADD TO THIS VISION",
+                    text = "ADD MILESTONE",
                     style = SheetLabel,
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
