@@ -589,16 +589,14 @@ private fun VisionCard(
                 style = VisionType.cardTitle(userFont),
                 color = theme.onSurface
             )
-            // The reason is optional, so an empty one shouldn't still hold open the
-            // line's height — that's what was reading as a stray gap above the rule.
-            if (vision.why.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = vision.why,
-                    style = VisionType.bodyText(userFont),
-                    color = theme.onSurfaceMuted
-                )
-            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                // The reason is optional, so it can be absent here — matches the
+                // Vision tab's own fallback rather than leaving the line blank.
+                text = vision.why.ifBlank { "No reason set." },
+                style = VisionType.bodyText(userFont),
+                color = theme.onSurfaceMuted
+            )
 
             Spacer(Modifier.height(18.dp))
             HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
