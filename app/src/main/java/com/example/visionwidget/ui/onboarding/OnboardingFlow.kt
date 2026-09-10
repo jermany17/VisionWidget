@@ -26,11 +26,18 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,9 +65,13 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.formatTargetDate
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /** Total questions in the flow — the denominator on every step's counter and bar. */
-const val ONBOARDING_STEPS = 5
+const val ONBOARDING_STEPS = 6
 
 /** Inline validation ink — a red held back enough to sit in the restrained palette. */
 private val ErrorRed = Color(0xFFB3261E)
@@ -76,15 +87,16 @@ private val GoalPresets = listOf(
     "Financial freedom"
 )
 
-/** Everything the flow collects. Grows a field per step; goal and reason so far. */
+/** Everything the flow collects. Grows a field per step; goal, reason and date so far. */
 data class OnboardingData(
     val goal: String = "",
-    val why: String = ""
+    val why: String = "",
+    val targetDateMillis: Long? = null
 )
 
 /**
- * The first-run flow: five short questions, each skippable, with a progress line and a
- * step counter across the top. Only the first three steps are built out; the rest are
+ * The first-run flow: six short questions, each skippable, with a progress line and a
+ * step counter across the top. Only the first four steps are built out; the rest are
  * navigable placeholders until they're filled in.
  *
  * [onSkip] drops everything entered and opens the home screen; [onComplete] hands back
@@ -104,6 +116,8 @@ fun OnboardingFlow(
     var goalError by rememberSaveable { mutableStateOf(false) }
     var why by rememberSaveable { mutableStateOf("") }
     var whyError by rememberSaveable { mutableStateOf(false) }
+    var dateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var dateError by rememberSaveable { mutableStateOf(false) }
     var showSkipConfirm by rememberSaveable { mutableStateOf(false) }
 
     Column(
@@ -125,9 +139,19 @@ fun OnboardingFlow(
             StepHeader(
                 step = step,
                 canGoBack = step > 1,
-                onBack = { step-- ; goalError = false ; whyError = false },
+                onBack = { step-- ; goalError = false ; whyError = false ; dateError = false },
                 onSkip = { showSkipConfirm = true }
             )
+
+            val finish = {
+                onComplete(
+                    OnboardingData(
+                        goal = goal.trim(),
+                        why = why.trim(),
+                        targetDateMillis = dateMillis
+                    )
+                )
+            }
 
             when (step) {
                 1 -> IntroStep(userFont = userFont, onStart = { step = 2 })
@@ -145,21 +169,25 @@ fun OnboardingFlow(
                     why = why,
                     error = whyError,
                     onWhyChange = { why = it ; whyError = false },
-                    // Steps 4–5 aren't built, so a valid step 3 finishes the flow for now.
                     onNext = {
-                        if (why.isBlank()) {
-                            whyError = true
-                        } else {
-                            whyError = false
-                            onComplete(OnboardingData(goal = goal.trim(), why = why.trim()))
-                        }
+                        if (why.isBlank()) whyError = true else { whyError = false ; step = 4 }
+                    }
+                )
+                4 -> DateStep(
+                    userFont = userFont,
+                    dateMillis = dateMillis,
+                    error = dateError,
+                    onDateChange = { dateMillis = it ; dateError = false },
+                    // Steps 5–6 aren't built, so a valid step 4 finishes the flow for now.
+                    onNext = {
+                        if (dateMillis == null) dateError = true else { dateError = false ; finish() }
                     }
                 )
                 else -> PlaceholderStep(
                     step = step,
                     isLast = step == ONBOARDING_STEPS,
                     onNext = { step++ },
-                    onFinish = { onComplete(OnboardingData(goal = goal.trim(), why = why.trim())) }
+                    onFinish = finish
                 )
             }
         }
@@ -178,7 +206,7 @@ fun OnboardingFlow(
     }
 }
 
-/** A hairline-thin bar filled from the left to the current step's share of five. */
+/** A hairline-thin bar filled from the left to the current step's share of six. */
 @Composable
 private fun StepProgressBar(fraction: Float) {
     Box(
@@ -379,6 +407,129 @@ private fun ColumnScope.WhyStep(
     }
 }
 
+/** Step 4 — the date to aim for, chosen from the same picker the vision sheet uses. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColumnScope.DateStep(
+    userFont: UserFontChoice,
+    dateMillis: Long?,
+    error: Boolean,
+    onDateChange: (Long) -> Unit,
+    onNext: () -> Unit
+) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    // Bumped on every open so the picker seeds from the committed date, not whatever
+    // state it was left in last time.
+    var pickerGeneration by rememberSaveable { mutableIntStateOf(0) }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Spacer(Modifier.height(28.dp))
+        Text(text = "THE DATE", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "When do you want it by?",
+            style = VisionType.screenPromptTitle(userFont),
+            color = OnCanvas
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "Pick a day to aim for. You can move it later.",
+            style = VisionType.bodyText(userFont),
+            color = OnCanvasMuted
+        )
+
+        Spacer(Modifier.height(28.dp))
+        val label = dateMillis?.let(::formatTargetDate)
+        Text(
+            text = label ?: "Pick a date",
+            style = VisionType.cardTitle(userFont),
+            color = if (label == null) OnCanvas.copy(alpha = 0.3f) else OnCanvas,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    pickerGeneration++
+                    showPicker = true
+                }
+        )
+        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(
+            color = if (error) ErrorRed else Rule,
+            thickness = if (error) 2.dp else 1.dp
+        )
+        if (error) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Pick a date to continue.",
+                style = VisionType.bodyText(userFont),
+                color = ErrorRed
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
+        StepPrimaryButton(label = "NEXT", onClick = onNext)
+        Spacer(Modifier.height(24.dp))
+    }
+
+    if (showPicker) {
+        val pickerState = key(pickerGeneration) {
+            rememberDatePickerState(
+                initialSelectedDateMillis = dateMillis,
+                yearRange = LocalDate.now().year..DatePickerDefaults.YearRange.last,
+                selectableDates = TodayOrLater
+            )
+        }
+        val pickerColors = DatePickerDefaults.colors(
+            containerColor = Canvas,
+            selectedDayContainerColor = OnCanvas,
+            selectedDayContentColor = Canvas,
+            todayContentColor = OnCanvas,
+            todayDateBorderColor = OnCanvas,
+            selectedYearContainerColor = OnCanvas,
+            selectedYearContentColor = Canvas
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerState.selectedDateMillis?.let(onDateChange)
+                        showPicker = false
+                    },
+                    enabled = pickerState.selectedDateMillis != null
+                ) {
+                    Text(text = "SET", style = StepLabel, color = OnCanvas)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text(text = "CANCEL", style = StepLabel, color = OnCanvasMuted)
+                }
+            },
+            colors = pickerColors
+        ) {
+            DatePicker(state = pickerState, showModeToggle = false, colors = pickerColors)
+        }
+    }
+}
+
+/** A target date can't be in the past — today is the earliest the picker will take. */
+@OptIn(ExperimentalMaterial3Api::class)
+private object TodayOrLater : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+        val day = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
+        return !day.isBefore(LocalDate.now())
+    }
+
+    override fun isSelectableYear(year: Int): Boolean = year >= LocalDate.now().year
+}
+
 /**
  * A serif input line with a hairline under it that turns red, plus a red note, when the
  * step is left empty. Shared by the goal and reason steps.
@@ -467,7 +618,7 @@ private fun GoalPresetChip(
     }
 }
 
-/** Steps 3–5 until they're built — keeps Back, Skip and the counter working. */
+/** Steps 5–6 until they're built — keeps Back, Skip and the counter working. */
 @Composable
 private fun ColumnScope.PlaceholderStep(
     step: Int,
