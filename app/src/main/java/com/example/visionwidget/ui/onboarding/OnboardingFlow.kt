@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
@@ -621,6 +622,7 @@ private fun OnboardingChip(
     selected: Boolean,
     userFont: UserFontChoice,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 14.dp,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(percent = 50)
@@ -630,7 +632,7 @@ private fun OnboardingChip(
             .background(if (selected) OnCanvas else Canvas)
             .then(if (selected) Modifier else Modifier.border(1.dp, Rule, shape))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = horizontalPadding, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -686,6 +688,7 @@ private fun ColumnScope.WisdomStep(
                     label = theme,
                     selected = theme.equals(category, ignoreCase = true),
                     userFont = userFont,
+                    horizontalPadding = 22.dp,
                     onClick = { onCategoryChange(theme) }
                 )
             }
