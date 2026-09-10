@@ -59,7 +59,7 @@ import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
 
 /** Total questions in the flow — the denominator on every step's counter and bar. */
-const val ONBOARDING_STEPS = 9
+const val ONBOARDING_STEPS = 5
 
 /** Inline validation ink — a red held back enough to sit in the restrained palette. */
 private val ErrorRed = Color(0xFFB3261E)
@@ -81,7 +81,7 @@ data class OnboardingData(
 )
 
 /**
- * The first-run flow: nine short questions, each skippable, with a progress line and a
+ * The first-run flow: five short questions, each skippable, with a progress line and a
  * step counter across the top. Only the first two steps are built out; the rest are
  * navigable placeholders until they're filled in.
  *
@@ -132,7 +132,7 @@ fun OnboardingFlow(
                     goal = goal,
                     error = goalError,
                     onGoalChange = { goal = it ; goalError = false },
-                    // Steps 3–9 aren't built, so a valid step 2 finishes the flow for now.
+                    // Steps 3–5 aren't built, so a valid step 2 finishes the flow for now.
                     onNext = {
                         if (goal.isBlank()) {
                             goalError = true
@@ -165,7 +165,7 @@ fun OnboardingFlow(
     }
 }
 
-/** A hairline-thin bar filled from the left to the current step's share of nine. */
+/** A hairline-thin bar filled from the left to the current step's share of five. */
 @Composable
 private fun StepProgressBar(fraction: Float) {
     Box(
@@ -244,7 +244,7 @@ private fun ColumnScope.IntroStep(userFont: UserFontChoice, onStart: () -> Unit)
     )
     Spacer(Modifier.height(16.dp))
     Text(
-        text = "Nine short questions. Skip any of them — nothing here is " +
+        text = "Five short questions. Skip any of them — nothing here is " +
             "required, and nothing is lost if you leave early.",
         style = VisionType.bodyText(userFont),
         color = OnCanvasMuted
@@ -377,7 +377,7 @@ private fun GoalPresetChip(label: String, selected: Boolean, onClick: () -> Unit
     }
 }
 
-/** Steps 3–9 until they're built — keeps Back, Skip and the counter working. */
+/** Steps 3–5 until they're built — keeps Back, Skip and the counter working. */
 @Composable
 private fun ColumnScope.PlaceholderStep(
     step: Int,
