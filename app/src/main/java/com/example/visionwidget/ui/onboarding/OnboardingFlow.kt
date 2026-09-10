@@ -71,7 +71,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 /** Total questions in the flow — the denominator on every step's counter and bar. */
-const val ONBOARDING_STEPS = 6
+const val ONBOARDING_STEPS = 4
 
 /** Inline validation ink — a red held back enough to sit in the restrained palette. */
 private val ErrorRed = Color(0xFFB3261E)
@@ -95,9 +95,8 @@ data class OnboardingData(
 )
 
 /**
- * The first-run flow: six short questions, each skippable, with a progress line and a
- * step counter across the top. Only the first four steps are built out; the rest are
- * navigable placeholders until they're filled in.
+ * The first-run flow: four short questions, each skippable, with a progress line and a
+ * step counter across the top.
  *
  * [onSkip] drops everything entered and opens the home screen; [onComplete] hands back
  * the answers once the last step is done.
@@ -178,7 +177,7 @@ fun OnboardingFlow(
                     dateMillis = dateMillis,
                     error = dateError,
                     onDateChange = { dateMillis = it ; dateError = false },
-                    // Steps 5–6 aren't built, so a valid step 4 finishes the flow for now.
+                    // The last step — a valid date finishes the flow.
                     onNext = {
                         if (dateMillis == null) dateError = true else { dateError = false ; finish() }
                     }
@@ -206,7 +205,7 @@ fun OnboardingFlow(
     }
 }
 
-/** A hairline-thin bar filled from the left to the current step's share of six. */
+/** A hairline-thin bar filled from the left to the current step's share of four. */
 @Composable
 private fun StepProgressBar(fraction: Float) {
     Box(
