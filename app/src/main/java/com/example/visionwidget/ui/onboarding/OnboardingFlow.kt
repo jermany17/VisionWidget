@@ -71,7 +71,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 /** Total questions in the flow — the denominator on every step's counter and bar. */
-const val ONBOARDING_STEPS = 4
+const val ONBOARDING_STEPS = 5
 
 /** Inline validation ink — a red held back enough to sit in the restrained palette. */
 private val ErrorRed = Color(0xFFB3261E)
@@ -79,7 +79,7 @@ private val ErrorRed = Color(0xFFB3261E)
 /** DM Mono chrome for the flow: the step counter, the nav words, buttons, chips. */
 private val StepLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 16.sp)
 
-/** The goal presets on step 2. Shown uppercased on the chips; written as-is to the field. */
+/** The goal presets on step 2. Picking one fills the goal field with its text. */
 private val GoalPresets = listOf(
     "Launch my startup",
     "Run a marathon",
@@ -87,15 +87,25 @@ private val GoalPresets = listOf(
     "Financial freedom"
 )
 
-/** Everything the flow collects. Grows a field per step; goal, reason and date so far. */
+/** The wisdom themes on step 5. The daily line is drawn from the one chosen. */
+private val WisdomCategories = listOf(
+    "Motivation",
+    "Success",
+    "Life",
+    "Happiness",
+    "Wisdom"
+)
+
+/** Everything the flow collects — the goal, its reason, a target date, a wisdom theme. */
 data class OnboardingData(
     val goal: String = "",
     val why: String = "",
-    val targetDateMillis: Long? = null
+    val targetDateMillis: Long? = null,
+    val wisdomCategory: String? = null
 )
 
 /**
- * The first-run flow: four short questions, each skippable, with a progress line and a
+ * The first-run flow: five short questions, each skippable, with a progress line and a
  * step counter across the top.
  *
  * [onSkip] drops everything entered and opens the home screen; [onComplete] hands back
@@ -117,6 +127,8 @@ fun OnboardingFlow(
     var whyError by rememberSaveable { mutableStateOf(false) }
     var dateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
     var dateError by rememberSaveable { mutableStateOf(false) }
+    var wisdomCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    var wisdomError by rememberSaveable { mutableStateOf(false) }
     var showSkipConfirm by rememberSaveable { mutableStateOf(false) }
 
     Column(
@@ -138,7 +150,10 @@ fun OnboardingFlow(
             StepHeader(
                 step = step,
                 canGoBack = step > 1,
-                onBack = { step-- ; goalError = false ; whyError = false ; dateError = false },
+                onBack = {
+                    step--
+                    goalError = false ; whyError = false ; dateError = false ; wisdomError = false
+                },
                 onSkip = { showSkipConfirm = true }
             )
 
@@ -147,7 +162,8 @@ fun OnboardingFlow(
                     OnboardingData(
                         goal = goal.trim(),
                         why = why.trim(),
-                        targetDateMillis = dateMillis
+                        targetDateMillis = dateMillis,
+                        wisdomCategory = wisdomCategory?.lowercase()
                     )
                 )
             }
@@ -177,9 +193,18 @@ fun OnboardingFlow(
                     dateMillis = dateMillis,
                     error = dateError,
                     onDateChange = { dateMillis = it ; dateError = false },
-                    // The last step — a valid date finishes the flow.
                     onNext = {
-                        if (dateMillis == null) dateError = true else { dateError = false ; finish() }
+                        if (dateMillis == null) dateError = true else { dateError = false ; step = 5 }
+                    }
+                )
+                5 -> WisdomStep(
+                    userFont = userFont,
+                    category = wisdomCategory,
+                    error = wisdomError,
+                    onCategoryChange = { wisdomCategory = it ; wisdomError = false },
+                    // The last step — a chosen theme finishes the flow.
+                    onDone = {
+                        if (wisdomCategory == null) wisdomError = true else { wisdomError = false ; finish() }
                     }
                 )
                 else -> PlaceholderStep(
@@ -205,7 +230,7 @@ fun OnboardingFlow(
     }
 }
 
-/** A hairline-thin bar filled from the left to the current step's share of four. */
+/** A hairline-thin bar filled from the left to the current step's share of five. */
 @Composable
 private fun StepProgressBar(fraction: Float) {
     Box(
@@ -342,7 +367,7 @@ private fun ColumnScope.GoalStep(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             GoalPresets.forEach { preset ->
-                GoalPresetChip(
+                OnboardingChip(
                     label = preset,
                     selected = goal.trim().equals(preset, ignoreCase = true),
                     userFont = userFont,
@@ -586,11 +611,12 @@ private fun OnboardingField(
 }
 
 /**
- * One preset. Selected once its text matches the field; picking it fills the field.
- * Set in the user's face, mixed case, and given a [modifier] so two hold a row.
+ * A pickable pill — a goal preset on step 2, a wisdom theme on step 5. Selected inverts
+ * to black; set in the user's face, mixed case. Pass a [modifier] to size it (weights on
+ * step 2 hold two to a row; step 5 lets them flow at their natural width).
  */
 @Composable
-private fun GoalPresetChip(
+private fun OnboardingChip(
     label: String,
     selected: Boolean,
     userFont: UserFontChoice,
@@ -617,7 +643,68 @@ private fun GoalPresetChip(
     }
 }
 
-/** Steps 5–6 until they're built — keeps Back, Skip and the counter working. */
+/** Step 5 — the wisdom theme the daily line is drawn from, and the flow's last step. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColumnScope.WisdomStep(
+    userFont: UserFontChoice,
+    category: String?,
+    error: Boolean,
+    onCategoryChange: (String) -> Unit,
+    onDone: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Spacer(Modifier.height(28.dp))
+        Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Which wisdom should we send you?",
+            style = VisionType.screenPromptTitle(userFont),
+            color = OnCanvas
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "One short line lands on your home screen every morning. Pick the " +
+                "theme it's drawn from — you can change it later.",
+            style = VisionType.bodyText(userFont),
+            color = OnCanvasMuted
+        )
+
+        Spacer(Modifier.height(24.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            WisdomCategories.forEach { theme ->
+                OnboardingChip(
+                    label = theme,
+                    selected = theme.equals(category, ignoreCase = true),
+                    userFont = userFont,
+                    onClick = { onCategoryChange(theme) }
+                )
+            }
+        }
+        if (error) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "Pick a theme to continue.",
+                style = VisionType.bodyText(userFont),
+                color = ErrorRed
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
+        StepPrimaryButton(label = "DONE", onClick = onDone)
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** A fallback for an out-of-range step — keeps Back, Skip and the counter working. */
 @Composable
 private fun ColumnScope.PlaceholderStep(
     step: Int,
