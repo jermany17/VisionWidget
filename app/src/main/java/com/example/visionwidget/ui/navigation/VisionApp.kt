@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.home.TodayScreen
+import com.example.visionwidget.ui.onboarding.OnboardingFlow
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
@@ -53,6 +54,8 @@ private const val NavBarWidthFraction = 0.8f
 
 @Composable
 fun VisionApp() {
+    // Until there's a store to remember it, the first-run flow shows on every launch.
+    var onboardingDone by rememberSaveable { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
 
     // The visions live here rather than in the Vision tab, because Today shows the
@@ -75,6 +78,15 @@ fun VisionApp() {
     // clear it before the system navigation inset starts.
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val screenPadding = PaddingValues(bottom = NavBarHeight + NavBarMargin * 2 + navInset)
+
+    if (!onboardingDone) {
+        OnboardingFlow(
+            onSkip = { onboardingDone = true },
+            // TODO: seed the first vision from data.goal once the later steps land.
+            onComplete = { onboardingDone = true }
+        )
+        return
+    }
 
     Box(
         Modifier
