@@ -663,7 +663,7 @@ private fun ColumnScope.WisdomStep(
         Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvasMuted)
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "Which wisdom should we send you?",
+            text = "Which wisdom fits you?",
             style = VisionType.screenPromptTitle(userFont),
             color = OnCanvas
         )
@@ -677,6 +677,7 @@ private fun ColumnScope.WisdomStep(
 
         Spacer(Modifier.height(24.dp))
         FlowRow(
+            maxItemsInEachRow = 3,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
