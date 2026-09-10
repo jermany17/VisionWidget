@@ -238,14 +238,13 @@ private fun ColumnScope.IntroStep(userFont: UserFontChoice, onStart: () -> Unit)
     Text(text = "VISION WIDGET", style = VisionType.eyebrow, color = OnCanvasMuted)
     Spacer(Modifier.height(16.dp))
     Text(
-        text = "One goal. Three things a\nday. On your home screen.",
+        text = "One goal. Three things a day. On your home screen.",
         style = VisionType.screenPromptTitle(userFont),
         color = OnCanvas
     )
     Spacer(Modifier.height(16.dp))
     Text(
-        text = "Five short questions. Skip any of them — nothing here is " +
-            "required, and nothing is lost if you leave early.",
+        text = "Five short questions. Skip any of them — nothing here is required, and nothing is lost if you leave early.",
         style = VisionType.bodyText(userFont),
         color = OnCanvasMuted
     )
