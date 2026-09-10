@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,14 +76,15 @@ private val GoalPresets = listOf(
     "Financial freedom"
 )
 
-/** Everything the flow collects. Grows a field per step; only the goal so far. */
+/** Everything the flow collects. Grows a field per step; goal and reason so far. */
 data class OnboardingData(
-    val goal: String = ""
+    val goal: String = "",
+    val why: String = ""
 )
 
 /**
  * The first-run flow: five short questions, each skippable, with a progress line and a
- * step counter across the top. Only the first two steps are built out; the rest are
+ * step counter across the top. Only the first three steps are built out; the rest are
  * navigable placeholders until they're filled in.
  *
  * [onSkip] drops everything entered and opens the home screen; [onComplete] hands back
@@ -100,6 +102,8 @@ fun OnboardingFlow(
     var step by rememberSaveable { mutableIntStateOf(1) }
     var goal by rememberSaveable { mutableStateOf("") }
     var goalError by rememberSaveable { mutableStateOf(false) }
+    var why by rememberSaveable { mutableStateOf("") }
+    var whyError by rememberSaveable { mutableStateOf(false) }
     var showSkipConfirm by rememberSaveable { mutableStateOf(false) }
 
     Column(
@@ -121,7 +125,7 @@ fun OnboardingFlow(
             StepHeader(
                 step = step,
                 canGoBack = step > 1,
-                onBack = { step-- ; goalError = false },
+                onBack = { step-- ; goalError = false ; whyError = false },
                 onSkip = { showSkipConfirm = true }
             )
 
@@ -132,13 +136,22 @@ fun OnboardingFlow(
                     goal = goal,
                     error = goalError,
                     onGoalChange = { goal = it ; goalError = false },
-                    // Steps 3–5 aren't built, so a valid step 2 finishes the flow for now.
                     onNext = {
-                        if (goal.isBlank()) {
-                            goalError = true
+                        if (goal.isBlank()) goalError = true else { goalError = false ; step = 3 }
+                    }
+                )
+                3 -> WhyStep(
+                    userFont = userFont,
+                    why = why,
+                    error = whyError,
+                    onWhyChange = { why = it ; whyError = false },
+                    // Steps 4–5 aren't built, so a valid step 3 finishes the flow for now.
+                    onNext = {
+                        if (why.isBlank()) {
+                            whyError = true
                         } else {
-                            goalError = false
-                            onComplete(OnboardingData(goal = goal.trim()))
+                            whyError = false
+                            onComplete(OnboardingData(goal = goal.trim(), why = why.trim()))
                         }
                     }
                 )
@@ -146,7 +159,7 @@ fun OnboardingFlow(
                     step = step,
                     isLast = step == ONBOARDING_STEPS,
                     onNext = { step++ },
-                    onFinish = { onComplete(OnboardingData(goal = goal.trim())) }
+                    onFinish = { onComplete(OnboardingData(goal = goal.trim(), why = why.trim())) }
                 )
             }
         }
@@ -286,7 +299,14 @@ private fun ColumnScope.GoalStep(
         )
 
         Spacer(Modifier.height(28.dp))
-        GoalField(value = goal, error = error, userFont = userFont, onValueChange = onGoalChange)
+        OnboardingField(
+            value = goal,
+            placeholder = "Launch my startup",
+            error = error,
+            errorMessage = "Enter a goal to continue.",
+            userFont = userFont,
+            onValueChange = onGoalChange
+        )
 
         Spacer(Modifier.height(20.dp))
         FlowRow(
@@ -311,14 +331,64 @@ private fun ColumnScope.GoalStep(
     }
 }
 
+/** Step 3 — the reason behind the goal, the line the widget shows on a bad day. */
+@Composable
+private fun ColumnScope.WhyStep(
+    userFont: UserFontChoice,
+    why: String,
+    error: Boolean,
+    onWhyChange: (String) -> Unit,
+    onNext: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .imePadding()
+    ) {
+        Spacer(Modifier.height(28.dp))
+        Text(text = "WHY IT MATTERS", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Why does it matter?",
+            style = VisionType.screenPromptTitle(userFont),
+            color = OnCanvas
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "The sentence you would say at 11pm. This is what the widget " +
+                "shows you on a bad day.",
+            style = VisionType.bodyText(userFont),
+            color = OnCanvasMuted
+        )
+
+        Spacer(Modifier.height(28.dp))
+        OnboardingField(
+            value = why,
+            placeholder = "Because nobody else is going to build it.",
+            error = error,
+            errorMessage = "Say why this goal matters to you.",
+            userFont = userFont,
+            onValueChange = onWhyChange
+        )
+
+        Spacer(Modifier.height(28.dp))
+        StepPrimaryButton(label = "NEXT", onClick = onNext)
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
 /**
- * The goal line: a serif field with a hairline under it that turns red, plus a red note,
- * when the step is left empty.
+ * A serif input line with a hairline under it that turns red, plus a red note, when the
+ * step is left empty. Shared by the goal and reason steps.
  */
 @Composable
-private fun GoalField(
+private fun OnboardingField(
     value: String,
+    placeholder: String,
     error: Boolean,
+    errorMessage: String,
     userFont: UserFontChoice,
     onValueChange: (String) -> Unit
 ) {
@@ -329,7 +399,13 @@ private fun GoalField(
     Box {
         // The hint clears the moment the field is touched, not just once text exists.
         if (value.isEmpty() && !focused) {
-            Text(text = "Launch my startup", style = style, color = OnCanvas.copy(alpha = 0.3f))
+            Text(
+                text = placeholder,
+                style = style,
+                color = OnCanvas.copy(alpha = 0.3f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         BasicTextField(
             value = value,
@@ -352,7 +428,7 @@ private fun GoalField(
     if (error) {
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Enter a goal to continue.",
+            text = errorMessage,
             style = VisionType.bodyText(userFont),
             color = ErrorRed
         )
