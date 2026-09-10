@@ -290,6 +290,7 @@ private fun ColumnScope.GoalStep(
 
         Spacer(Modifier.height(20.dp))
         FlowRow(
+            maxItemsInEachRow = 2,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -297,6 +298,7 @@ private fun ColumnScope.GoalStep(
                 GoalPresetChip(
                     label = preset,
                     selected = goal.trim().equals(preset, ignoreCase = true),
+                    modifier = Modifier.weight(1f),
                     onClick = { onGoalChange(preset) }
                 )
             }
@@ -356,22 +358,33 @@ private fun GoalField(
     }
 }
 
-/** One preset. Selected once its text matches the field; picking it fills the field. */
+/**
+ * One preset. Selected once its text matches the field; picking it fills the field.
+ * Sized down from [StepLabel] and given a [modifier] so two hold a row without wrapping.
+ */
 @Composable
-private fun GoalPresetChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun GoalPresetChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     val shape = RoundedCornerShape(percent = 50)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(shape)
             .background(if (selected) OnCanvas else Canvas)
             .then(if (selected) Modifier else Modifier.border(1.dp, Rule, shape))
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = label.uppercase(),
-            style = StepLabel,
-            color = if (selected) OnNavBar else OnCanvas
+            style = VisionType.eyebrow.copy(fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 0.3.sp),
+            color = if (selected) OnNavBar else OnCanvas,
+            maxLines = 1,
+            textAlign = TextAlign.Center
         )
     }
 }
