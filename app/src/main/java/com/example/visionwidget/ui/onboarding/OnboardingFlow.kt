@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
@@ -60,10 +61,7 @@ import com.example.visionwidget.ui.theme.VisionType
 /** Total questions in the flow — the denominator on every step's counter and bar. */
 const val ONBOARDING_STEPS = 9
 
-/** Onboarding paints on warm paper rather than the app's plain white canvas. */
-private val Paper = Color(0xFFF4F1E8)
-
-/** Inline validation ink — a red that still sits inside the paper palette. */
+/** Inline validation ink — a red held back enough to sit in the restrained palette. */
 private val ErrorRed = Color(0xFFB3261E)
 
 /** DM Mono chrome for the flow: the step counter, the nav words, buttons, chips. */
@@ -107,7 +105,7 @@ fun OnboardingFlow(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Paper)
+            .background(Canvas)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
@@ -134,8 +132,14 @@ fun OnboardingFlow(
                     goal = goal,
                     error = goalError,
                     onGoalChange = { goal = it ; goalError = false },
+                    // Steps 3–9 aren't built, so a valid step 2 finishes the flow for now.
                     onNext = {
-                        if (goal.isBlank()) goalError = true else { goalError = false ; step = 3 }
+                        if (goal.isBlank()) {
+                            goalError = true
+                        } else {
+                            goalError = false
+                            onComplete(OnboardingData(goal = goal.trim()))
+                        }
                     }
                 )
                 else -> PlaceholderStep(
@@ -360,7 +364,7 @@ private fun GoalPresetChip(label: String, selected: Boolean, onClick: () -> Unit
     Box(
         modifier = Modifier
             .clip(shape)
-            .background(if (selected) OnCanvas else Paper)
+            .background(if (selected) OnCanvas else Canvas)
             .then(if (selected) Modifier else Modifier.border(1.dp, Rule, shape))
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp)
@@ -424,7 +428,7 @@ private fun StepPrimaryButton(label: String, onClick: () -> Unit) {
 private fun SkipConfirmDialog(onKeepGoing: () -> Unit, onConfirmSkip: () -> Unit) {
     AlertDialog(
         onDismissRequest = onKeepGoing,
-        containerColor = Paper,
+        containerColor = Canvas,
         title = { Text(text = "SKIP SETUP?", style = StepLabel, color = OnCanvas) },
         text = {
             Text(
