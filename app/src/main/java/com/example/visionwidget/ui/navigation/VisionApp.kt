@@ -53,9 +53,10 @@ private val NavBarMargin = 12.dp
 private const val NavBarWidthFraction = 0.8f
 
 @Composable
-fun VisionApp() {
-    // Until there's a store to remember it, the first-run flow shows on every launch.
-    var onboardingDone by rememberSaveable { mutableStateOf(false) }
+fun VisionApp(
+    showOnboarding: Boolean = false,
+    onFinishOnboarding: () -> Unit = {}
+) {
     var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
 
     // The visions live here rather than in the Vision tab, because Today shows the
@@ -79,11 +80,11 @@ fun VisionApp() {
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val screenPadding = PaddingValues(bottom = NavBarHeight + NavBarMargin * 2 + navInset)
 
-    if (!onboardingDone) {
+    if (showOnboarding) {
         OnboardingFlow(
-            onSkip = { onboardingDone = true },
+            onSkip = onFinishOnboarding,
             // TODO: seed the first vision from data.goal once the later steps land.
-            onComplete = { onboardingDone = true }
+            onComplete = { onFinishOnboarding() }
         )
         return
     }
