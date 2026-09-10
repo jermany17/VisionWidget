@@ -154,7 +154,6 @@ fun OnboardingFlow(
 
     if (showSkipConfirm) {
         SkipConfirmDialog(
-            userFont = userFont,
             onKeepGoing = { showSkipConfirm = false },
             onConfirmSkip = {
                 // Nothing to wipe by hand — leaving this composable drops every
@@ -425,20 +424,20 @@ private fun StepPrimaryButton(label: String, onClick: () -> Unit) {
 
 /** Confirms the skip, since it can't be undone — everything entered goes with it. */
 @Composable
-private fun SkipConfirmDialog(
-    userFont: UserFontChoice,
-    onKeepGoing: () -> Unit,
-    onConfirmSkip: () -> Unit
-) {
+private fun SkipConfirmDialog(onKeepGoing: () -> Unit, onConfirmSkip: () -> Unit) {
     AlertDialog(
         onDismissRequest = onKeepGoing,
         containerColor = Canvas,
         title = { Text(text = "SKIP SETUP?", style = StepLabel, color = OnCanvas) },
         text = {
             Text(
-                text = "Skipping clears everything you've entered and takes you " +
-                    "straight to the home screen.",
-                style = VisionType.bodyText(userFont),
+                text = "SKIPPING CLEARS EVERYTHING YOU'VE ENTERED AND TAKES YOU " +
+                    "STRAIGHT TO THE HOME SCREEN.",
+                style = VisionType.eyebrow.copy(
+                    fontSize = 11.sp,
+                    lineHeight = 18.sp,
+                    letterSpacing = 0.6.sp
+                ),
                 color = OnCanvasMuted
             )
         },
