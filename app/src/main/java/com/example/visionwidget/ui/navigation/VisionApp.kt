@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -29,6 +28,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.visionwidget.data.VisionAppViewModel
 import com.example.visionwidget.ui.home.TodayScreen
 import com.example.visionwidget.ui.onboarding.OnboardingData
 import com.example.visionwidget.ui.onboarding.OnboardingFlow
@@ -37,9 +39,6 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
-import com.example.visionwidget.ui.vision.Milestone
-import com.example.visionwidget.ui.vision.Vision
-import com.example.visionwidget.ui.vision.VisionListSaver
 import com.example.visionwidget.ui.vision.VisionScreen
 
 enum class VisionTab(val label: String) {
@@ -58,47 +57,23 @@ fun VisionApp(
     showOnboarding: Boolean = false,
     onFinishOnboarding: () -> Unit = {}
 ) {
+    val viewModel: VisionAppViewModel = viewModel()
     var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
 
-    // The visions live here rather than in the Vision tab, because Today shows the
-    // first of them too — one list, so the two tabs can't disagree. Stands in for the
-    // DB until it exists.
-    var visions by rememberSaveable(stateSaver = VisionListSaver) {
-        mutableStateOf(emptyList<Vision>())
-    }
+    // Which vision the Vision tab happens to be showing — distinct from mainVisionId,
+    // which is the one the widgets and Today read from. Navigation state, not data, so
+    // it stays here rather than in the database.
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // The one vision the widgets read from — distinct from selectedVisionId, which is
-    // just whichever one the Vision tab happens to be showing right now.
-    var mainVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Ids are handed out here and never reused, so a chip's identity survives a
-    // neighbour being removed.
-    var nextVisionId by rememberSaveable { mutableLongStateOf(1L) }
-    // One counter shared across every vision's milestones, same reasoning as above.
-    var nextMilestoneId by rememberSaveable { mutableLongStateOf(1L) }
+
+    val visions by viewModel.visions.collectAsStateWithLifecycle()
+    val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
+    val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
+    val topThreeChecked by viewModel.topThreeChecked.collectAsStateWithLifecycle()
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val screenPadding = PaddingValues(bottom = NavBarHeight + NavBarMargin * 2 + navInset)
-
-    // Shared by the Vision tab's own create sheet and onboarding's last step, so a
-    // vision made either way gets the same id, main-by-default, and selection rules.
-    val createVision: (goal: String, why: String, targetDateMillis: Long) -> Unit =
-        { goal, why, targetDateMillis ->
-            val created = Vision(
-                id = nextVisionId,
-                goal = goal,
-                why = why,
-                targetDateMillis = targetDateMillis
-            )
-            nextVisionId++
-            // The very first vision is main by default; later ones stay secondary
-            // until the user says otherwise.
-            if (visions.isEmpty()) mainVisionId = created.id
-            visions = visions + created
-            // A vision just made is the one the user wants to look at.
-            selectedVisionId = created.id
-        }
 
     if (showOnboarding) {
         OnboardingFlow(
@@ -108,7 +83,7 @@ fun VisionApp(
                 // reach its last step, so this only guards against a stray call.
                 val targetDateMillis = data.targetDateMillis
                 if (data.goal.isNotBlank() && targetDateMillis != null) {
-                    createVision(data.goal, data.why, targetDateMillis)
+                    viewModel.createVision(data.goal, data.why, targetDateMillis)
                 }
                 onFinishOnboarding()
             }
@@ -127,6 +102,11 @@ fun VisionApp(
                 // Today follows whichever vision is set as main, falling back to the
                 // oldest one until the user has chosen.
                 vision = visions.firstOrNull { it.id == mainVisionId } ?: visions.firstOrNull(),
+                topThreeTasks = topThreeTasks,
+                topThreeChecked = topThreeChecked,
+                onSetTopThreeText = viewModel::setTopThreeText,
+                onToggleTopThree = viewModel::toggleTopThreeChecked,
+                onClearTopThree = viewModel::clearTopThree,
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(
@@ -135,52 +115,17 @@ fun VisionApp(
                 selectedVisionId = selectedVisionId,
                 mainVisionId = mainVisionId,
                 onSelectVision = { selectedVisionId = it },
-                onSetMainVision = { mainVisionId = it },
-                onCreateVision = createVision,
-                onEditVision = { id, goal, why, targetDateMillis ->
-                    visions = visions.map {
-                        if (it.id == id) {
-                            it.copy(goal = goal, why = why, targetDateMillis = targetDateMillis)
-                        } else {
-                            it
-                        }
-                    }
-                },
+                onSetMainVision = viewModel::setMainVision,
+                onCreateVision = viewModel::createVision,
+                onEditVision = viewModel::editVision,
                 onDeleteVision = { id ->
-                    visions = visions.filterNot { it.id == id }
+                    viewModel.deleteVision(id)
                     // The fallback in VisionScreen picks another once this one is gone.
                     if (selectedVisionId == id) selectedVisionId = null
-                    // Main can't point at a vision that no longer exists — hand the
-                    // job to whichever one is left, if any.
-                    if (mainVisionId == id) mainVisionId = visions.firstOrNull()?.id
                 },
-                onAddMilestone = { visionId, step, dueDateMillis ->
-                    val milestone = Milestone(
-                        id = nextMilestoneId,
-                        step = step,
-                        dueDateMillis = dueDateMillis
-                    )
-                    nextMilestoneId++
-                    visions = visions.map {
-                        if (it.id == visionId) it.copy(milestones = it.milestones + milestone) else it
-                    }
-                },
-                onToggleMilestone = { visionId, milestoneId ->
-                    visions = visions.map { vision ->
-                        if (vision.id != visionId) return@map vision
-                        vision.copy(
-                            milestones = vision.milestones.map {
-                                if (it.id == milestoneId) it.copy(checked = !it.checked) else it
-                            }
-                        )
-                    }
-                },
-                onDeleteMilestone = { visionId, milestoneId ->
-                    visions = visions.map { vision ->
-                        if (vision.id != visionId) return@map vision
-                        vision.copy(milestones = vision.milestones.filterNot { it.id == milestoneId })
-                    }
-                }
+                onAddMilestone = viewModel::addMilestone,
+                onToggleMilestone = viewModel::toggleMilestone,
+                onDeleteMilestone = viewModel::deleteMilestone
             )
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
             VisionTab.Insights -> PlaceholderScreen(VisionTab.Insights.label)

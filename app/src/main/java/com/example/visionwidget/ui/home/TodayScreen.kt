@@ -35,8 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,25 +83,8 @@ private val TOP_3_PROMPTS = listOf(
     "One small thing for the vision"
 )
 
-// Which tasks are ticked, one bit per index. An Int needs no Saver to survive process
-// death, where a Set or a List of flags would.
-private fun Int.isTaskChecked(index: Int) = this and (1 shl index) != 0
-
-private fun Int.toggleTask(index: Int) = this xor (1 shl index)
-
-private fun Int.clearTask(index: Int) = this and (1 shl index).inv()
-
 /** No row is being edited. */
 private const val NoTaskEditing = -1
-
-/**
- * The three slots. A null slot still shows its prompt; a string is a set task. "" stands
- * in for null on save so the list survives process death without a bespoke parcelable.
- */
-private val TaskSlotsSaver: Saver<List<String?>, Any> = listSaver<List<String?>, String>(
-    save = { slots -> slots.map { it.orEmpty() } },
-    restore = { stored -> stored.map { it.ifEmpty { null } } }
-)
 
 private val CardShape = RoundedCornerShape(16.dp)
 
@@ -122,14 +103,17 @@ fun TodayScreen(
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
     vision: Vision? = null,
+    topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
+    topThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
+    onSetTopThreeText: (index: Int, text: String) -> Unit = { _, _ -> },
+    onToggleTopThree: (index: Int) -> Unit = {},
+    onClearTopThree: (index: Int) -> Unit = {},
     onOpenVision: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
-    var checkedTasks by rememberSaveable { mutableIntStateOf(0) }
-    var tasks by rememberSaveable(stateSaver = TaskSlotsSaver) {
-        mutableStateOf(List<String?>(TOP_3_PROMPTS.size) { null })
-    }
+    // Which row is mid-edit and its draft text — purely a UI interaction, not data, so
+    // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
     var draft by rememberSaveable { mutableStateOf("") }
 
@@ -179,9 +163,9 @@ fun TodayScreen(
             }
 
             Spacer(Modifier.height(22.dp))
-            val setCount = tasks.count { it != null }
-            val doneCount = tasks.indices.count {
-                tasks[it] != null && checkedTasks.isTaskChecked(it)
+            val setCount = topThreeTasks.count { it != null }
+            val doneCount = topThreeTasks.indices.count {
+                topThreeTasks[it] != null && topThreeChecked[it]
             }
             SectionLabel(
                 label = "TODAY'S TOP 3",
@@ -193,13 +177,13 @@ fun TodayScreen(
             TopThreeCard(
                 theme = CardThemes[topThreeThemeId],
                 userFont = userFont,
-                tasks = tasks,
-                checkedTasks = checkedTasks,
+                tasks = topThreeTasks,
+                checkedTasks = topThreeChecked,
                 editingTask = editingTask,
                 draft = draft,
-                onToggleTask = { checkedTasks = checkedTasks.toggleTask(it) },
+                onToggleTask = onToggleTopThree,
                 onStartEdit = { index ->
-                    draft = tasks[index].orEmpty()
+                    draft = topThreeTasks[index].orEmpty()
                     editingTask = index
                 },
                 onDraftChange = { draft = it },
@@ -208,16 +192,15 @@ fun TodayScreen(
                     // commit is dropped so the prompt stays, on a set slot the old
                     // text is kept.
                     val edited = draft.trim()
-                    if (edited.isNotEmpty() && editingTask in tasks.indices) {
-                        tasks = tasks.toMutableList().also { it[editingTask] = edited }
+                    if (edited.isNotEmpty() && editingTask in topThreeTasks.indices) {
+                        onSetTopThreeText(editingTask, edited)
                     }
                     editingTask = NoTaskEditing
                 },
                 onRemoveTask = { index ->
                     // Back to a prompt, and the tick that belonged to the old task
                     // clears with it.
-                    tasks = tasks.toMutableList().also { it[index] = null }
-                    checkedTasks = checkedTasks.clearTask(index)
+                    onClearTopThree(index)
                     if (editingTask == index) editingTask = NoTaskEditing
                 }
             )
@@ -326,7 +309,7 @@ private fun TopThreeCard(
     theme: CardTheme,
     userFont: UserFontChoice,
     tasks: List<String?>,
-    checkedTasks: Int,
+    checkedTasks: List<Boolean>,
     editingTask: Int,
     draft: String,
     onToggleTask: (Int) -> Unit,
@@ -346,7 +329,7 @@ private fun TopThreeCard(
                 TaskRow(
                     task = task,
                     prompt = TOP_3_PROMPTS[index],
-                    checked = checkedTasks.isTaskChecked(index),
+                    checked = checkedTasks[index],
                     editing = editingTask == index,
                     draft = draft,
                     theme = theme,
@@ -370,9 +353,7 @@ private fun TopThreeCard(
                 )
             } else {
                 TaskProgress(
-                    done = tasks.indices.count {
-                        tasks[it] != null && checkedTasks.isTaskChecked(it)
-                    },
+                    done = tasks.indices.count { tasks[it] != null && checkedTasks[it] },
                     total = tasks.count { it != null },
                     theme = theme
                 )

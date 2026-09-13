@@ -1,7 +1,5 @@
 package com.example.visionwidget.ui.vision
 
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.listSaver
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -62,12 +60,15 @@ fun formatTargetDate(millis: Long): String = millis.asTargetDate().format(Target
 /** "5 Dec 27" — compact form used inline while picking a milestone's date. */
 fun formatShortDate(millis: Long): String = millis.asTargetDate().format(ShortDateFormat)
 
+/** Whole days from today to the target — negative once the date is behind us. */
+private fun rawDaysUntil(millis: Long): Long =
+    ChronoUnit.DAYS.between(LocalDate.now(), millis.asTargetDate())
+
 /**
  * Whole days from today to the target, floored at zero — a date that has passed reads
  * as nothing left rather than as a negative countdown.
  */
-private fun daysUntil(millis: Long): Long =
-    ChronoUnit.DAYS.between(LocalDate.now(), millis.asTargetDate()).coerceAtLeast(0)
+private fun daysUntil(millis: Long): Long = rawDaysUntil(millis).coerceAtLeast(0)
 
 /** "121 weeks · 843 days" — the Vision tab's fuller line. */
 fun formatRemaining(millis: Long): String {
@@ -75,41 +76,16 @@ fun formatRemaining(millis: Long): String {
     return "${days / 7} weeks · $days days"
 }
 
-/** "121 WEEKS LEFT" — the Today card's mono footer, weeks only. */
-fun formatWeeksLeft(millis: Long): String = "${daysUntil(millis) / 7} WEEKS LEFT"
-
 /**
- * Flattens each vision, and each of its milestones in turn, to its fields so the list
- * survives process death. A data class isn't Bundle-friendly on its own, and the field
- * order here — vision fields, then a milestone count, then that many milestone field
- * groups — is the only contract.
+ * "17 WEEKS LEFT" beyond a week out, "5 DAYS LEFT" once inside one, "UNTIL TODAY" on
+ * the day itself, "DATE HAS PASSED" once it's behind us — the Today card's mono footer.
  */
-val VisionListSaver: Saver<List<Vision>, Any> = listSaver<List<Vision>, List<Any>>(
-    save = { visions ->
-        visions.map { vision ->
-            listOf(vision.id, vision.goal, vision.why, vision.targetDateMillis, vision.milestones.size) +
-                vision.milestones.flatMap { listOf(it.id, it.step, it.dueDateMillis, it.checked) }
-        }
-    },
-    restore = { stored ->
-        stored.map { fields ->
-            val milestoneCount = fields[4] as Int
-            val milestones = (0 until milestoneCount).map { index ->
-                val offset = 5 + index * 4
-                Milestone(
-                    id = fields[offset] as Long,
-                    step = fields[offset + 1] as String,
-                    dueDateMillis = fields[offset + 2] as Long,
-                    checked = fields[offset + 3] as Boolean
-                )
-            }
-            Vision(
-                id = fields[0] as Long,
-                goal = fields[1] as String,
-                why = fields[2] as String,
-                targetDateMillis = fields[3] as Long,
-                milestones = milestones
-            )
-        }
+fun formatWeeksLeft(millis: Long): String {
+    val days = rawDaysUntil(millis)
+    return when {
+        days < 0 -> "DATE HAS PASSED"
+        days == 0L -> "UNTIL TODAY"
+        days < 7 -> "$days DAYS LEFT"
+        else -> "${days / 7} WEEKS LEFT"
     }
-)
+}
