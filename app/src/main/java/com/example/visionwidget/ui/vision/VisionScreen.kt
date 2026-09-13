@@ -392,9 +392,7 @@ private fun VisionDetail(
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
         )
 
-        Spacer(Modifier.height(24.dp))
-        HorizontalDivider(color = Rule, thickness = 1.dp)
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(32.dp))
 
         MilestonesSection(
             vision = selected,
