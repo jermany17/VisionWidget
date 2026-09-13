@@ -347,6 +347,12 @@ private fun VisionDetail(
         )
 
         Spacer(Modifier.height(24.dp))
+        VisionMainRow(
+            isMain = selected.id == mainVisionId,
+            onSetMain = onSetMainVision
+        )
+
+        Spacer(Modifier.height(24.dp))
         HorizontalDivider(color = Rule, thickness = 1.dp)
         Spacer(Modifier.height(24.dp))
 
@@ -384,12 +390,6 @@ private fun VisionDetail(
             text = selected.why.ifBlank { "No reason set." },
             style = VisionType.cardTitle(userFont).copy(fontSize = 19.sp, lineHeight = 25.sp),
             color = if (selected.why.isBlank()) OnCanvasMuted else OnCanvas
-        )
-
-        Spacer(Modifier.height(24.dp))
-        VisionMainRow(
-            isMain = selected.id == mainVisionId,
-            onSetMain = onSetMainVision
         )
 
         Spacer(Modifier.height(24.dp))
@@ -604,29 +604,38 @@ private fun MilestonesSection(
     val checkedCount = vision.milestones.count { it.checked }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = "MILESTONES · THIS VISION", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Text(text = "MILESTONES", style = VisionType.eyebrow, color = OnCanvasMuted)
         Text(
-            text = "$checkedCount / ${vision.milestones.size} REACHED",
+            text = if (vision.milestones.isEmpty()) {
+                "NONE YET"
+            } else {
+                "$checkedCount / ${vision.milestones.size} REACHED"
+            },
             style = VisionType.eyebrow,
             color = OnCanvasMuted
         )
     }
     Spacer(Modifier.height(16.dp))
 
-    // Soonest due date first, regardless of the order they were added in.
-    val sortedMilestones = vision.milestones.sortedBy { it.dueDateMillis }
-    sortedMilestones.forEachIndexed { index, milestone ->
-        val isLast = index == sortedMilestones.lastIndex
-        MilestoneRow(
-            milestone = milestone,
-            userFont = userFont,
-            isLast = isLast,
-            onToggle = { onToggle(milestone.id) },
-            onDelete = { onRequestDelete(milestone) }
-        )
-        if (!isLast) Spacer(Modifier.height(8.dp))
+    if (vision.milestones.isEmpty()) {
+        EmptyMilestoneRow(userFont = userFont)
+        Spacer(Modifier.height(16.dp))
+    } else {
+        // Soonest due date first, regardless of the order they were added in.
+        val sortedMilestones = vision.milestones.sortedBy { it.dueDateMillis }
+        sortedMilestones.forEachIndexed { index, milestone ->
+            val isLast = index == sortedMilestones.lastIndex
+            MilestoneRow(
+                milestone = milestone,
+                userFont = userFont,
+                isLast = isLast,
+                onToggle = { onToggle(milestone.id) },
+                onDelete = { onRequestDelete(milestone) }
+            )
+            if (!isLast) Spacer(Modifier.height(8.dp))
+        }
+        Spacer(Modifier.height(16.dp))
     }
-    Spacer(Modifier.height(16.dp))
 
     AddMilestoneRow(userFont = userFont, onClick = onRequestAdd)
     Spacer(Modifier.height(16.dp))
@@ -636,6 +645,45 @@ private fun MilestonesSection(
         style = VisionType.bodyText(userFont),
         color = OnCanvasMuted
     )
+}
+
+/**
+ * Stands in for the list before any milestone exists — a dashed circle, since there's
+ * nothing yet to check, next to the same shape a real row would take.
+ */
+@Composable
+private fun EmptyMilestoneRow(userFont: UserFontChoice) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .size(MilestoneCircleSize)
+                .drawBehind {
+                    drawCircle(
+                        color = Rule,
+                        radius = (size.minDimension - 1.5.dp.toPx()) / 2,
+                        style = Stroke(
+                            width = 1.5.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
+                        )
+                    )
+                }
+        )
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(
+                text = "No milestones yet.",
+                style = VisionType.cardTitle(userFont).copy(fontSize = 17.sp, lineHeight = 22.sp),
+                color = OnCanvasMuted
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "A vision this size needs a first step. Add one and the ring " +
+                    "starts filling.",
+                style = VisionType.bodyText(userFont),
+                color = OnCanvasMuted
+            )
+        }
+    }
 }
 
 /**
