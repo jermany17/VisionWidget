@@ -184,7 +184,7 @@ fun AddMilestoneSheet(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "Cancel",
-                style = VisionType.bodyText(userFont),
+                style = VisionType.buttonLabel(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
