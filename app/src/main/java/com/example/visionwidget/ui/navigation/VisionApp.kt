@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.home.TodayScreen
+import com.example.visionwidget.ui.onboarding.OnboardingData
 import com.example.visionwidget.ui.onboarding.OnboardingFlow
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -80,11 +81,37 @@ fun VisionApp(
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val screenPadding = PaddingValues(bottom = NavBarHeight + NavBarMargin * 2 + navInset)
 
+    // Shared by the Vision tab's own create sheet and onboarding's last step, so a
+    // vision made either way gets the same id, main-by-default, and selection rules.
+    val createVision: (goal: String, why: String, targetDateMillis: Long) -> Unit =
+        { goal, why, targetDateMillis ->
+            val created = Vision(
+                id = nextVisionId,
+                goal = goal,
+                why = why,
+                targetDateMillis = targetDateMillis
+            )
+            nextVisionId++
+            // The very first vision is main by default; later ones stay secondary
+            // until the user says otherwise.
+            if (visions.isEmpty()) mainVisionId = created.id
+            visions = visions + created
+            // A vision just made is the one the user wants to look at.
+            selectedVisionId = created.id
+        }
+
     if (showOnboarding) {
         OnboardingFlow(
             onSkip = onFinishOnboarding,
-            // TODO: seed the first vision from data.goal once the later steps land.
-            onComplete = { onFinishOnboarding() }
+            onComplete = { data: OnboardingData ->
+                // Every field is validated non-blank/non-null before the flow can
+                // reach its last step, so this only guards against a stray call.
+                val targetDateMillis = data.targetDateMillis
+                if (data.goal.isNotBlank() && targetDateMillis != null) {
+                    createVision(data.goal, data.why, targetDateMillis)
+                }
+                onFinishOnboarding()
+            }
         )
         return
     }
@@ -109,21 +136,7 @@ fun VisionApp(
                 mainVisionId = mainVisionId,
                 onSelectVision = { selectedVisionId = it },
                 onSetMainVision = { mainVisionId = it },
-                onCreateVision = { goal, why, targetDateMillis ->
-                    val created = Vision(
-                        id = nextVisionId,
-                        goal = goal,
-                        why = why,
-                        targetDateMillis = targetDateMillis
-                    )
-                    nextVisionId++
-                    // The very first vision is main by default; later ones stay
-                    // secondary until the user says otherwise.
-                    if (visions.isEmpty()) mainVisionId = created.id
-                    visions = visions + created
-                    // A vision just made is the one the user wants to look at.
-                    selectedVisionId = created.id
-                },
+                onCreateVision = createVision,
                 onEditVision = { id, goal, why, targetDateMillis ->
                     visions = visions.map {
                         if (it.id == id) {
