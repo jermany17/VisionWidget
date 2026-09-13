@@ -67,10 +67,15 @@ import com.example.visionwidget.ui.theme.VisionType
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // Mock data — pinned to the design reference until the real sources are wired up.
-private const val MOCK_DATE = "SATURDAY 1 AUGUST"
 private const val MOCK_THIS_WEEK = "18 / 21"
+
+/** "SUNDAY 13 SEPTEMBER" — the header's own date line, uppercased to sit in the eyebrow. */
+private val HeaderDateFormat = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)
 
 /** There's no account behind the app, so the header addresses the intent, not a name. */
 private const val GREETING = "Build the life you want."
@@ -218,7 +223,13 @@ fun TodayScreen(
 @Composable
 private fun Header(userFont: UserFontChoice) {
     Column(Modifier.fillMaxWidth()) {
-        Text(text = MOCK_DATE, style = VisionType.eyebrow, color = OnCanvas)
+        Text(
+            // Formatted per composition rather than remembered, so an app left open
+            // overnight shows the new day rather than yesterday's date.
+            text = LocalDate.now().format(HeaderDateFormat).uppercase(),
+            style = VisionType.eyebrow,
+            color = OnCanvas
+        )
         Spacer(Modifier.height(8.dp))
         Text(text = GREETING, style = VisionType.greeting(userFont), color = OnCanvas)
     }
