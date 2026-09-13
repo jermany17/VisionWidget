@@ -173,7 +173,8 @@ fun CreateVisionSheet(
             Spacer(Modifier.height(28.dp))
             PrimaryAction(
                 ready = ready,
-                readyLabel = if (editing != null) "SAVE CHANGES" else "CREATE VISION",
+                readyLabel = if (editing != null) "Save changes" else "Create vision",
+                userFont = userFont,
                 // Only reachable once both are set, so the date can't be absent here.
                 onClick = {
                     targetDateMillis?.let { onCreate(goal.trim(), why.trim(), it) }
@@ -182,8 +183,8 @@ fun CreateVisionSheet(
 
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "CANCEL",
-                style = SheetLabel,
+                text = "Cancel",
+                style = VisionType.bodyText(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -303,11 +304,16 @@ private fun TargetDateRow(
 
 /**
  * The full-width pill. Black and live once the goal and date are in, reading
- * [readyLabel]; until then it wears the disabled fill and reads "NAME IT FIRST", and
+ * [readyLabel]; until then it wears the disabled fill and reads "Name it first", and
  * taps do nothing.
  */
 @Composable
-private fun PrimaryAction(ready: Boolean, readyLabel: String, onClick: () -> Unit) {
+private fun PrimaryAction(
+    ready: Boolean,
+    readyLabel: String,
+    userFont: UserFontChoice,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -318,8 +324,8 @@ private fun PrimaryAction(ready: Boolean, readyLabel: String, onClick: () -> Uni
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = if (ready) readyLabel else "NAME IT FIRST",
-            style = SheetLabel,
+            text = if (ready) readyLabel else "Name it first",
+            style = VisionType.cardTitle(userFont),
             color = if (ready) OnNavBar else OnCanvasMuted
         )
     }

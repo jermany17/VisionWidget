@@ -175,8 +175,8 @@ fun AddMilestoneSheet(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "ADD MILESTONE",
-                    style = SheetLabel,
+                    text = "Add milestone",
+                    style = VisionType.cardTitle(userFont),
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
             }

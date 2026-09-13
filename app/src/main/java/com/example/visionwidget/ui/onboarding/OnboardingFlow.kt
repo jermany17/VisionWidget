@@ -211,6 +211,7 @@ fun OnboardingFlow(
                 else -> PlaceholderStep(
                     step = step,
                     isLast = step == ONBOARDING_STEPS,
+                    userFont = userFont,
                     onNext = { step++ },
                     onFinish = finish
                 )
@@ -220,6 +221,7 @@ fun OnboardingFlow(
 
     if (showSkipConfirm) {
         SkipConfirmDialog(
+            userFont = userFont,
             onKeepGoing = { showSkipConfirm = false },
             onConfirmSkip = {
                 // Nothing to wipe by hand — leaving this composable drops every
@@ -315,7 +317,7 @@ private fun ColumnScope.IntroStep(userFont: UserFontChoice, onStart: () -> Unit)
         color = OnCanvasMuted
     )
     Spacer(Modifier.weight(1f))
-    StepPrimaryButton(label = "START", onClick = onStart)
+    StepPrimaryButton(label = "Start", userFont = userFont, onClick = onStart)
     Spacer(Modifier.height(24.dp))
 }
 
@@ -379,7 +381,7 @@ private fun ColumnScope.GoalStep(
         }
 
         Spacer(Modifier.height(28.dp))
-        StepPrimaryButton(label = "NEXT", onClick = onNext)
+        StepPrimaryButton(label = "Next", userFont = userFont, onClick = onNext)
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -427,7 +429,7 @@ private fun ColumnScope.WhyStep(
         )
 
         Spacer(Modifier.height(28.dp))
-        StepPrimaryButton(label = "NEXT", onClick = onNext)
+        StepPrimaryButton(label = "Next", userFont = userFont, onClick = onNext)
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -498,7 +500,7 @@ private fun ColumnScope.DateStep(
         }
 
         Spacer(Modifier.height(28.dp))
-        StepPrimaryButton(label = "NEXT", onClick = onNext)
+        StepPrimaryButton(label = "Next", userFont = userFont, onClick = onNext)
         Spacer(Modifier.height(24.dp))
     }
 
@@ -703,7 +705,7 @@ private fun ColumnScope.WisdomStep(
         }
 
         Spacer(Modifier.height(28.dp))
-        StepPrimaryButton(label = "DONE", onClick = onDone)
+        StepPrimaryButton(label = "Done", userFont = userFont, onClick = onDone)
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -713,6 +715,7 @@ private fun ColumnScope.WisdomStep(
 private fun ColumnScope.PlaceholderStep(
     step: Int,
     isLast: Boolean,
+    userFont: UserFontChoice,
     onNext: () -> Unit,
     onFinish: () -> Unit
 ) {
@@ -732,7 +735,8 @@ private fun ColumnScope.PlaceholderStep(
     )
     Spacer(Modifier.weight(1f))
     StepPrimaryButton(
-        label = if (isLast) "FINISH" else "NEXT",
+        label = if (isLast) "Finish" else "Next",
+        userFont = userFont,
         onClick = if (isLast) onFinish else onNext
     )
     Spacer(Modifier.height(24.dp))
@@ -740,7 +744,7 @@ private fun ColumnScope.PlaceholderStep(
 
 /** The full-width black pill every step ends on. */
 @Composable
-private fun StepPrimaryButton(label: String, onClick: () -> Unit) {
+private fun StepPrimaryButton(label: String, userFont: UserFontChoice, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -750,13 +754,17 @@ private fun StepPrimaryButton(label: String, onClick: () -> Unit) {
             .padding(vertical = 20.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = label, style = StepLabel, color = OnNavBar)
+        Text(text = label, style = VisionType.cardTitle(userFont), color = OnNavBar)
     }
 }
 
 /** Confirms the skip, since it can't be undone — everything entered goes with it. */
 @Composable
-private fun SkipConfirmDialog(onKeepGoing: () -> Unit, onConfirmSkip: () -> Unit) {
+private fun SkipConfirmDialog(
+    userFont: UserFontChoice,
+    onKeepGoing: () -> Unit,
+    onConfirmSkip: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onKeepGoing,
         containerColor = Canvas,
@@ -775,12 +783,12 @@ private fun SkipConfirmDialog(onKeepGoing: () -> Unit, onConfirmSkip: () -> Unit
         },
         confirmButton = {
             TextButton(onClick = onConfirmSkip) {
-                Text(text = "SKIP", style = StepLabel, color = OnCanvas)
+                Text(text = "Skip", style = VisionType.bodyText(userFont), color = OnCanvas)
             }
         },
         dismissButton = {
             TextButton(onClick = onKeepGoing) {
-                Text(text = "KEEP GOING", style = StepLabel, color = OnCanvasMuted)
+                Text(text = "Keep going", style = VisionType.bodyText(userFont), color = OnCanvasMuted)
             }
         }
     )

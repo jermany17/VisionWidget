@@ -628,7 +628,7 @@ private fun MilestonesSection(
     }
     Spacer(Modifier.height(16.dp))
 
-    AddMilestoneRow(onClick = onRequestAdd)
+    AddMilestoneRow(userFont = userFont, onClick = onRequestAdd)
     Spacer(Modifier.height(16.dp))
     Text(
         text = "Milestones belong to this vision only. Checking one moves the ring — " +
@@ -730,7 +730,7 @@ private fun MilestoneCheck(checked: Boolean) {
 
 /** The add control, dashed like [NewVisionChip] but spanning the row rather than a chip. */
 @Composable
-private fun AddMilestoneRow(onClick: () -> Unit) {
+private fun AddMilestoneRow(userFont: UserFontChoice, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -754,7 +754,7 @@ private fun AddMilestoneRow(onClick: () -> Unit) {
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = "+ ADD A MILESTONE", style = SheetLabel, color = OnCanvasMuted)
+        Text(text = "+ Add a milestone", style = VisionType.cardTitle(userFont), color = OnCanvasMuted)
     }
 }
 
@@ -833,7 +833,7 @@ private fun ConfirmDeleteSheet(
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "KEEP IT", style = SheetLabel, color = OnCanvas)
+                    Text(text = "Keep it", style = VisionType.cardTitle(userFont), color = OnCanvas)
                 }
                 Box(
                     modifier = Modifier
@@ -844,7 +844,7 @@ private fun ConfirmDeleteSheet(
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "DELETE", style = SheetLabel, color = OnNavBar)
+                    Text(text = "Delete", style = VisionType.cardTitle(userFont), color = OnNavBar)
                 }
             }
         }
