@@ -437,7 +437,7 @@ private fun VisionActions(userFont: UserFontChoice, onEdit: () -> Unit, onDelete
                 .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "Edit vision", style = VisionType.cardTitle(userFont), color = OnNavBar)
+            Text(text = "Edit vision", style = VisionType.buttonLabel(userFont), color = OnNavBar)
         }
         Box(
             modifier = Modifier
@@ -448,7 +448,7 @@ private fun VisionActions(userFont: UserFontChoice, onEdit: () -> Unit, onDelete
                 .padding(horizontal = 28.dp, vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "Delete", style = VisionType.cardTitle(userFont), color = OnCanvas)
+            Text(text = "Delete", style = VisionType.buttonLabel(userFont), color = OnCanvas)
         }
     }
 }
@@ -754,7 +754,7 @@ private fun AddMilestoneRow(userFont: UserFontChoice, onClick: () -> Unit) {
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = "+ Add a milestone", style = VisionType.cardTitle(userFont), color = OnCanvasMuted)
+        Text(text = "+ Add a milestone", style = VisionType.buttonLabel(userFont), color = OnCanvasMuted)
     }
 }
 
@@ -833,7 +833,7 @@ private fun ConfirmDeleteSheet(
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Keep it", style = VisionType.cardTitle(userFont), color = OnCanvas)
+                    Text(text = "Keep it", style = VisionType.buttonLabel(userFont), color = OnCanvas)
                 }
                 Box(
                     modifier = Modifier
@@ -844,7 +844,7 @@ private fun ConfirmDeleteSheet(
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Delete", style = VisionType.cardTitle(userFont), color = OnNavBar)
+                    Text(text = "Delete", style = VisionType.buttonLabel(userFont), color = OnNavBar)
                 }
             }
         }

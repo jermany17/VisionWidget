@@ -74,6 +74,17 @@ object VisionType {
         lineHeight = 30.sp
     )
 
+    /**
+     * The label inside a full-width pill button set in the user's face — a size down
+     * from [cardTitle], since a button's own fill already gives it enough weight.
+     */
+    fun buttonLabel(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 18.sp,
+        lineHeight = 24.sp
+    )
+
     /** Empty-state headline that owns a whole screen, so it carries more weight. */
     fun screenPromptTitle(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,

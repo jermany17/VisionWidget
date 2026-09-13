@@ -176,7 +176,7 @@ fun AddMilestoneSheet(
             ) {
                 Text(
                     text = "Add milestone",
-                    style = VisionType.cardTitle(userFont),
+                    style = VisionType.buttonLabel(userFont),
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
             }
@@ -184,7 +184,7 @@ fun AddMilestoneSheet(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "CANCEL",
-                style = SheetLabel,
+                style = VisionType.bodyText(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)

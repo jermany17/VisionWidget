@@ -183,7 +183,7 @@ fun CreateVisionSheet(
 
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Cancel",
+                text = "CANCEL",
                 style = VisionType.bodyText(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
@@ -325,7 +325,7 @@ private fun PrimaryAction(
     ) {
         Text(
             text = if (ready) readyLabel else "Name it first",
-            style = VisionType.cardTitle(userFont),
+            style = VisionType.buttonLabel(userFont),
             color = if (ready) OnNavBar else OnCanvasMuted
         )
     }

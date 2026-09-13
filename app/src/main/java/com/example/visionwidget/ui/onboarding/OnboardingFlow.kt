@@ -754,7 +754,7 @@ private fun StepPrimaryButton(label: String, userFont: UserFontChoice, onClick: 
             .padding(vertical = 20.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = label, style = VisionType.cardTitle(userFont), color = OnNavBar)
+        Text(text = label, style = VisionType.buttonLabel(userFont), color = OnNavBar)
     }
 }
 
