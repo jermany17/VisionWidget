@@ -53,6 +53,24 @@ private fun streakEndingYesterday(records: List<DayRecord>, today: Long): Int {
     return streak
 }
 
+/**
+ * The longest run of kept days the record holds, anywhere in it. Unlike the current
+ * streak this ignores where it sits — it's the best the user has ever done, so it stands
+ * even once the run it describes has been broken.
+ */
+fun longestStreak(records: List<DayRecord>): Int {
+    val kept = records.filter { it.isComplete }.map { it.epochDay }.sorted()
+    var best = 0
+    var run = 0
+    var previous: Long? = null
+    for (day in kept) {
+        run = if (previous != null && day == previous + 1) run + 1 else 1
+        best = maxOf(best, run)
+        previous = day
+    }
+    return best
+}
+
 fun topThreeStats(records: List<DayRecord>, today: Long): TopThreeStats {
     val completed = records.count { it.isComplete }
     val recorded = records.size
