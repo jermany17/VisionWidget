@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visionwidget.data.VisionAppViewModel
+import com.example.visionwidget.data.topThreeStats
 import com.example.visionwidget.ui.home.TodayScreen
+import com.example.visionwidget.ui.insights.InsightsScreen
 import com.example.visionwidget.ui.onboarding.OnboardingData
 import com.example.visionwidget.ui.onboarding.OnboardingFlow
 import com.example.visionwidget.ui.theme.Canvas
@@ -40,6 +43,7 @@ import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
 import com.example.visionwidget.ui.vision.VisionScreen
+import java.time.LocalDate
 
 enum class VisionTab(val label: String) {
     Today("Today"),
@@ -69,6 +73,11 @@ fun VisionApp(
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
     val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
     val topThreeChecked by viewModel.topThreeChecked.collectAsStateWithLifecycle()
+    val dayRecords by viewModel.dayRecords.collectAsStateWithLifecycle()
+
+    // Today's header and the Insights tab read the same figures, so they're derived once
+    // here rather than computed separately in each screen.
+    val stats = remember(dayRecords) { topThreeStats(dayRecords, LocalDate.now().toEpochDay()) }
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
@@ -102,6 +111,7 @@ fun VisionApp(
                 // Today follows whichever vision is set as main, falling back to the
                 // oldest one until the user has chosen.
                 vision = visions.firstOrNull { it.id == mainVisionId } ?: visions.firstOrNull(),
+                streakDays = stats.streak,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
                 onSetTopThreeText = viewModel::setTopThreeText,
@@ -128,7 +138,11 @@ fun VisionApp(
                 onDeleteMilestone = viewModel::deleteMilestone
             )
             VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
-            VisionTab.Insights -> PlaceholderScreen(VisionTab.Insights.label)
+            VisionTab.Insights -> InsightsScreen(
+                contentPadding = screenPadding,
+                records = dayRecords,
+                onToggleTask = viewModel::toggleRecordedTask
+            )
         }
 
         BottomNav(

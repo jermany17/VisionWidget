@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
-import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
@@ -71,10 +70,10 @@ import com.example.visionwidget.ui.vision.formatWeeksLeft
 
 // Mock data — pinned to the design reference until the real sources are wired up.
 private const val MOCK_DATE = "SATURDAY 1 AUGUST"
-private const val MOCK_GREETING = "Good morning, Jae."
-private const val MOCK_INITIAL = "J"
-private const val MOCK_STREAK = "17 days"
 private const val MOCK_THIS_WEEK = "18 / 21"
+
+/** There's no account behind the app, so the header addresses the intent, not a name. */
+private const val GREETING = "Build the life you want."
 
 /** Shown in place of tasks before any exist — examples of what belongs in the slot. */
 private val TOP_3_PROMPTS = listOf(
@@ -103,6 +102,7 @@ fun TodayScreen(
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
     vision: Vision? = null,
+    streakDays: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
     topThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
     onSetTopThreeText: (index: Int, text: String) -> Unit = { _, _ -> },
@@ -132,7 +132,7 @@ fun TodayScreen(
             Header(userFont = userFont)
 
             Spacer(Modifier.height(20.dp))
-            MetricsRow(userFont = userFont)
+            MetricsRow(streakDays = streakDays, userFont = userFont)
 
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = Rule, thickness = 1.dp)
@@ -217,32 +217,25 @@ fun TodayScreen(
 
 @Composable
 private fun Header(userFont: UserFontChoice) {
-    Row(verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(1f)) {
-            Text(text = MOCK_DATE, style = VisionType.eyebrow, color = OnCanvas)
-            Spacer(Modifier.height(8.dp))
-            Text(text = MOCK_GREETING, style = VisionType.greeting(userFont), color = OnCanvas)
-        }
-        Spacer(Modifier.size(12.dp))
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(AvatarFill),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = MOCK_INITIAL, style = VisionType.avatar(userFont), color = OnCanvas)
-        }
+    Column(Modifier.fillMaxWidth()) {
+        Text(text = MOCK_DATE, style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(8.dp))
+        Text(text = GREETING, style = VisionType.greeting(userFont), color = OnCanvas)
     }
 }
 
 @Composable
-private fun MetricsRow(userFont: UserFontChoice) {
+private fun MetricsRow(streakDays: Int, userFont: UserFontChoice) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Metric(label = "STREAK", value = MOCK_STREAK, userFont = userFont)
+        Metric(
+            label = "STREAK",
+            // Same figure the Insights tab shows: days kept in a row up to yesterday.
+            value = if (streakDays == 1) "1 day" else "$streakDays days",
+            userFont = userFont
+        )
         Spacer(Modifier.weight(1f))
         Metric(label = "THIS WEEK", value = MOCK_THIS_WEEK, userFont = userFont)
     }

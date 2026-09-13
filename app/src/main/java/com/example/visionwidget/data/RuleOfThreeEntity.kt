@@ -58,6 +58,25 @@ interface RuleOfThreeDao {
     @Query("SELECT date FROM rule_of_three_state WHERE id = 0")
     suspend fun liveDate(): Long?
 
+    /** The live day, watched — Insights reads it to date the slots that aren't archived yet. */
+    @Query("SELECT date FROM rule_of_three_state WHERE id = 0")
+    fun observeLiveDate(): Flow<Long?>
+
+    /**
+     * Every archived day at once. Three rows a day keeps this small enough that paging
+     * would cost more than it saves, and the all-time stats need the whole set anyway.
+     */
+    @Query("SELECT * FROM rule_of_three_history ORDER BY date DESC, slotIndex")
+    fun observeHistory(): Flow<List<RuleOfThreeHistoryEntity>>
+
+    /** Ticking a past day off from Insights, long after it was archived. */
+    @Query("UPDATE rule_of_three_history SET checked = NOT checked WHERE date = :date AND slotIndex = :slotIndex")
+    suspend fun toggleHistory(date: Long, slotIndex: Int)
+
+    /** The same gesture on the live day, which has no history row yet. */
+    @Query("UPDATE rule_of_three_slots SET checked = NOT checked WHERE slotIndex = :slotIndex")
+    suspend fun toggleSlot(slotIndex: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setLiveDate(state: RuleOfThreeStateEntity)
 

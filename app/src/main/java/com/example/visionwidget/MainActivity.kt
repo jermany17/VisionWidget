@@ -7,13 +7,10 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.ui.navigation.VisionApp
 
 class MainActivity : ComponentActivity() {
-    // Re-armed on every foreground so the onboarding flow shows each time the app is
-    // opened, not just on a cold start. Not persisted anywhere on purpose.
-    private val showOnboarding = mutableStateOf(true)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The canvas is always light, so pin the system bar icons to dark.
@@ -21,16 +18,20 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
+
+        // Read once per launch: the flag is already set by the time a rotation brings us
+        // back through here, so the flow can't reappear mid-session.
+        val preferences = AppPreferences(this)
+        val showOnboarding = mutableStateOf(!preferences.hasSeenOnboarding)
+
         setContent {
             VisionApp(
                 showOnboarding = showOnboarding.value,
-                onFinishOnboarding = { showOnboarding.value = false }
+                onFinishOnboarding = {
+                    preferences.hasSeenOnboarding = true
+                    showOnboarding.value = false
+                }
             )
         }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        showOnboarding.value = true
     }
 }

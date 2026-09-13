@@ -7,6 +7,7 @@ import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.ui.vision.Vision
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -29,6 +30,43 @@ private fun VisionWithMilestones.toDomain() = Vision(
 
 /** How long a Flow keeps collecting with no observers before it's torn down. */
 private const val StopTimeoutMillis = 5_000L
+
+/**
+ * Every day that holds at least one task, newest first.
+ *
+ * Archived days come from history; the live day is still sitting in the slots table and
+ * is folded in under whichever date those slots belong to, so Insights shows today
+ * alongside the rest instead of waiting for the rollover to file it.
+ */
+private fun buildDayRecords(
+    history: List<RuleOfThreeHistoryEntity>,
+    slots: List<RuleOfThreeSlotEntity>,
+    liveDate: Long?
+): List<DayRecord> {
+    val byDay = history
+        .groupBy { it.date }
+        .mapValues { (_, rows) -> rows.toEntries { it.slotIndex to (it.task to it.checked) } }
+        .toMutableMap()
+
+    if (liveDate != null) {
+        val live = slots.toEntries { it.slotIndex to (it.task to it.checked) }
+        // An empty live day mustn't erase an archived record for the same date.
+        if (live.isNotEmpty()) byDay[liveDate] = live
+    }
+
+    return byDay
+        .filterValues { it.isNotEmpty() }
+        .map { (day, entries) -> DayRecord(day, entries) }
+        .sortedByDescending { it.epochDay }
+}
+
+/** Drops the slots that were never filled and orders what's left by position. */
+private fun <T> List<T>.toEntries(read: (T) -> Pair<Int, Pair<String?, Boolean>>): List<TopThreeEntry> =
+    mapNotNull { row ->
+        val (slotIndex, value) = read(row)
+        val (task, checked) = value
+        task?.let { TopThreeEntry(slotIndex, it, checked) }
+    }.sortedBy { it.slotIndex }
 
 /**
  * Owns the Room database and exposes it as the reactive state and plain callbacks
@@ -62,6 +100,29 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     val topThreeChecked: StateFlow<List<Boolean>> = ruleOfThreeDao.observeSlots()
         .map { slots -> List(3) { index -> slots.find { it.slotIndex == index }?.checked ?: false } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(3) { false })
+
+    /** Every day on record, newest first — what the Insights tab reads. */
+    val dayRecords: StateFlow<List<DayRecord>> = combine(
+        ruleOfThreeDao.observeHistory(),
+        ruleOfThreeDao.observeSlots(),
+        ruleOfThreeDao.observeLiveDate()
+    ) { history, slots, liveDate -> buildDayRecords(history, slots, liveDate) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), emptyList())
+
+    /**
+     * Tick a slot on any day from Insights, including days long past. The live day still
+     * lives in the slots table rather than history, so which table to write depends on
+     * the date rather than on how old it looks.
+     */
+    fun toggleRecordedTask(epochDay: Long, slotIndex: Int) {
+        viewModelScope.launch {
+            if (epochDay == ruleOfThreeDao.liveDate()) {
+                ruleOfThreeDao.toggleSlot(slotIndex)
+            } else {
+                ruleOfThreeDao.toggleHistory(epochDay, slotIndex)
+            }
+        }
+    }
 
     fun createVision(goal: String, why: String, targetDateMillis: Long) {
         viewModelScope.launch {
