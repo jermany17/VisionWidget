@@ -270,8 +270,15 @@ private fun PhonePreview(
                 userFont = userFont
             )
             WisdomWidget(wisdom = wisdom, theme = wisdomTheme, userFont = userFont)
-            AppIconRow()
         }
+
+        // Pinned to the bottom edge rather than following the widgets, the way a dock
+        // sits on a real home screen however many widgets are stacked above it.
+        AppIconRow(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
+        )
     }
 }
 
@@ -429,9 +436,9 @@ private fun WisdomWidget(wisdom: Wisdom, theme: CardTheme, userFont: UserFontCho
 
 /** Stand-ins for the app icons that would sit under the widgets, fading down the row. */
 @Composable
-private fun AppIconRow() {
+private fun AppIconRow(modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp),
+        modifier = modifier.padding(horizontal = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         listOf(0.22f, 0.18f, 0.14f, 0.10f).forEach { alpha ->
