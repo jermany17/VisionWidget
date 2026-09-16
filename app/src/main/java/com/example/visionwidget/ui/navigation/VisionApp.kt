@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,7 +35,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visionwidget.data.VisionAppViewModel
 import com.example.visionwidget.data.topThreeStats
 import com.example.visionwidget.ui.home.TodayScreen
+import com.example.visionwidget.ui.home.WISDOM
+import com.example.visionwidget.ui.home.nextWisdomIndex
 import com.example.visionwidget.ui.insights.InsightsScreen
+import com.example.visionwidget.ui.studio.StudioScreen
 import com.example.visionwidget.ui.onboarding.OnboardingData
 import com.example.visionwidget.ui.onboarding.OnboardingFlow
 import com.example.visionwidget.ui.theme.Canvas
@@ -69,6 +73,10 @@ fun VisionApp(
     // it stays here rather than in the database.
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+    // Which quote is showing. Held here rather than inside Today because Studio previews
+    // the same card, and the two would drift apart if each picked its own.
+    var wisdomIndex by rememberSaveable { mutableIntStateOf(WISDOM.indices.random()) }
+
     val visions by viewModel.visions.collectAsStateWithLifecycle()
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
     val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
@@ -78,6 +86,10 @@ fun VisionApp(
     // Today's header and the Insights tab read the same figures, so they're derived once
     // here rather than computed separately in each screen.
     val stats = remember(dayRecords) { topThreeStats(dayRecords, LocalDate.now().toEpochDay()) }
+
+    // Today and the Studio preview both follow the main vision — it's the one the
+    // widgets are bound to.
+    val mainVision = visions.firstOrNull { it.id == mainVisionId } ?: visions.firstOrNull()
 
     // The nav bar floats above the content, so scrollable screens need room to
     // clear it before the system navigation inset starts.
@@ -108,15 +120,15 @@ fun VisionApp(
         when (selectedTab) {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
-                // Today follows whichever vision is set as main, falling back to the
-                // oldest one until the user has chosen.
-                vision = visions.firstOrNull { it.id == mainVisionId } ?: visions.firstOrNull(),
+                vision = mainVision,
                 streakDays = stats.streak,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
                 onSetTopThreeText = viewModel::setTopThreeText,
                 onToggleTopThree = viewModel::toggleTopThreeChecked,
                 onClearTopThree = viewModel::clearTopThree,
+                wisdomIndex = wisdomIndex,
+                onShuffleWisdom = { wisdomIndex = nextWisdomIndex(wisdomIndex) },
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(
@@ -137,7 +149,13 @@ fun VisionApp(
                 onToggleMilestone = viewModel::toggleMilestone,
                 onDeleteMilestone = viewModel::deleteMilestone
             )
-            VisionTab.Studio -> PlaceholderScreen(VisionTab.Studio.label)
+            VisionTab.Studio -> StudioScreen(
+                contentPadding = screenPadding,
+                vision = mainVision,
+                topThreeTasks = topThreeTasks,
+                topThreeChecked = topThreeChecked,
+                wisdomIndex = wisdomIndex
+            )
             VisionTab.Insights -> InsightsScreen(
                 contentPadding = screenPadding,
                 records = dayRecords,

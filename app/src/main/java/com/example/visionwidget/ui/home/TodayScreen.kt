@@ -113,6 +113,8 @@ fun TodayScreen(
     onSetTopThreeText: (index: Int, text: String) -> Unit = { _, _ -> },
     onToggleTopThree: (index: Int) -> Unit = {},
     onClearTopThree: (index: Int) -> Unit = {},
+    wisdomIndex: Int = 0,
+    onShuffleWisdom: () -> Unit = {},
     onOpenVision: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -213,7 +215,12 @@ fun TodayScreen(
             Spacer(Modifier.height(22.dp))
             SectionLabel(label = "DAILY WISDOM")
             Spacer(Modifier.height(10.dp))
-            WisdomCard(theme = CardThemes[wisdomThemeId], userFont = userFont)
+            WisdomCard(
+                theme = CardThemes[wisdomThemeId],
+                userFont = userFont,
+                wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
+                onShuffle = onShuffleWisdom
+            )
 
             Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
         }
@@ -644,15 +651,16 @@ private fun EmptyVisionCard(
 }
 
 /**
- * Which quote is showing is local view state — a shuffle position, not something the
- * rest of the app needs — so it stays inside this composable. The index rather than
- * the entry itself is remembered, because an Int survives process death for free.
+ * Which quote is showing is held by the caller rather than here: Studio previews the
+ * widget alongside this card, and the two would drift apart if each picked its own.
  */
 @Composable
-private fun WisdomCard(theme: CardTheme, userFont: UserFontChoice) {
-    var index by rememberSaveable { mutableIntStateOf(WISDOM.indices.random()) }
-    val wisdom = WISDOM[index]
-
+private fun WisdomCard(
+    theme: CardTheme,
+    userFont: UserFontChoice,
+    wisdom: Wisdom,
+    onShuffle: () -> Unit
+) {
     // No minimum height: a floor would leave slack under the footer on short quotes,
     // so the gap below the meta row would grow as the quote got shorter.
     ThemedCard(theme = theme) {
@@ -679,7 +687,7 @@ private fun WisdomCard(theme: CardTheme, userFont: UserFontChoice) {
                     color = theme.onSurfaceMuted,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .clickable { index = nextWisdomIndex(index) }
+                        .clickable(onClick = onShuffle)
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
             }
