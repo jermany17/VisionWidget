@@ -51,6 +51,15 @@ object UserFonts {
         UserFontChoice(21, "Stamped", SpaceGrotesk, FontWeight.Bold)
     ).associateBy { it.id }
 
+    /** Every face, in the order the picker lists them. */
+    val all: List<UserFontChoice> = byId.values.toList()
+
+    /**
+     * Faces above this id are part of the paid tier. Subscription state isn't wired up
+     * yet, so they're selectable — the picker only marks them.
+     */
+    const val LAST_FREE_ID = 8
+
     private val default: UserFontChoice get() = byId.getValue(DEFAULT_ID)
 
     /** Falls back to the default rather than crashing on an id the DB adds later. */

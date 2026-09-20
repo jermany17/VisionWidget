@@ -106,6 +106,11 @@ fun TodayScreen(
     topThreeThemeId: Int = CardThemes.DEFAULT_ID,
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
+    /**
+     * The face the three cards render in — they're the widgets, so they follow what
+     * Studio applied. Everything around them stays on [userFontId].
+     */
+    widgetFontId: Int = UserFonts.DEFAULT_ID,
     vision: Vision? = null,
     streakDays: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
@@ -119,6 +124,7 @@ fun TodayScreen(
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
+    val widgetFont = UserFonts[widgetFontId]
     // Which row is mid-edit and its draft text — purely a UI interaction, not data, so
     // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
@@ -158,13 +164,13 @@ fun TodayScreen(
                 VisionCard(
                     vision = vision,
                     theme = CardThemes[visionThemeId],
-                    userFont = userFont,
+                    userFont = widgetFont,
                     onOpen = onOpenVision
                 )
             } else {
                 EmptyVisionCard(
                     theme = CardThemes[visionThemeId],
-                    userFont = userFont,
+                    userFont = widgetFont,
                     onCreate = onOpenVision
                 )
             }
@@ -183,7 +189,7 @@ fun TodayScreen(
             Spacer(Modifier.height(10.dp))
             TopThreeCard(
                 theme = CardThemes[topThreeThemeId],
-                userFont = userFont,
+                userFont = widgetFont,
                 tasks = topThreeTasks,
                 checkedTasks = topThreeChecked,
                 editingTask = editingTask,
@@ -217,7 +223,7 @@ fun TodayScreen(
             Spacer(Modifier.height(10.dp))
             WisdomCard(
                 theme = CardThemes[wisdomThemeId],
-                userFont = userFont,
+                userFont = widgetFont,
                 wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
                 onShuffle = onShuffleWisdom
             )

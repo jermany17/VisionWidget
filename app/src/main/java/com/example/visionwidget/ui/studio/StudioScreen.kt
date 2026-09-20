@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,7 +26,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,8 +37,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,8 +53,10 @@ import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
 import com.example.visionwidget.ui.theme.DMMono
+import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
+import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
@@ -71,7 +78,16 @@ private val WallpaperStops = arrayOf(
 // The mock phone is drawn at its reference size, so every measurement inside it is the
 // one from the design rather than a fraction that would have to be re-derived.
 private val PhoneWidth = 234.dp
-private val PhoneHeight = 506.dp
+
+/** A floor rather than a fixed height — a wide face wraps the cards and the frame grows. */
+private val PhoneMinHeight = 506.dp
+
+/**
+ * Room held at the foot of the frame for the dock and the apply control. The widgets
+ * are inset by this much so a tall stack pushes the frame down rather than running
+ * underneath what's pinned there.
+ */
+private val PhoneFooterArea = 140.dp
 private val PhoneShape = RoundedCornerShape(34.dp)
 private val WidgetShape = RoundedCornerShape(16.dp)
 private val CheckSize = 9.dp
@@ -122,19 +138,47 @@ private fun widgetQuote(font: UserFontChoice) = TextStyle(
     lineHeight = 15.sp
 )
 
-/** Where a widget can sit. Only the home screen is drawn so far. */
-private enum class WidgetSurface(val label: String) {
-    Home("Home"),
-    Lock("Lock"),
-    StandBy("StandBy")
-}
+/** The mark beside a paid face — warm, so it reads as an offer rather than a warning. */
+private val PlusMark = Color(0xFF9A7B4F)
+
+/** How many faces sit across the picker. */
+private const val FontColumns = 3
+
+/** One wording for both apply controls: they do the same thing, so they read the same. */
+private const val ApplyLabelText = "Apply to my widgets"
+
+// The applied state's own colours. Fixed rather than taken from the surface behind
+// them, so the control looks the same on the wallpaper and on the white canvas.
+private val AppliedFill = Color(0xFF3B3733)
+private val AppliedBorder = Color.White.copy(alpha = 0.28f)
+private val AppliedInk = Color.White.copy(alpha = 0.65f)
+
+/** Sized to the mock phone it sits in rather than to the screen around it. */
+private fun applyLabel(font: UserFontChoice) = TextStyle(
+    fontFamily = font.family,
+    fontWeight = font.weight,
+    fontSize = 14.sp,
+    lineHeight = 18.sp
+)
+
+/**
+ * A chip's own name, set in the face it offers. Sized down from body text so the
+ * longest name still fits a third of the row in the widest face on offer.
+ */
+private fun fontChipLabel(font: UserFontChoice) = TextStyle(
+    fontFamily = font.family,
+    fontWeight = font.weight,
+    fontSize = 12.sp,
+    lineHeight = 16.sp
+)
 
 /**
  * Previews how the widgets read on a phone, using the user's own data rather than
  * sample copy — the point is to show what they would actually see.
  *
  * The vision shown is the main one, the same one Today follows, since that's the one
- * the widgets are bound to.
+ * the widgets are bound to. Picking a face only redraws the preview; it takes applying
+ * to change what the rest of the app and the widgets use.
  */
 @Composable
 fun StudioScreen(
@@ -145,12 +189,20 @@ fun StudioScreen(
     visionThemeId: Int = CardThemes.DEFAULT_ID,
     topThreeThemeId: Int = CardThemes.DEFAULT_ID,
     wisdomThemeId: Int = CardThemes.DEFAULT_ID,
-    userFontId: Int = UserFonts.DEFAULT_ID,
+    /** The face currently applied to the widgets — what the preview starts from. */
+    widgetFontId: Int = UserFonts.DEFAULT_ID,
+    onApplyFont: (Int) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
-    val userFont = UserFonts[userFontId]
-    var surface by rememberSaveable { mutableStateOf(WidgetSurface.Home) }
+    // Keyed on what's applied, so committing a choice settles the draft back onto it
+    // and the button falls to its applied state without a second signal.
+    var draftFontId by rememberSaveable(widgetFontId) { mutableIntStateOf(widgetFontId) }
+    val draftFont = UserFonts[draftFontId]
+
+    // The screen's own text is not a widget, so it keeps the default face however the
+    // widgets are set — only the phone preview follows the draft.
+    val userFont = UserFonts[UserFonts.DEFAULT_ID]
 
     Column(
         modifier = modifier
@@ -187,7 +239,6 @@ fun StudioScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             PhonePreview(
-                surface = surface,
                 vision = vision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
@@ -195,17 +246,130 @@ fun StudioScreen(
                 visionTheme = CardThemes[visionThemeId],
                 topThreeTheme = CardThemes[topThreeThemeId],
                 wisdomTheme = CardThemes[wisdomThemeId],
-                userFont = userFont
-            )
-            Spacer(Modifier.height(16.dp))
-            SurfaceSwitch(
-                selected = surface,
-                userFont = userFont,
-                onSelect = { surface = it }
+                userFont = draftFont,
+                isApplied = draftFontId == widgetFontId,
+                chromeFont = userFont,
+                onApply = { onApplyFont(draftFontId) }
             )
         }
 
-        Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+        Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
+            Spacer(Modifier.height(26.dp))
+            Text(text = "TYPOGRAPHY", style = VisionType.eyebrow, color = OnCanvas)
+            Spacer(Modifier.height(14.dp))
+            FontPicker(
+                selectedId = draftFontId,
+                onSelect = { draftFontId = it }
+            )
+
+            // The same action as the one on the preview, repeated at the foot of the
+            // list: by the time the picker has been scrolled through, the control up
+            // inside the phone is long out of reach.
+            Spacer(Modifier.height(24.dp))
+            ApplyButton(
+                isApplied = draftFontId == widgetFontId,
+                userFont = userFont,
+                onApply = { onApplyFont(draftFontId) }
+            )
+            Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+        }
+    }
+}
+
+/**
+ * Commits the previewed face.
+ *
+ * The same control appears twice — once on the wallpaper under the widgets, once at the
+ * foot of the picker — so its colours are fixed rather than read from whatever sits
+ * behind it, and the two can't drift apart. It holds an applied state rather than
+ * disappearing, so the control stays where the eye last left it.
+ */
+@Composable
+private fun ApplyButton(isApplied: Boolean, userFont: UserFontChoice, onApply: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(if (isApplied) AppliedFill else NavBar)
+            .then(
+                if (isApplied) Modifier.border(1.dp, AppliedBorder, CircleShape) else Modifier
+            )
+            .clickable(enabled = !isApplied, onClick = onApply)
+            .padding(vertical = 15.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isApplied) "Applied" else ApplyLabelText,
+            style = applyLabel(userFont),
+            color = if (isApplied) AppliedInk else OnNavBar
+        )
+    }
+}
+
+/**
+ * Every face, each chip set in the face it offers — the name alone says nothing about
+ * how a typeface reads, so the chip has to be the specimen.
+ */
+@Composable
+private fun FontPicker(selectedId: Int, onSelect: (Int) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // A fixed three across rather than flowing: every chip is set in a different
+        // face, so their natural widths vary enough that a flow row packs two here and
+        // three there. Equal columns keep the grid reading as a grid.
+        UserFonts.all.chunked(FontColumns).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { choice ->
+                    FontChip(
+                        choice = choice,
+                        isSelected = choice.id == selectedId,
+                        onClick = { onSelect(choice.id) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                // A short last row leaves its columns empty rather than stretching the
+                // chips that are in it.
+                repeat(FontColumns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontChip(
+    choice: UserFontChoice,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val ink = if (isSelected) OnNavBar else OnCanvas
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(if (isSelected) NavBar else Canvas)
+            .then(if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                append(choice.name)
+                if (choice.id > UserFonts.LAST_FREE_ID) {
+                    // Part of the same run so the mark can't be pushed to its own line
+                    // when a wide face fills the column.
+                    withStyle(SpanStyle(color = if (isSelected) ink.copy(alpha = 0.8f) else PlusMark)) {
+                        append(" +")
+                    }
+                }
+            },
+            style = fontChipLabel(choice),
+            color = ink,
+            maxLines = 1,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -227,7 +391,6 @@ private fun PlanChip(label: String) {
  */
 @Composable
 private fun PhonePreview(
-    surface: WidgetSurface,
     vision: Vision?,
     topThreeTasks: List<String?>,
     topThreeChecked: List<Boolean>,
@@ -235,12 +398,15 @@ private fun PhonePreview(
     visionTheme: CardTheme,
     topThreeTheme: CardTheme,
     wisdomTheme: CardTheme,
-    userFont: UserFontChoice
+    userFont: UserFontChoice,
+    isApplied: Boolean,
+    chromeFont: UserFontChoice,
+    onApply: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .width(PhoneWidth)
-            .height(PhoneHeight)
+            .heightIn(min = PhoneMinHeight)
             .clip(PhoneShape)
             .drawBehind {
                 drawRect(
@@ -254,12 +420,13 @@ private fun PhonePreview(
                 )
             }
     ) {
-        // Only the home screen has widgets drawn; the other surfaces show the bare
-        // wallpaper until they're built.
-        if (surface != WidgetSurface.Home) return@Box
-
         Column(
-            modifier = Modifier.padding(start = 16.dp, top = 38.dp, end = 16.dp),
+            modifier = Modifier.padding(
+                start = 16.dp,
+                top = 38.dp,
+                end = 16.dp,
+                bottom = PhoneFooterArea
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             VisionWidget(vision = vision, theme = visionTheme, userFont = userFont)
@@ -273,12 +440,19 @@ private fun PhonePreview(
         }
 
         // Pinned to the bottom edge rather than following the widgets, the way a dock
-        // sits on a real home screen however many widgets are stacked above it.
-        AppIconRow(
+        // sits on a real home screen however many widgets are stacked above it. The
+        // apply control sits under the dock, inside the frame it acts on.
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-        )
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AppIconRow()
+            Spacer(Modifier.height(16.dp))
+            ApplyButton(isApplied = isApplied, userFont = chromeFont, onApply = onApply)
+        }
     }
 }
 
@@ -324,19 +498,23 @@ private fun VisionWidget(vision: Vision?, theme: CardTheme, userFont: UserFontCh
         }
 
         HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        // Each side takes half the row and wraps within it. Left to SpaceBetween the
+        // two run together once the date and the countdown are both long enough to
+        // fill the width between them.
+        Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = vision?.let { formatTargetDate(it.targetDateMillis).uppercase() }.orEmpty(),
                 style = WidgetMeta,
-                color = theme.onSurfaceMuted
+                color = theme.onSurfaceMuted,
+                modifier = Modifier.weight(1f)
             )
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = vision?.let { formatWeeksLeft(it.targetDateMillis) }.orEmpty(),
                 style = WidgetMeta,
-                color = theme.onSurfaceMuted
+                color = theme.onSurfaceMuted,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -452,44 +630,3 @@ private fun AppIconRow(modifier: Modifier = Modifier) {
     }
 }
 
-/** Which surface the preview is showing. The other two are placeholders for now. */
-@Composable
-private fun SurfaceSwitch(
-    selected: WidgetSurface,
-    userFont: UserFontChoice,
-    onSelect: (WidgetSurface) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(OnCanvas.copy(alpha = 0.06f))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        WidgetSurface.entries.forEach { entry ->
-            val isSelected = entry == selected
-            Box(
-                modifier = Modifier
-                    .then(
-                        if (isSelected) {
-                            Modifier.shadow(elevation = 3.dp, shape = CircleShape, clip = false)
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .clip(CircleShape)
-                    .background(if (isSelected) Canvas else Color.Transparent)
-                    .clickable { onSelect(entry) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    // The names read as places, not as chrome labels, so they keep
-                    // their capitals and the user's own face.
-                    text = entry.label,
-                    style = VisionType.bodyText(userFont),
-                    color = if (isSelected) OnCanvas else OnCanvasMuted
-                )
-            }
-        }
-    }
-}

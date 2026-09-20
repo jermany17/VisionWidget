@@ -82,6 +82,7 @@ fun VisionApp(
     val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
     val topThreeChecked by viewModel.topThreeChecked.collectAsStateWithLifecycle()
     val dayRecords by viewModel.dayRecords.collectAsStateWithLifecycle()
+    val widgetFontId by viewModel.widgetFontId.collectAsStateWithLifecycle()
 
     // Today's header and the Insights tab read the same figures, so they're derived once
     // here rather than computed separately in each screen.
@@ -120,6 +121,7 @@ fun VisionApp(
         when (selectedTab) {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
+                widgetFontId = widgetFontId,
                 vision = mainVision,
                 streakDays = stats.streak,
                 topThreeTasks = topThreeTasks,
@@ -151,6 +153,8 @@ fun VisionApp(
             )
             VisionTab.Studio -> StudioScreen(
                 contentPadding = screenPadding,
+                widgetFontId = widgetFontId,
+                onApplyFont = viewModel::setWidgetFont,
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,

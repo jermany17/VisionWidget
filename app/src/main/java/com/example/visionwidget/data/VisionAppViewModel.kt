@@ -5,8 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.ui.vision.Vision
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -77,6 +79,19 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     private val db = AppDatabase.getInstance(application)
     private val visionDao = db.visionDao()
     private val ruleOfThreeDao = db.ruleOfThreeDao()
+    private val preferences = AppPreferences(application)
+
+    // Preferences don't emit on their own, so the stored value is read once and the
+    // flow is what everything observes from then on.
+    private val _widgetFontId = MutableStateFlow(preferences.widgetFontId)
+
+    /** The face the widget cards render in. The rest of the app keeps the default. */
+    val widgetFontId: StateFlow<Int> = _widgetFontId.asStateFlow()
+
+    fun setWidgetFont(id: Int) {
+        preferences.widgetFontId = id
+        _widgetFontId.value = id
+    }
 
     init {
         // Once per process start: if the live slots still belong to a day that's
