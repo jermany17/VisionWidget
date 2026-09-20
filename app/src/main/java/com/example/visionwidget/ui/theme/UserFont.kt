@@ -10,6 +10,12 @@ import androidx.compose.ui.text.font.FontWeight
  */
 data class UserFontChoice(
     val id: Int,
+    /**
+     * What the face is called where the user picks it — the mood it sets rather than
+     * the typeface's own name, so a face can be swapped without renaming the choice.
+     * Title case here and uppercased at the point of display, like [CardTheme.name].
+     */
+    val name: String,
     val family: FontFamily,
     val weight: FontWeight
 )
@@ -19,8 +25,30 @@ object UserFonts {
     const val DEFAULT_ID = 1
 
     private val byId = listOf(
-        // 1 = Editorial (Instrument Serif 400). Further faces get added here.
-        UserFontChoice(1, InstrumentSerif, FontWeight.Normal)
+        // ── Free (1–8) ──
+        UserFontChoice(1, "Editorial", InstrumentSerif, FontWeight.Normal),
+        UserFontChoice(2, "Modern", DMSans, FontWeight.SemiBold),
+        UserFontChoice(3, "Typewriter", DMMono, FontWeight.Normal),
+        UserFontChoice(4, "Minimal", DMSans, FontWeight.Light),
+        UserFontChoice(5, "Literary", LibreBaskerville, FontWeight.Normal),
+        UserFontChoice(6, "Classic", Newsreader, FontWeight.Normal),
+        UserFontChoice(7, "Romantic", Lora, FontWeight.Medium),
+        UserFontChoice(8, "Antique", EBGaramond, FontWeight.Medium),
+
+        // ── Vision+ (9–21) ──
+        UserFontChoice(9, "Quill", CrimsonPro, FontWeight.Normal),
+        UserFontChoice(10, "Couture", PlayfairDisplay, FontWeight.Medium),
+        UserFontChoice(11, "Soft Serif", Fraunces, FontWeight.SemiBold),
+        UserFontChoice(12, "Grotesque", SpaceGrotesk, FontWeight.Medium),
+        UserFontChoice(13, "Display", BricolageGrotesque, FontWeight.SemiBold),
+        UserFontChoice(14, "Geometric", Outfit, FontWeight.Medium),
+        UserFontChoice(15, "Humanist", WorkSans, FontWeight.Medium),
+        UserFontChoice(16, "Neutral", PublicSans, FontWeight.SemiBold),
+        UserFontChoice(17, "Rounded", Manrope, FontWeight.Bold),
+        UserFontChoice(18, "Brutal", Syne, FontWeight.ExtraBold),
+        UserFontChoice(19, "Technical", IBMPlexMono, FontWeight.Medium),
+        UserFontChoice(20, "Console", JetBrainsMono, FontWeight.Normal),
+        UserFontChoice(21, "Stamped", SpaceGrotesk, FontWeight.Bold)
     ).associateBy { it.id }
 
     private val default: UserFontChoice get() = byId.getValue(DEFAULT_ID)

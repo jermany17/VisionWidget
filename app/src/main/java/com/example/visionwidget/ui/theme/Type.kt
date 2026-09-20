@@ -37,6 +37,50 @@ val DMMono = FontFamily(
     Font(R.font.dm_mono_regular, FontWeight.Normal)
 )
 
+// --- User-selectable faces ---
+//
+// All variable files, so one resource covers every weight: the family below declares
+// only the weight its choice in [UserFonts] actually renders at, and the axis is set to
+// match. Declaring a weight the file isn't asked for would ship the same bytes twice.
+
+private fun variable(resId: Int, weight: FontWeight, axis: Int) = FontFamily(
+    Font(resId, weight, variationSettings = FontVariation.Settings(FontVariation.weight(axis)))
+)
+
+val LibreBaskerville = variable(R.font.libre_baskerville_variable, FontWeight.Normal, 400)
+val Newsreader = variable(R.font.newsreader_variable, FontWeight.Normal, 400)
+val Lora = variable(R.font.lora_variable, FontWeight.Medium, 500)
+val EBGaramond = variable(R.font.eb_garamond_variable, FontWeight.Medium, 500)
+val CrimsonPro = variable(R.font.crimson_pro_variable, FontWeight.Normal, 400)
+val PlayfairDisplay = variable(R.font.playfair_display_variable, FontWeight.Medium, 500)
+val Fraunces = variable(R.font.fraunces_variable, FontWeight.SemiBold, 600)
+val BricolageGrotesque = variable(R.font.bricolage_grotesque_variable, FontWeight.SemiBold, 600)
+val Outfit = variable(R.font.outfit_variable, FontWeight.Medium, 500)
+val WorkSans = variable(R.font.work_sans_variable, FontWeight.Medium, 500)
+val PublicSans = variable(R.font.public_sans_variable, FontWeight.SemiBold, 600)
+val Manrope = variable(R.font.manrope_variable, FontWeight.Bold, 700)
+val Syne = variable(R.font.syne_variable, FontWeight.ExtraBold, 800)
+val JetBrainsMono = variable(R.font.jetbrains_mono_variable, FontWeight.Normal, 400)
+
+/** The one static file among the picks — IBM Plex Mono ships per weight, not variable. */
+val IBMPlexMono = FontFamily(
+    Font(R.font.ibm_plex_mono_medium, FontWeight.Medium)
+)
+
+/** Two choices ride on this face, so it carries both weights rather than two copies. */
+val SpaceGrotesk = FontFamily(
+    Font(
+        R.font.space_grotesk_variable,
+        weight = FontWeight.Medium,
+        variationSettings = FontVariation.Settings(FontVariation.weight(500))
+    ),
+    Font(
+        R.font.space_grotesk_variable,
+        weight = FontWeight.Bold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(700))
+    )
+)
+
 /**
  * Semantic styles for the app.
  *

@@ -24,6 +24,11 @@ fun hairlineFor(surface: Color): Color = surface.darkenBy(BORDER_DARKEN)
  */
 data class CardTheme(
     val id: Int,
+    /**
+     * What the colour is called where the user picks it. Stored in title case and
+     * uppercased at the point of display, like every other label in the app.
+     */
+    val name: String,
     val surface: Color,
     val onSurface: Color
 ) {
@@ -49,14 +54,14 @@ object CardThemes {
     const val DEFAULT_ID = 1
 
     private val byId = listOf(
-        CardTheme(1, Color(0xFF3A2A3C), Color.White),
-        CardTheme(2, Color(0xFF100F0E), Color.White),
-        CardTheme(3, Color(0xFFF4F1E8), Color.Black),
-        CardTheme(4, Color(0xFFFFFFFF), Color.Black),
-        CardTheme(5, Color(0xFFEFE9DC), Color.Black),
-        CardTheme(6, Color(0xFFE7DED1), Color.Black),
-        CardTheme(7, Color(0xFFDCE4D8), Color.Black),
-        CardTheme(8, Color(0xFFE2E4E3), Color.Black)
+        CardTheme(1, "Plum", Color(0xFF3A2A3C), Color.White),
+        CardTheme(2, "Black", Color(0xFF100F0E), Color.White),
+        CardTheme(3, "Paper", Color(0xFFF4F1E8), Color.Black),
+        CardTheme(4, "White", Color(0xFFFFFFFF), Color.Black),
+        CardTheme(5, "Linen", Color(0xFFEFE9DC), Color.Black),
+        CardTheme(6, "Sand", Color(0xFFE7DED1), Color.Black),
+        CardTheme(7, "Sage", Color(0xFFDCE4D8), Color.Black),
+        CardTheme(8, "Fog", Color(0xFFE2E4E3), Color.Black)
     ).associateBy { it.id }
 
     val default: CardTheme get() = byId.getValue(DEFAULT_ID)
