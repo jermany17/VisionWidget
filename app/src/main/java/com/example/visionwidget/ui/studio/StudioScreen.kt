@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,11 +24,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -37,6 +45,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -46,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.Wisdom
@@ -141,8 +151,47 @@ private fun widgetQuote(font: UserFontChoice) = TextStyle(
 /** The mark beside a paid face — warm, so it reads as an offer rather than a warning. */
 private val PlusMark = Color(0xFF9A7B4F)
 
+/** The settings button's own fill and hairline, a shade warmer than the canvas. */
+private val IconButtonFill = Color(0xFFEFEBE3)
+private val IconButtonBorder = Color(0xFF12110F).copy(alpha = 0.09f)
+
+/** The two halves of Studio. Gallery is a placeholder until its own work lands. */
+private enum class StudioTab(val label: String) {
+    Design("Design"),
+    Gallery("Gallery")
+}
+
+private fun tabLabel(font: UserFontChoice) = TextStyle(
+    fontFamily = font.family,
+    fontWeight = font.weight,
+    fontSize = 19.sp,
+    lineHeight = 24.sp
+)
+
 /** How many faces sit across the picker. */
 private const val FontColumns = 3
+
+/** How many colours sit across their picker — smaller cells, so more of them. */
+private const val ThemeColumns = 6
+
+private val SwatchShape = RoundedCornerShape(10.dp)
+
+/** A swatch's name. Narrow cells, so tighter than the eyebrow used elsewhere. */
+private val SwatchLabel = TextStyle(
+    fontFamily = DMMono,
+    fontWeight = FontWeight.Normal,
+    fontSize = 8.sp,
+    lineHeight = 11.sp,
+    letterSpacing = 0.4.sp
+)
+
+/** The paid mark on a swatch, read against the colour it sits on. */
+private val SwatchPlus = TextStyle(
+    fontFamily = DMMono,
+    fontWeight = FontWeight.Normal,
+    fontSize = 9.sp,
+    lineHeight = 10.sp
+)
 
 /** One wording for both apply controls: they do the same thing, so they read the same. */
 private const val ApplyLabelText = "Apply to my widgets"
@@ -186,23 +235,29 @@ fun StudioScreen(
     topThreeTasks: List<String?> = List(3) { null },
     topThreeChecked: List<Boolean> = List(3) { false },
     wisdomIndex: Int = 0,
-    visionThemeId: Int = CardThemes.DEFAULT_ID,
-    topThreeThemeId: Int = CardThemes.DEFAULT_ID,
-    wisdomThemeId: Int = CardThemes.DEFAULT_ID,
-    /** The face currently applied to the widgets — what the preview starts from. */
+    /** The look currently applied to the widgets — what the preview starts from. */
     widgetFontId: Int = UserFonts.DEFAULT_ID,
-    onApplyFont: (Int) -> Unit = {},
+    widgetThemeId: Int = CardThemes.DEFAULT_ID,
+    onApplyStyle: (fontId: Int, themeId: Int) -> Unit = { _, _ -> },
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
-    // Keyed on what's applied, so committing a choice settles the draft back onto it
+    // Keyed on what's applied, so committing a choice settles the drafts back onto it
     // and the button falls to its applied state without a second signal.
     var draftFontId by rememberSaveable(widgetFontId) { mutableIntStateOf(widgetFontId) }
+    var draftThemeId by rememberSaveable(widgetThemeId) { mutableIntStateOf(widgetThemeId) }
     val draftFont = UserFonts[draftFontId]
+    val draftTheme = CardThemes[draftThemeId]
+
+    // One control commits both, so it reads as applied only when neither has moved.
+    val isApplied = draftFontId == widgetFontId && draftThemeId == widgetThemeId
 
     // The screen's own text is not a widget, so it keeps the default face however the
     // widgets are set — only the phone preview follows the draft.
     val userFont = UserFonts[UserFonts.DEFAULT_ID]
+
+    var tab by rememberSaveable { mutableStateOf(StudioTab.Design) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -224,54 +279,210 @@ fun StudioScreen(
                     style = VisionType.greeting(userFont),
                     color = OnCanvas
                 )
-                PlanChip(label = "FREE PLAN")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PlanChip(label = "FREE PLAN")
+                    Spacer(Modifier.width(10.dp))
+                    SettingsButton(onClick = { showSettings = true })
+                }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(14.dp))
+            // Held to the content column like everything else on the screen, so the
+            // rules stop at the same margins rather than running to the screen edges.
+            TabBar(
+                selected = tab,
+                userFont = userFont,
+                onSelect = { tab = it }
+            )
         }
 
-        // Full-bleed rather than held to the content column: the panel is the backdrop
-        // the phone stands on, so it reads better running edge to edge.
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Backdrop)
-                .padding(vertical = 22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PhonePreview(
+        when (tab) {
+            StudioTab.Design -> DesignTab(
                 vision = vision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
-                wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
-                visionTheme = CardThemes[visionThemeId],
-                topThreeTheme = CardThemes[topThreeThemeId],
-                wisdomTheme = CardThemes[wisdomThemeId],
-                userFont = draftFont,
-                isApplied = draftFontId == widgetFontId,
-                chromeFont = userFont,
-                onApply = { onApplyFont(draftFontId) }
+                wisdomIndex = wisdomIndex,
+                draftFontId = draftFontId,
+                draftThemeId = draftThemeId,
+                draftFont = draftFont,
+                draftTheme = draftTheme,
+                userFont = userFont,
+                isApplied = isApplied,
+                onSelectFont = { draftFontId = it },
+                onSelectTheme = { draftThemeId = it },
+                onApplyFont = { onApplyStyle(draftFontId, draftThemeId) },
+                contentPadding = contentPadding
+            )
+
+            StudioTab.Gallery -> GalleryTab(
+                userFont = userFont,
+                contentPadding = contentPadding
             )
         }
+    }
 
-        Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
-            Spacer(Modifier.height(26.dp))
-            Text(text = "TYPOGRAPHY", style = VisionType.eyebrow, color = OnCanvas)
-            Spacer(Modifier.height(14.dp))
-            FontPicker(
-                selectedId = draftFontId,
-                onSelect = { draftFontId = it }
-            )
+    if (showSettings) {
+        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+    }
+}
 
-            // The same action as the one on the preview, repeated at the foot of the
-            // list: by the time the picker has been scrolled through, the control up
-            // inside the phone is long out of reach.
-            Spacer(Modifier.height(24.dp))
-            ApplyButton(
-                isApplied = draftFontId == widgetFontId,
-                userFont = userFont,
-                onApply = { onApplyFont(draftFontId) }
+/** The preview and the face picker — everything Studio can change today. */
+@Composable
+private fun ColumnScope.DesignTab(
+    vision: Vision?,
+    topThreeTasks: List<String?>,
+    topThreeChecked: List<Boolean>,
+    wisdomIndex: Int,
+    draftFontId: Int,
+    draftThemeId: Int,
+    draftFont: UserFontChoice,
+    draftTheme: CardTheme,
+    userFont: UserFontChoice,
+    isApplied: Boolean,
+    onSelectFont: (Int) -> Unit,
+    onSelectTheme: (Int) -> Unit,
+    onApplyFont: () -> Unit,
+    contentPadding: PaddingValues
+) {
+    // Full-bleed rather than held to the content column: the panel is the backdrop
+    // the phone stands on, so it reads better running edge to edge.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Backdrop)
+            .padding(vertical = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        PhonePreview(
+            vision = vision,
+            topThreeTasks = topThreeTasks,
+            topThreeChecked = topThreeChecked,
+            wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
+            // One colour across all three: Studio applies to every widget at once.
+            visionTheme = draftTheme,
+            topThreeTheme = draftTheme,
+            wisdomTheme = draftTheme,
+            userFont = draftFont,
+            isApplied = isApplied,
+            chromeFont = userFont,
+            onApply = onApplyFont
+        )
+    }
+
+    Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
+        Spacer(Modifier.height(26.dp))
+        Text(text = "TYPOGRAPHY", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        FontPicker(selectedId = draftFontId, onSelect = onSelectFont)
+
+        Spacer(Modifier.height(30.dp))
+        Text(text = "THEME", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        ThemePicker(selectedId = draftThemeId, onSelect = onSelectTheme)
+
+        // The same action as the one on the preview, repeated at the foot of the
+        // list: by the time the pickers have been scrolled through, the control up
+        // inside the phone is long out of reach.
+        Spacer(Modifier.height(28.dp))
+        ApplyButton(isApplied = isApplied, userFont = userFont, onApply = onApplyFont)
+        Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+    }
+}
+
+/** Nothing here yet — the tab exists so the split is in place for the work to land in. */
+@Composable
+private fun ColumnScope.GalleryTab(userFont: UserFontChoice, contentPadding: PaddingValues) {
+    Column(
+        modifier = Modifier.fillMaxWidth(ContentWidthFraction),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(64.dp))
+        Text(
+            text = "Nothing here yet.",
+            style = VisionType.bodyText(userFont),
+            color = OnCanvasMuted
+        )
+        Spacer(Modifier.height(64.dp))
+        Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+    }
+}
+
+/** Two halves of the screen, the selected one carrying a heavier rule beneath it. */
+@Composable
+private fun TabBar(
+    selected: StudioTab,
+    userFont: UserFontChoice,
+    onSelect: (StudioTab) -> Unit
+) {
+    Row(Modifier.fillMaxWidth()) {
+        StudioTab.entries.forEach { entry ->
+            val isSelected = entry == selected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onSelect(entry) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = entry.label,
+                    style = tabLabel(userFont),
+                    color = if (isSelected) OnCanvas else OnCanvasMuted,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(if (isSelected) 2.dp else 1.dp)
+                        .background(if (isSelected) OnCanvas else Rule)
+                )
+            }
+        }
+    }
+}
+
+/** The gear beside the plan chip. Opens settings; what's in them comes later. */
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(IconButtonFill)
+            .border(1.dp, IconButtonBorder, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_settings),
+            contentDescription = "Settings",
+            tint = OnCanvas,
+            modifier = Modifier.size(17.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheet(userFont: UserFontChoice, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Canvas,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(top = 4.dp, bottom = 32.dp)
+                .navigationBarsPadding()
+        ) {
+            Text(text = "SETTINGS", style = VisionType.eyebrow, color = OnCanvasMuted)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Nothing here yet.",
+                style = VisionType.screenPromptTitle(userFont),
+                color = OnCanvas
             )
-            Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
         }
     }
 }
@@ -334,6 +545,94 @@ private fun FontPicker(selectedId: Int, onSelect: (Int) -> Unit) {
                 repeat(FontColumns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/**
+ * Every colour as its own swatch, free tier first. The name sits under the square
+ * rather than inside it — several of the surfaces are too pale to carry text.
+ */
+@Composable
+private fun ThemePicker(selectedId: Int, onSelect: (Int) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        CardThemes.all.chunked(ThemeColumns).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { theme ->
+                    ThemeSwatch(
+                        theme = theme,
+                        isSelected = theme.id == selectedId,
+                        onClick = { onSelect(theme.id) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(ThemeColumns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSwatch(
+    theme: CardTheme,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                // The ring sits outside the colour with a gap, so a dark swatch doesn't
+                // swallow it and a pale one doesn't look merely outlined.
+                .then(
+                    if (isSelected) {
+                        Modifier.border(1.dp, OnCanvas, RoundedCornerShape(13.dp))
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(3.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1.15f)
+                    .clip(SwatchShape)
+                    .background(theme.surface)
+                    // Every swatch is outlined, not just the pale ones: in a grid the
+                    // squares need a common edge to read as one set.
+                    .border(1.dp, theme.border ?: theme.onSurfaceRule, SwatchShape)
+            ) {
+                if (theme.id > CardThemes.LAST_FREE_ID) {
+                    Text(
+                        text = "+",
+                        style = SwatchPlus,
+                        // Taken from the colour's own text tone, so it stays legible on
+                        // a pale butter and on a near-black cacao alike.
+                        color = theme.onSurface.copy(alpha = 0.75f),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = theme.name.uppercase(),
+            style = SwatchLabel,
+            color = if (isSelected) OnCanvas else OnCanvasMuted,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

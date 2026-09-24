@@ -1,6 +1,7 @@
 package com.example.visionwidget.data
 
 import android.content.Context
+import com.example.visionwidget.ui.theme.CardThemes
 import com.example.visionwidget.ui.theme.UserFonts
 
 /**
@@ -30,9 +31,15 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_WIDGET_FONT, UserFonts.DEFAULT_ID)
         set(value) = prefs.edit().putInt(KEY_WIDGET_FONT, value).apply()
 
+    /** The colour the widget cards are painted in. Scoped the same way as the face. */
+    var widgetThemeId: Int
+        get() = prefs.getInt(KEY_WIDGET_THEME, CardThemes.DEFAULT_ID)
+        set(value) = prefs.edit().putInt(KEY_WIDGET_THEME, value).apply()
+
     private companion object {
         const val PREFS_NAME = "vision_prefs"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WIDGET_FONT = "widget_font_id"
+        const val KEY_WIDGET_THEME = "widget_theme_id"
     }
 }
