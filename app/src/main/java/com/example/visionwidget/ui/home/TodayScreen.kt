@@ -764,7 +764,7 @@ private fun ThemedCard(
 ) {
     // A chosen picture replaces the fill entirely; the scrim over it is what keeps the
     // words readable, so it's painted whether the picture loaded or not.
-    val photo = rememberWidgetPhoto(photoUri)
+    val photo = rememberWidgetPhoto(photoUri.takeIf { skin.usesPhoto })
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -773,7 +773,13 @@ private fun ThemedCard(
             .clip(CardShape)
             .then(
                 if (photo != null) {
-                    Modifier.paint(BitmapPainter(photo), contentScale = ContentScale.Crop)
+                    // Decorative only: left to size itself, the painter's intrinsic
+                    // dimensions would stretch the card to the photo's aspect ratio.
+                    Modifier.paint(
+                        painter = BitmapPainter(photo),
+                        sizeToIntrinsics = false,
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
                     Modifier.background(skin.background)
                 }

@@ -65,7 +65,9 @@ data class WidgetSkin(
      * Whether the card lifts off the wallpaper. A translucent panel can't: the shadow
      * meant to sit behind it shows through instead, reading as a smudge in its middle.
      */
-    val castsShadow: Boolean
+    val castsShadow: Boolean,
+    /** Whether a saved picture belongs behind this style at all. Only Photo uses one. */
+    val usesPhoto: Boolean = false
 )
 
 /** The design's fixed angle for the gradient fill. */
@@ -121,7 +123,8 @@ fun widgetSkin(theme: CardTheme, style: BackgroundStyle): WidgetSkin = when (sty
         onSurfaceRule = PhotoInk.copy(alpha = 0.22f),
         border = null,
         onInk = Color(0xFF1C1A17),
-        castsShadow = true
+        castsShadow = true,
+        usesPhoto = true
     )
 
     else -> WidgetSkin(
