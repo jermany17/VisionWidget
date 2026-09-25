@@ -84,6 +84,9 @@ fun VisionApp(
     val dayRecords by viewModel.dayRecords.collectAsStateWithLifecycle()
     val widgetFontId by viewModel.widgetFontId.collectAsStateWithLifecycle()
     val widgetThemeId by viewModel.widgetThemeId.collectAsStateWithLifecycle()
+    val widgetAlignId by viewModel.widgetAlignId.collectAsStateWithLifecycle()
+    val widgetBackgroundId by viewModel.widgetBackgroundId.collectAsStateWithLifecycle()
+    val widgetPhotoUri by viewModel.widgetPhotoUri.collectAsStateWithLifecycle()
 
     // Today's header and the Insights tab read the same figures, so they're derived once
     // here rather than computed separately in each screen.
@@ -123,6 +126,9 @@ fun VisionApp(
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
                 widgetFontId = widgetFontId,
+                widgetAlignId = widgetAlignId,
+                widgetBackgroundId = widgetBackgroundId,
+                widgetPhotoUri = widgetPhotoUri,
                 // Studio sets one colour for every widget, so the three cards share it.
                 visionThemeId = widgetThemeId,
                 topThreeThemeId = widgetThemeId,
@@ -160,7 +166,11 @@ fun VisionApp(
                 contentPadding = screenPadding,
                 widgetFontId = widgetFontId,
                 widgetThemeId = widgetThemeId,
+                widgetAlignId = widgetAlignId,
+                widgetBackgroundId = widgetBackgroundId,
+                widgetPhotoUri = widgetPhotoUri,
                 onApplyStyle = viewModel::applyWidgetStyle,
+                onPickPhoto = viewModel::setWidgetPhoto,
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,

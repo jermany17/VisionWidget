@@ -85,6 +85,9 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     // flow is what everything observes from then on.
     private val _widgetFontId = MutableStateFlow(preferences.widgetFontId)
     private val _widgetThemeId = MutableStateFlow(preferences.widgetThemeId)
+    private val _widgetAlignId = MutableStateFlow(preferences.widgetAlignId)
+    private val _widgetBackgroundId = MutableStateFlow(preferences.widgetBackgroundId)
+    private val _widgetPhotoUri = MutableStateFlow(preferences.widgetPhotoUri)
 
     /** The face the widget cards render in. The rest of the app keeps the default. */
     val widgetFontId: StateFlow<Int> = _widgetFontId.asStateFlow()
@@ -92,15 +95,37 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     /** The colour the widget cards are painted in. */
     val widgetThemeId: StateFlow<Int> = _widgetThemeId.asStateFlow()
 
+    /** How the widget cards set out their words. */
+    val widgetAlignId: StateFlow<Int> = _widgetAlignId.asStateFlow()
+
+    /** How the widget cards are filled behind their words. */
+    val widgetBackgroundId: StateFlow<Int> = _widgetBackgroundId.asStateFlow()
+
+    /** The picture behind the cards under the Photo background, if one has been chosen. */
+    val widgetPhotoUri: StateFlow<String?> = _widgetPhotoUri.asStateFlow()
+
     /**
-     * Commits both halves of the widget's look at once — Studio applies them together,
+     * Commits every part of the widget's look at once — Studio applies them together,
      * so they can't be left half-applied by a caller that only sets one.
      */
-    fun applyWidgetStyle(fontId: Int, themeId: Int) {
+    fun applyWidgetStyle(fontId: Int, themeId: Int, alignId: Int, backgroundId: Int) {
         preferences.widgetFontId = fontId
         preferences.widgetThemeId = themeId
+        preferences.widgetAlignId = alignId
+        preferences.widgetBackgroundId = backgroundId
         _widgetFontId.value = fontId
         _widgetThemeId.value = themeId
+        _widgetAlignId.value = alignId
+        _widgetBackgroundId.value = backgroundId
+    }
+
+    /**
+     * Saved as soon as it's chosen rather than waiting on apply: picking a picture is
+     * its own deliberate act, and the preview has nothing to show until it lands.
+     */
+    fun setWidgetPhoto(uri: String?) {
+        preferences.widgetPhotoUri = uri
+        _widgetPhotoUri.value = uri
     }
 
     init {

@@ -17,6 +17,14 @@ private fun Color.darkenBy(fraction: Float) = Color(
     alpha = alpha
 )
 
+/** Same colour, pulled toward white. */
+private fun Color.lightenBy(fraction: Float) = Color(
+    red = red + (1f - red) * fraction,
+    green = green + (1f - green) * fraction,
+    blue = blue + (1f - blue) * fraction,
+    alpha = alpha
+)
+
 /** Hairline for a light surface that would otherwise blend into the white canvas. */
 fun hairlineFor(surface: Color): Color = surface.darkenBy(BORDER_DARKEN)
 
@@ -59,6 +67,17 @@ data class CardTheme(
 
     /** Hairline drawn on the card itself — dividers between rows of its content. */
     val onSurfaceRule: Color = onSurface.copy(alpha = 0.20f)
+
+    /**
+     * The surface moved a single step in lightness — the far end of the gradient
+     * background. One step within the same colour, never a second hue: two colours in
+     * a card would be a different product, not a gradient.
+     */
+    val surfaceStep: Color = if (surface.luminance() > LIGHT_SURFACE_LUMINANCE) {
+        surface.darkenBy(0.10f)
+    } else {
+        surface.lightenBy(0.14f)
+    }
 }
 
 object CardThemes {

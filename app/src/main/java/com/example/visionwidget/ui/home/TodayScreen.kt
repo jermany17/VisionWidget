@@ -40,14 +40,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -56,6 +59,10 @@ import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
+import com.example.visionwidget.ui.components.rememberWidgetPhoto
+import com.example.visionwidget.ui.theme.AlignChoice
+import com.example.visionwidget.ui.theme.Alignments
+import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
@@ -64,6 +71,8 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.theme.WidgetSkin
+import com.example.visionwidget.ui.theme.widgetSkin
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
@@ -111,6 +120,11 @@ fun TodayScreen(
      * Studio applied. Everything around them stays on [userFontId].
      */
     widgetFontId: Int = UserFonts.DEFAULT_ID,
+    /** How those same cards set out their words — the layout Studio applied. */
+    widgetAlignId: Int = Alignments.DEFAULT_ID,
+    /** How those cards are filled behind their words, and the picture if Photo is set. */
+    widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
+    widgetPhotoUri: String? = null,
     vision: Vision? = null,
     streakDays: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
@@ -125,6 +139,8 @@ fun TodayScreen(
 ) {
     val userFont = UserFonts[userFontId]
     val widgetFont = UserFonts[widgetFontId]
+    val widgetAlign = Alignments[widgetAlignId]
+    val widgetSkin = widgetSkin(CardThemes[visionThemeId], BackgroundStyles[widgetBackgroundId])
     // Which row is mid-edit and its draft text — purely a UI interaction, not data, so
     // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
@@ -163,14 +179,18 @@ fun TodayScreen(
             if (vision != null) {
                 VisionCard(
                     vision = vision,
-                    theme = CardThemes[visionThemeId],
+                    skin = widgetSkin,
+                    photoUri = widgetPhotoUri,
                     userFont = widgetFont,
+                    align = widgetAlign,
                     onOpen = onOpenVision
                 )
             } else {
                 EmptyVisionCard(
-                    theme = CardThemes[visionThemeId],
+                    skin = widgetSkin,
+                    photoUri = widgetPhotoUri,
                     userFont = widgetFont,
+                    align = widgetAlign,
                     onCreate = onOpenVision
                 )
             }
@@ -188,8 +208,10 @@ fun TodayScreen(
             )
             Spacer(Modifier.height(10.dp))
             TopThreeCard(
-                theme = CardThemes[topThreeThemeId],
+                skin = widgetSkin,
+                photoUri = widgetPhotoUri,
                 userFont = widgetFont,
+                align = widgetAlign,
                 tasks = topThreeTasks,
                 checkedTasks = topThreeChecked,
                 editingTask = editingTask,
@@ -222,8 +244,10 @@ fun TodayScreen(
             SectionLabel(label = "DAILY WISDOM")
             Spacer(Modifier.height(10.dp))
             WisdomCard(
-                theme = CardThemes[wisdomThemeId],
+                skin = widgetSkin,
+                photoUri = widgetPhotoUri,
                 userFont = widgetFont,
+                align = widgetAlign,
                 wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
                 onShuffle = onShuffleWisdom
             )
@@ -323,8 +347,10 @@ private fun SectionLabel(
  */
 @Composable
 private fun TopThreeCard(
-    theme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
+    align: AlignChoice,
     tasks: List<String?>,
     checkedTasks: List<Boolean>,
     editingTask: Int,
@@ -335,13 +361,13 @@ private fun TopThreeCard(
     onCommitEdit: () -> Unit,
     onRemoveTask: (Int) -> Unit
 ) {
-    ThemedCard(theme = theme) {
+    ThemedCard(skin = skin, photoUri = photoUri) {
         // Less room above the first row than around it: the row's own 16dp and the
         // card's inset were stacking into too deep a gap at the top.
         Column(Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)) {
             tasks.forEachIndexed { index, task ->
                 if (index > 0) {
-                    HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+                    HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
                 }
                 TaskRow(
                     task = task,
@@ -349,8 +375,9 @@ private fun TopThreeCard(
                     checked = checkedTasks[index],
                     editing = editingTask == index,
                     draft = draft,
-                    theme = theme,
+                    skin = skin,
                     userFont = userFont,
+                    align = align,
                     onToggle = { onToggleTask(index) },
                     onStartEdit = { onStartEdit(index) },
                     onDraftChange = onDraftChange,
@@ -364,15 +391,19 @@ private fun TopThreeCard(
                 // Same guidance as before the first task exists — the meter would only
                 // read 0% and say nothing.
                 Text(
-                    text = "Choose three things that truly matter today. Three is the whole rule.",
+                    text = align.format(
+                        "Choose three things that truly matter today. Three is the whole rule."
+                    ),
                     style = VisionType.helperText(userFont),
-                    color = theme.onSurfaceMuted
+                    color = skin.onSurfaceMuted,
+                    textAlign = align.textAlign,
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
                 TaskProgress(
                     done = tasks.indices.count { tasks[it] != null && checkedTasks[it] },
                     total = tasks.count { it != null },
-                    theme = theme
+                    skin = skin
                 )
             }
         }
@@ -391,8 +422,9 @@ private fun TaskRow(
     checked: Boolean,
     editing: Boolean,
     draft: String,
-    theme: CardTheme,
+    skin: WidgetSkin,
     userFont: UserFontChoice,
+    align: AlignChoice,
     onToggle: () -> Unit,
     onStartEdit: () -> Unit,
     onDraftChange: (String) -> Unit,
@@ -404,16 +436,16 @@ private fun TaskRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (task == null) {
-            DashedCheckMark(color = theme.onSurfaceMuted)
+            DashedCheckMark(color = skin.onSurfaceMuted)
         } else {
-            TaskCheck(checked = checked, theme = theme, onClick = onToggle)
+            TaskCheck(checked = checked, skin = skin, onClick = onToggle)
         }
         Spacer(Modifier.width(14.dp))
 
         if (editing) {
             TaskField(
                 draft = draft,
-                theme = theme,
+                skin = skin,
                 userFont = userFont,
                 onDraftChange = onDraftChange,
                 onCommitEdit = onCommitEdit,
@@ -421,14 +453,15 @@ private fun TaskRow(
             )
         } else {
             Text(
-                text = task ?: prompt,
+                text = align.format(task ?: prompt),
                 style = VisionType.bodyText(userFont).copy(
                     // Struck through and dimmed together: either alone reads as a
                     // styling quirk, the pair reads as done.
                     textDecoration = if (checked) TextDecoration.LineThrough else null
                 ),
                 // A prompt sits muted like a hint; a set task only dims once it's done.
-                color = if (task == null || checked) theme.onSurfaceMuted else theme.onSurface,
+                color = if (task == null || checked) skin.onSurfaceMuted else skin.onSurface,
+                textAlign = align.textAlign,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(6.dp))
@@ -441,7 +474,7 @@ private fun TaskRow(
             Text(
                 text = if (editing) "✓" else "✕",
                 style = VisionType.glyph,
-                color = theme.onSurfaceMuted,
+                color = skin.onSurfaceMuted,
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = if (editing) onCommitEdit else onRemove)
@@ -454,7 +487,7 @@ private fun TaskRow(
 @Composable
 private fun TaskField(
     draft: String,
-    theme: CardTheme,
+    skin: WidgetSkin,
     userFont: UserFontChoice,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
@@ -469,8 +502,8 @@ private fun TaskField(
         value = draft,
         onValueChange = onDraftChange,
         singleLine = true,
-        textStyle = VisionType.bodyText(userFont).copy(color = theme.onSurface),
-        cursorBrush = SolidColor(theme.onSurface),
+        textStyle = VisionType.bodyText(userFont).copy(color = skin.onSurface),
+        cursorBrush = SolidColor(skin.onSurface),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onCommitEdit() }),
         modifier = modifier
@@ -479,7 +512,7 @@ private fun TaskField(
                 val stroke = 1.dp.toPx()
                 val y = size.height - stroke / 2
                 drawLine(
-                    color = theme.onSurface,
+                    color = skin.onSurface,
                     start = Offset(0f, y),
                     end = Offset(size.width, y),
                     strokeWidth = stroke
@@ -491,23 +524,23 @@ private fun TaskField(
 
 /** Empty ring until ticked, then a filled disc carrying the mark. */
 @Composable
-private fun TaskCheck(checked: Boolean, theme: CardTheme, onClick: () -> Unit) {
+private fun TaskCheck(checked: Boolean, skin: WidgetSkin, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(22.dp)
             .clip(CircleShape)
             .then(
                 if (checked) {
-                    Modifier.background(theme.onSurfaceMuted)
+                    Modifier.background(skin.onSurfaceMuted)
                 } else {
-                    Modifier.border(1.5.dp, theme.onSurfaceMuted, CircleShape)
+                    Modifier.border(1.5.dp, skin.onSurfaceMuted, CircleShape)
                 }
             )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         if (checked) {
-            Text(text = "✓", style = VisionType.eyebrow, color = theme.surface)
+            Text(text = "✓", style = VisionType.eyebrow, color = skin.onInk)
         }
     }
 }
@@ -517,7 +550,7 @@ private fun TaskCheck(checked: Boolean, theme: CardTheme, onClick: () -> Unit) {
  * from the same rounded figure as the label, so the two can't disagree.
  */
 @Composable
-private fun TaskProgress(done: Int, total: Int, theme: CardTheme) {
+private fun TaskProgress(done: Int, total: Int, skin: WidgetSkin) {
     val percent = if (total == 0) 0 else Math.round(done * 100f / total)
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -526,14 +559,14 @@ private fun TaskProgress(done: Int, total: Int, theme: CardTheme) {
                 .weight(1f)
                 .height(2.dp)
                 .clip(CircleShape)
-                .background(theme.onSurfaceRule)
+                .background(skin.onSurfaceRule)
         ) {
             if (percent > 0) {
                 Box(
                     Modifier
                         .fillMaxWidth(percent / 100f)
                         .fillMaxHeight()
-                        .background(theme.onSurface)
+                        .background(skin.onSurface)
                 )
             }
         }
@@ -541,7 +574,7 @@ private fun TaskProgress(done: Int, total: Int, theme: CardTheme) {
         Text(
             text = "$percent%",
             style = VisionType.eyebrow,
-            color = theme.onSurfaceMuted
+            color = skin.onSurfaceMuted
         )
     }
 }
@@ -576,28 +609,34 @@ private fun DashedCheckMark(color: Color) {
 @Composable
 private fun VisionCard(
     vision: Vision,
-    theme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
+    align: AlignChoice,
     onOpen: () -> Unit
 ) {
-    ThemedCard(theme = theme, minHeight = 150.dp, onClick = onOpen) {
-        Column(Modifier.padding(20.dp)) {
+    ThemedCard(skin = skin, photoUri = photoUri, minHeight = 150.dp, onClick = onOpen) {
+        Column(Modifier.padding(20.dp), horizontalAlignment = align.horizontal) {
             Text(
-                text = vision.goal,
+                text = align.format(vision.goal),
                 style = VisionType.cardTitle(userFont),
-                color = theme.onSurface
+                color = skin.onSurface,
+                textAlign = align.textAlign,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(10.dp))
             Text(
                 // The reason is optional, so it can be absent here — matches the
                 // Vision tab's own fallback rather than leaving the line blank.
-                text = vision.why.ifBlank { "No reason set." },
+                text = align.format(vision.why.ifBlank { "No reason set." }),
                 style = VisionType.bodyText(userFont),
-                color = theme.onSurfaceMuted
+                color = skin.onSurfaceMuted,
+                textAlign = align.textAlign,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(Modifier.height(18.dp))
-            HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+            HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
             Spacer(Modifier.height(14.dp))
 
             // Same footer row as the empty state's, so the card keeps its height and
@@ -608,14 +647,14 @@ private fun VisionCard(
                     Text(
                         text = formatTargetDate(vision.targetDateMillis).uppercase(),
                         style = VisionType.eyebrow,
-                        color = theme.onSurfaceMuted
+                        color = skin.onSurfaceMuted
                     )
                 },
                 end = {
                     Text(
                         text = formatWeeksLeft(vision.targetDateMillis),
                         style = VisionType.eyebrow,
-                        color = theme.onSurfaceMuted
+                        color = skin.onSurfaceMuted
                     )
                 }
             )
@@ -629,29 +668,35 @@ private fun VisionCard(
  */
 @Composable
 private fun EmptyVisionCard(
-    theme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
+    align: AlignChoice,
     onCreate: () -> Unit
 ) {
-    ThemedCard(theme = theme, minHeight = 150.dp) {
-        Column(Modifier.padding(20.dp)) {
+    ThemedCard(skin = skin, photoUri = photoUri, minHeight = 150.dp) {
+        Column(Modifier.padding(20.dp), horizontalAlignment = align.horizontal) {
             Text(
-                text = "What's your vision?",
+                text = align.format("What's your vision?"),
                 style = VisionType.cardTitle(userFont),
-                color = theme.onSurface
+                color = skin.onSurface,
+                textAlign = align.textAlign,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "The future starts with one goal.",
+                text = align.format("The future starts with one goal."),
                 style = VisionType.bodyText(userFont),
-                color = theme.onSurfaceMuted
+                color = skin.onSurfaceMuted,
+                textAlign = align.textAlign,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(Modifier.height(18.dp))
-            HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+            HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
             Spacer(Modifier.height(14.dp))
 
-            CreateVisionRow(onClick = onCreate, mutedColor = theme.onSurfaceMuted)
+            CreateVisionRow(onClick = onCreate, mutedColor = skin.onSurfaceMuted)
         }
     }
 }
@@ -662,19 +707,23 @@ private fun EmptyVisionCard(
  */
 @Composable
 private fun WisdomCard(
-    theme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
+    align: AlignChoice,
     wisdom: Wisdom,
     onShuffle: () -> Unit
 ) {
     // No minimum height: a floor would leave slack under the footer on short quotes,
     // so the gap below the meta row would grow as the quote got shorter.
-    ThemedCard(theme = theme) {
+    ThemedCard(skin = skin, photoUri = photoUri) {
         Column(Modifier.padding(20.dp)) {
             Text(
-                text = wisdom.text,
+                text = align.format(wisdom.text),
                 style = VisionType.quote(userFont),
-                color = theme.onSurface
+                color = skin.onSurface,
+                textAlign = align.textAlign,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(20.dp))
             Row(
@@ -685,12 +734,12 @@ private fun WisdomCard(
                 Text(
                     text = "DAILY WISDOM · ${wisdom.category.uppercase()}",
                     style = VisionType.eyebrow,
-                    color = theme.onSurfaceMuted
+                    color = skin.onSurfaceMuted
                 )
                 Text(
                     text = "SHUFFLE ↻",
                     style = VisionType.eyebrow,
-                    color = theme.onSurfaceMuted,
+                    color = skin.onSurfaceMuted,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onShuffle)
@@ -707,23 +756,34 @@ private fun WisdomCard(
  */
 @Composable
 private fun ThemedCard(
-    theme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     minHeight: Dp = 0.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit = {}
 ) {
+    // A chosen picture replaces the fill entirely; the scrim over it is what keeps the
+    // words readable, so it's painted whether the picture loaded or not.
+    val photo = rememberWidgetPhoto(photoUri)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             // A floor rather than a fixed height, so cards with content can grow.
             .heightIn(min = minHeight)
             .clip(CardShape)
-            .background(theme.surface)
-            .then(theme.border?.let { Modifier.border(1.dp, it, CardShape) } ?: Modifier)
+            .then(
+                if (photo != null) {
+                    Modifier.paint(BitmapPainter(photo), contentScale = ContentScale.Crop)
+                } else {
+                    Modifier.background(skin.background)
+                }
+            )
+            .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
+            .then(skin.border?.let { Modifier.border(1.dp, it, CardShape) } ?: Modifier)
             // Clickable last so the ripple lands inside the clipped, painted card.
             .then(onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)
     ) {
-        CompositionLocalProvider(LocalContentColor provides theme.onSurface) {
+        CompositionLocalProvider(LocalContentColor provides skin.onSurface) {
             content()
         }
     }

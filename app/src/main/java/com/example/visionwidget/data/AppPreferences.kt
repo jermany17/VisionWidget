@@ -1,6 +1,8 @@
 package com.example.visionwidget.data
 
 import android.content.Context
+import com.example.visionwidget.ui.theme.Alignments
+import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.CardThemes
 import com.example.visionwidget.ui.theme.UserFonts
 
@@ -36,10 +38,32 @@ class AppPreferences(context: Context) {
         get() = prefs.getInt(KEY_WIDGET_THEME, CardThemes.DEFAULT_ID)
         set(value) = prefs.edit().putInt(KEY_WIDGET_THEME, value).apply()
 
+    /** How the widget cards set out their words. Scoped the same way as face and colour. */
+    var widgetAlignId: Int
+        get() = prefs.getInt(KEY_WIDGET_ALIGN, Alignments.DEFAULT_ID)
+        set(value) = prefs.edit().putInt(KEY_WIDGET_ALIGN, value).apply()
+
+    /** How the widget cards are filled behind their words. */
+    var widgetBackgroundId: Int
+        get() = prefs.getInt(KEY_WIDGET_BACKGROUND, BackgroundStyles.DEFAULT_ID)
+        set(value) = prefs.edit().putInt(KEY_WIDGET_BACKGROUND, value).apply()
+
+    /**
+     * The picture behind the cards when the background is Photo, as the content URI the
+     * system picker handed back. Null until one is chosen — the style can be selected
+     * before a picture exists, and shows a placeholder until it does.
+     */
+    var widgetPhotoUri: String?
+        get() = prefs.getString(KEY_WIDGET_PHOTO, null)
+        set(value) = prefs.edit().putString(KEY_WIDGET_PHOTO, value).apply()
+
     private companion object {
         const val PREFS_NAME = "vision_prefs"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
+        const val KEY_WIDGET_ALIGN = "widget_align_id"
+        const val KEY_WIDGET_BACKGROUND = "widget_background_id"
+        const val KEY_WIDGET_PHOTO = "widget_photo_uri"
     }
 }

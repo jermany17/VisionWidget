@@ -1,10 +1,16 @@
 package com.example.visionwidget.ui.studio
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -24,12 +30,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,11 +48,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -57,8 +69,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.Wisdom
+import com.example.visionwidget.ui.theme.AlignChoice
+import com.example.visionwidget.ui.theme.Alignments
+import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
@@ -71,6 +87,8 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.theme.WidgetSkin
+import com.example.visionwidget.ui.theme.widgetSkin
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
@@ -238,7 +256,13 @@ fun StudioScreen(
     /** The look currently applied to the widgets — what the preview starts from. */
     widgetFontId: Int = UserFonts.DEFAULT_ID,
     widgetThemeId: Int = CardThemes.DEFAULT_ID,
-    onApplyStyle: (fontId: Int, themeId: Int) -> Unit = { _, _ -> },
+    widgetAlignId: Int = Alignments.DEFAULT_ID,
+    widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
+    /** The picture behind the cards under Photo, or null before one is chosen. */
+    widgetPhotoUri: String? = null,
+    onApplyStyle: (fontId: Int, themeId: Int, alignId: Int, backgroundId: Int) -> Unit =
+        { _, _, _, _ -> },
+    onPickPhoto: (String?) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
@@ -246,11 +270,38 @@ fun StudioScreen(
     // and the button falls to its applied state without a second signal.
     var draftFontId by rememberSaveable(widgetFontId) { mutableIntStateOf(widgetFontId) }
     var draftThemeId by rememberSaveable(widgetThemeId) { mutableIntStateOf(widgetThemeId) }
+    var draftAlignId by rememberSaveable(widgetAlignId) { mutableIntStateOf(widgetAlignId) }
+    var draftBackgroundId by rememberSaveable(widgetBackgroundId) {
+        mutableIntStateOf(widgetBackgroundId)
+    }
     val draftFont = UserFonts[draftFontId]
     val draftTheme = CardThemes[draftThemeId]
+    val draftAlign = Alignments[draftAlignId]
 
-    // One control commits both, so it reads as applied only when neither has moved.
-    val isApplied = draftFontId == widgetFontId && draftThemeId == widgetThemeId
+    val draftSkin = widgetSkin(draftTheme, BackgroundStyles[draftBackgroundId])
+
+    // One control commits all four, so it reads as applied only when none has moved.
+    val isApplied = draftFontId == widgetFontId &&
+        draftThemeId == widgetThemeId &&
+        draftAlignId == widgetAlignId &&
+        draftBackgroundId == widgetBackgroundId
+
+    // The system picker hands back a URI that stays readable across restarts only if
+    // the grant is taken persistently.
+    val context = LocalContext.current
+    val photoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            onPickPhoto(uri.toString())
+        }
+    }
 
     // The screen's own text is not a widget, so it keeps the default face however the
     // widgets are set — only the phone preview follows the draft.
@@ -258,6 +309,17 @@ fun StudioScreen(
 
     var tab by rememberSaveable { mutableStateOf(StudioTab.Design) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
+
+    // Photo has nothing to show without a picture, so applying it would blank the
+    // widgets. The choice is kept as it is and the alert says what's missing.
+    val applyStyle = {
+        if (draftBackgroundId == BackgroundStyles.PHOTO && widgetPhotoUri == null) {
+            showMissingPhoto = true
+        } else {
+            onApplyStyle(draftFontId, draftThemeId, draftAlignId, draftBackgroundId)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -303,13 +365,25 @@ fun StudioScreen(
                 wisdomIndex = wisdomIndex,
                 draftFontId = draftFontId,
                 draftThemeId = draftThemeId,
+                draftAlignId = draftAlignId,
+                draftBackgroundId = draftBackgroundId,
                 draftFont = draftFont,
-                draftTheme = draftTheme,
+                draftAlign = draftAlign,
+                draftSkin = draftSkin,
+                photoUri = widgetPhotoUri,
                 userFont = userFont,
                 isApplied = isApplied,
                 onSelectFont = { draftFontId = it },
                 onSelectTheme = { draftThemeId = it },
-                onApplyFont = { onApplyStyle(draftFontId, draftThemeId) },
+                onSelectAlign = { draftAlignId = it },
+                onSelectBackground = { draftBackgroundId = it },
+                onPickPhoto = {
+                    photoLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onClearPhoto = { onPickPhoto(null) },
+                onApplyFont = applyStyle,
                 contentPadding = contentPadding
             )
 
@@ -323,6 +397,10 @@ fun StudioScreen(
     if (showSettings) {
         SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
     }
+
+    if (showMissingPhoto) {
+        MissingPhotoAlert(userFont = userFont, onDismiss = { showMissingPhoto = false })
+    }
 }
 
 /** The preview and the face picker — everything Studio can change today. */
@@ -334,12 +412,20 @@ private fun ColumnScope.DesignTab(
     wisdomIndex: Int,
     draftFontId: Int,
     draftThemeId: Int,
+    draftAlignId: Int,
+    draftBackgroundId: Int,
     draftFont: UserFontChoice,
-    draftTheme: CardTheme,
+    draftAlign: AlignChoice,
+    draftSkin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
     isApplied: Boolean,
     onSelectFont: (Int) -> Unit,
     onSelectTheme: (Int) -> Unit,
+    onSelectAlign: (Int) -> Unit,
+    onSelectBackground: (Int) -> Unit,
+    onPickPhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
     onApplyFont: () -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -357,11 +443,11 @@ private fun ColumnScope.DesignTab(
             topThreeTasks = topThreeTasks,
             topThreeChecked = topThreeChecked,
             wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
-            // One colour across all three: Studio applies to every widget at once.
-            visionTheme = draftTheme,
-            topThreeTheme = draftTheme,
-            wisdomTheme = draftTheme,
+            // One surface across all three: Studio applies to every widget at once.
+            skin = draftSkin,
+            photoUri = photoUri,
             userFont = draftFont,
+            align = draftAlign,
             isApplied = isApplied,
             chromeFont = userFont,
             onApply = onApplyFont
@@ -370,6 +456,25 @@ private fun ColumnScope.DesignTab(
 
     Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
         Spacer(Modifier.height(26.dp))
+        Text(text = "LAYOUT", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        LayoutPicker(selectedId = draftAlignId, onSelect = onSelectAlign)
+
+        Spacer(Modifier.height(30.dp))
+        Text(text = "BACKGROUND", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        BackgroundPicker(selectedId = draftBackgroundId, onSelect = onSelectBackground)
+        if (draftBackgroundId == BackgroundStyles.PHOTO) {
+            Spacer(Modifier.height(12.dp))
+            PhotoRow(
+                hasPhoto = photoUri != null,
+                userFont = userFont,
+                onPick = onPickPhoto,
+                onClear = onClearPhoto
+            )
+        }
+
+        Spacer(Modifier.height(30.dp))
         Text(text = "TYPOGRAPHY", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         FontPicker(selectedId = draftFontId, onSelect = onSelectFont)
@@ -437,6 +542,28 @@ private fun TabBar(
             }
         }
     }
+}
+
+/** Says why applying did nothing, rather than letting Photo blank the widgets. */
+@Composable
+private fun MissingPhotoAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Canvas,
+        title = { Text(text = "NO PHOTO ADDED", style = VisionType.eyebrow, color = OnCanvas) },
+        text = {
+            Text(
+                text = "Add a photo before applying this background.",
+                style = VisionType.bodyText(userFont),
+                color = OnCanvasMuted
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "OK", style = VisionType.eyebrow, color = OnCanvas)
+            }
+        }
+    )
 }
 
 /** The gear beside the plan chip. Opens settings; what's in them comes later. */
@@ -543,6 +670,124 @@ private fun FontPicker(selectedId: Int, onSelect: (Int) -> Unit) {
                 // A short last row leaves its columns empty rather than stretching the
                 // chips that are in it.
                 repeat(FontColumns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** The ways a card can be filled behind its words. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BackgroundPicker(selectedId: Int, onSelect: (Int) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        BackgroundStyles.all.forEach { style ->
+            val isSelected = style.id == selectedId
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (isSelected) NavBar else Canvas)
+                    .then(
+                        if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape)
+                    )
+                    .clickable { onSelect(style.id) }
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = buildAnnotatedString {
+                        append(style.name)
+                        if (style.isPlus) {
+                            withStyle(
+                                SpanStyle(
+                                    color = if (isSelected) {
+                                        OnNavBar.copy(alpha = 0.8f)
+                                    } else {
+                                        PlusMark
+                                    }
+                                )
+                            ) {
+                                append(" +")
+                            }
+                        }
+                    },
+                    style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                    color = if (isSelected) OnNavBar else OnCanvas
+                )
+            }
+        }
+    }
+}
+
+/** Shown under the picker while Photo is chosen — the way a picture gets in or out. */
+@Composable
+private fun PhotoRow(
+    hasPhoto: Boolean,
+    userFont: UserFontChoice,
+    onPick: () -> Unit,
+    onClear: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(CircleShape)
+                .border(1.dp, Rule, CircleShape)
+                .clickable(onClick = onPick)
+                .padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (hasPhoto) "Change photo" else "Add a photo",
+                style = applyLabel(userFont),
+                color = OnCanvas
+            )
+        }
+        if (hasPhoto) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .border(1.dp, Rule, CircleShape)
+                    .clickable(onClick = onClear)
+                    .padding(horizontal = 18.dp, vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Remove", style = applyLabel(userFont), color = OnCanvasMuted)
+            }
+        }
+    }
+}
+
+/**
+ * The three ways a widget can set out its words. Chips take their natural width rather
+ * than equal thirds — there are only three, and the names are short enough to read.
+ */
+@Composable
+private fun LayoutPicker(selectedId: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Alignments.all.forEach { choice ->
+            val isSelected = choice.id == selectedId
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (isSelected) NavBar else Canvas)
+                    .then(
+                        if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape)
+                    )
+                    .clickable { onSelect(choice.id) }
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = choice.name,
+                    style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                    color = if (isSelected) OnNavBar else OnCanvas
+                )
             }
         }
     }
@@ -694,10 +939,10 @@ private fun PhonePreview(
     topThreeTasks: List<String?>,
     topThreeChecked: List<Boolean>,
     wisdom: Wisdom,
-    visionTheme: CardTheme,
-    topThreeTheme: CardTheme,
-    wisdomTheme: CardTheme,
+    skin: WidgetSkin,
+    photoUri: String?,
     userFont: UserFontChoice,
+    align: AlignChoice,
     isApplied: Boolean,
     chromeFont: UserFontChoice,
     onApply: () -> Unit
@@ -728,14 +973,28 @@ private fun PhonePreview(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            VisionWidget(vision = vision, theme = visionTheme, userFont = userFont)
+            VisionWidget(
+                vision = vision,
+                skin = skin,
+                photoUri = photoUri,
+                userFont = userFont,
+                align = align
+            )
             TopThreeWidget(
                 tasks = topThreeTasks,
                 checked = topThreeChecked,
-                theme = topThreeTheme,
-                userFont = userFont
+                skin = skin,
+                photoUri = photoUri,
+                userFont = userFont,
+                align = align
             )
-            WisdomWidget(wisdom = wisdom, theme = wisdomTheme, userFont = userFont)
+            WisdomWidget(
+                wisdom = wisdom,
+                skin = skin,
+                photoUri = photoUri,
+                userFont = userFont,
+                align = align
+            )
         }
 
         // Pinned to the bottom edge rather than following the widgets, the way a dock
@@ -757,46 +1016,85 @@ private fun PhonePreview(
 
 /** The frame every widget shares — surface, hairline and inner spacing. */
 @Composable
-private fun WidgetCard(theme: CardTheme, content: @Composable ColumnScope.() -> Unit) {
+private fun WidgetCard(
+    skin: WidgetSkin,
+    photoUri: String?,
+    align: AlignChoice,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    // A chosen picture replaces the fill entirely; the scrim over it is what keeps the
+    // words readable, so it's painted whether the picture loaded or not.
+    val photo = rememberWidgetPhoto(photoUri)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 10.dp, shape = WidgetShape, clip = false)
+            .then(
+                if (skin.castsShadow) {
+                    Modifier.shadow(elevation = 10.dp, shape = WidgetShape, clip = false)
+                } else {
+                    Modifier
+                }
+            )
             .clip(WidgetShape)
-            .background(theme.surface)
-            .border(1.dp, theme.onSurfaceRule, WidgetShape)
+            .then(
+                if (photo != null) {
+                    Modifier.paint(BitmapPainter(photo), contentScale = ContentScale.Crop)
+                } else {
+                    Modifier.background(skin.background)
+                }
+            )
+            .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
+            .then(skin.border?.let { Modifier.border(1.dp, it, WidgetShape) } ?: Modifier)
             .padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
+        // Set on the column as well as on the text: a checked row is a row, and only
+        // the column can move it off the left edge.
+        horizontalAlignment = align.horizontal,
         content = content
     )
 }
 
 @Composable
-private fun VisionWidget(vision: Vision?, theme: CardTheme, userFont: UserFontChoice) {
-    WidgetCard(theme) {
-        Text(text = "VISION", style = WidgetEyebrow, color = theme.onSurfaceMuted)
+private fun VisionWidget(
+    vision: Vision?,
+    skin: WidgetSkin,
+    photoUri: String?,
+    userFont: UserFontChoice,
+    align: AlignChoice
+) {
+    WidgetCard(skin, photoUri, align) {
         Text(
-            text = vision?.goal ?: "No vision yet",
-            style = widgetTitle(userFont),
-            color = theme.onSurface
+            text = "VISION",
+            style = WidgetEyebrow,
+            color = skin.onSurfaceMuted,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
         )
-        HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+        Text(
+            text = align.format(vision?.goal ?: "No vision yet"),
+            style = widgetTitle(userFont),
+            color = skin.onSurface,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
+        )
+        HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
 
         val milestones = vision?.milestones.orEmpty()
         if (milestones.isEmpty()) {
-            EmptyWidgetLine(theme = theme, userFont = userFont)
+            EmptyWidgetLine(skin = skin, userFont = userFont, align = align)
         } else {
             milestones.forEach { milestone ->
                 WidgetTaskRow(
                     text = milestone.step,
                     checked = milestone.checked,
-                    theme = theme,
-                    userFont = userFont
+                    skin = skin,
+                    userFont = userFont,
+                    align = align
                 )
             }
         }
 
-        HorizontalDivider(color = theme.onSurfaceRule, thickness = 1.dp)
+        HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
         // Each side takes half the row and wraps within it. Left to SpaceBetween the
         // two run together once the date and the countdown are both long enough to
         // fill the width between them.
@@ -804,14 +1102,14 @@ private fun VisionWidget(vision: Vision?, theme: CardTheme, userFont: UserFontCh
             Text(
                 text = vision?.let { formatTargetDate(it.targetDateMillis).uppercase() }.orEmpty(),
                 style = WidgetMeta,
-                color = theme.onSurfaceMuted,
+                color = skin.onSurfaceMuted,
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = vision?.let { formatWeeksLeft(it.targetDateMillis) }.orEmpty(),
                 style = WidgetMeta,
-                color = theme.onSurfaceMuted,
+                color = skin.onSurfaceMuted,
                 textAlign = TextAlign.End,
                 modifier = Modifier.weight(1f)
             )
@@ -823,29 +1121,34 @@ private fun VisionWidget(vision: Vision?, theme: CardTheme, userFont: UserFontCh
 private fun TopThreeWidget(
     tasks: List<String?>,
     checked: List<Boolean>,
-    theme: CardTheme,
-    userFont: UserFontChoice
+    skin: WidgetSkin,
+    photoUri: String?,
+    userFont: UserFontChoice,
+    align: AlignChoice
 ) {
     val set = tasks.indices.filter { tasks[it] != null }
     val done = set.count { checked[it] }
 
-    WidgetCard(theme) {
+    WidgetCard(skin, photoUri, align) {
         Text(
             // Against the tasks that were set rather than a fixed three, matching the
             // count on Today's own card.
             text = "TODAY'S TOP 3 · $done / ${set.size}",
             style = WidgetEyebrow,
-            color = theme.onSurfaceMuted
+            color = skin.onSurfaceMuted,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
         )
         if (set.isEmpty()) {
-            EmptyWidgetLine(theme = theme, userFont = userFont)
+            EmptyWidgetLine(skin = skin, userFont = userFont, align = align)
         } else {
             set.forEach { index ->
                 WidgetTaskRow(
                     text = tasks[index].orEmpty(),
                     checked = checked[index],
-                    theme = theme,
-                    userFont = userFont
+                    skin = skin,
+                    userFont = userFont,
+                    align = align
                 )
             }
         }
@@ -860,8 +1163,9 @@ private fun TopThreeWidget(
 private fun WidgetTaskRow(
     text: String,
     checked: Boolean,
-    theme: CardTheme,
-    userFont: UserFontChoice
+    skin: WidgetSkin,
+    userFont: UserFontChoice,
+    align: AlignChoice
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -869,44 +1173,60 @@ private fun WidgetTaskRow(
                 .size(CheckSize)
                 .clip(CircleShape)
                 .then(
-                    if (checked) Modifier.background(theme.onSurface)
-                    else Modifier.border(1.5.dp, theme.onSurfaceMuted, CircleShape)
+                    if (checked) Modifier.background(skin.onSurface)
+                    else Modifier.border(1.5.dp, skin.onSurfaceMuted, CircleShape)
                 ),
             contentAlignment = Alignment.Center
         ) {
             if (checked) {
-                Text(text = "✓", style = WidgetCheckGlyph, color = theme.surface)
+                Text(text = "✓", style = WidgetCheckGlyph, color = skin.onInk)
             }
         }
         Spacer(Modifier.width(8.dp))
         Text(
-            text = text,
+            text = align.format(text),
             style = widgetLine(userFont).copy(
                 textDecoration = if (checked) TextDecoration.LineThrough else null
             ),
-            color = if (checked) theme.onSurfaceMuted else theme.onSurface
+            color = if (checked) skin.onSurfaceMuted else skin.onSurface
         )
     }
 }
 
 /** Shared wording, so an empty vision and an empty Top 3 read the same on the phone. */
 @Composable
-private fun EmptyWidgetLine(theme: CardTheme, userFont: UserFontChoice) {
+private fun EmptyWidgetLine(skin: WidgetSkin, userFont: UserFontChoice, align: AlignChoice) {
     Text(
-        text = "Nothing set yet.",
+        text = align.format("Nothing set yet."),
         style = widgetLine(userFont),
-        color = theme.onSurfaceMuted
+        color = skin.onSurfaceMuted,
+        textAlign = align.textAlign,
+        modifier = Modifier.fillMaxWidth()
     )
 }
 
 @Composable
-private fun WisdomWidget(wisdom: Wisdom, theme: CardTheme, userFont: UserFontChoice) {
-    WidgetCard(theme) {
-        Text(text = wisdom.text, style = widgetQuote(userFont), color = theme.onSurface)
+private fun WisdomWidget(
+    wisdom: Wisdom,
+    skin: WidgetSkin,
+    photoUri: String?,
+    userFont: UserFontChoice,
+    align: AlignChoice
+) {
+    WidgetCard(skin, photoUri, align) {
+        Text(
+            text = align.format(wisdom.text),
+            style = widgetQuote(userFont),
+            color = skin.onSurface,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
+        )
         Text(
             text = wisdom.category.uppercase(),
             style = WidgetMeta,
-            color = theme.onSurfaceMuted
+            color = skin.onSurfaceMuted,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
