@@ -48,14 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -69,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.Wisdom
@@ -1038,13 +1036,7 @@ private fun WidgetCard(
             .clip(WidgetShape)
             .then(
                 if (photo != null) {
-                    // Decorative only: left to size itself, the painter's intrinsic
-                    // dimensions would stretch the card to the photo's aspect ratio.
-                    Modifier.paint(
-                        painter = BitmapPainter(photo),
-                        sizeToIntrinsics = false,
-                        contentScale = ContentScale.Crop
-                    )
+                    Modifier.croppedPhotoBackground(photo)
                 } else {
                     Modifier.background(skin.background)
                 }

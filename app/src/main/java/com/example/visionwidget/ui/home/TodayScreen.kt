@@ -40,17 +40,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.paint
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
+import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.theme.AlignChoice
 import com.example.visionwidget.ui.theme.Alignments
@@ -773,13 +771,7 @@ private fun ThemedCard(
             .clip(CardShape)
             .then(
                 if (photo != null) {
-                    // Decorative only: left to size itself, the painter's intrinsic
-                    // dimensions would stretch the card to the photo's aspect ratio.
-                    Modifier.paint(
-                        painter = BitmapPainter(photo),
-                        sizeToIntrinsics = false,
-                        contentScale = ContentScale.Crop
-                    )
+                    Modifier.croppedPhotoBackground(photo)
                 } else {
                     Modifier.background(skin.background)
                 }
