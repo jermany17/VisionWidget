@@ -88,6 +88,7 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     private val _widgetAlignId = MutableStateFlow(preferences.widgetAlignId)
     private val _widgetBackgroundId = MutableStateFlow(preferences.widgetBackgroundId)
     private val _widgetPhotoUri = MutableStateFlow(preferences.widgetPhotoUri)
+    private val _widgetCornerRadius = MutableStateFlow(preferences.widgetCornerRadius)
 
     /** The face the widget cards render in. The rest of the app keeps the default. */
     val widgetFontId: StateFlow<Int> = _widgetFontId.asStateFlow()
@@ -104,19 +105,30 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     /** The picture behind the cards under the Photo background, if one has been chosen. */
     val widgetPhotoUri: StateFlow<String?> = _widgetPhotoUri.asStateFlow()
 
+    /** How round the widget cards are, in dp. */
+    val widgetCornerRadius: StateFlow<Int> = _widgetCornerRadius.asStateFlow()
+
     /**
      * Commits every part of the widget's look at once — Studio applies them together,
      * so they can't be left half-applied by a caller that only sets one.
      */
-    fun applyWidgetStyle(fontId: Int, themeId: Int, alignId: Int, backgroundId: Int) {
+    fun applyWidgetStyle(
+        fontId: Int,
+        themeId: Int,
+        alignId: Int,
+        backgroundId: Int,
+        cornerRadius: Int
+    ) {
         preferences.widgetFontId = fontId
         preferences.widgetThemeId = themeId
         preferences.widgetAlignId = alignId
         preferences.widgetBackgroundId = backgroundId
+        preferences.widgetCornerRadius = cornerRadius
         _widgetFontId.value = fontId
         _widgetThemeId.value = themeId
         _widgetAlignId.value = alignId
         _widgetBackgroundId.value = backgroundId
+        _widgetCornerRadius.value = cornerRadius
     }
 
     /**

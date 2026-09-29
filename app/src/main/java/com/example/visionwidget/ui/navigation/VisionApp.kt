@@ -87,6 +87,7 @@ fun VisionApp(
     val widgetAlignId by viewModel.widgetAlignId.collectAsStateWithLifecycle()
     val widgetBackgroundId by viewModel.widgetBackgroundId.collectAsStateWithLifecycle()
     val widgetPhotoUri by viewModel.widgetPhotoUri.collectAsStateWithLifecycle()
+    val widgetCornerRadius by viewModel.widgetCornerRadius.collectAsStateWithLifecycle()
 
     // Today's header and the Insights tab read the same figures, so they're derived once
     // here rather than computed separately in each screen.
@@ -129,6 +130,7 @@ fun VisionApp(
                 widgetAlignId = widgetAlignId,
                 widgetBackgroundId = widgetBackgroundId,
                 widgetPhotoUri = widgetPhotoUri,
+                widgetCornerRadius = widgetCornerRadius,
                 // Studio sets one colour for every widget, so the three cards share it.
                 visionThemeId = widgetThemeId,
                 topThreeThemeId = widgetThemeId,
@@ -169,6 +171,7 @@ fun VisionApp(
                 widgetAlignId = widgetAlignId,
                 widgetBackgroundId = widgetBackgroundId,
                 widgetPhotoUri = widgetPhotoUri,
+                widgetCornerRadius = widgetCornerRadius,
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
                 vision = mainVision,

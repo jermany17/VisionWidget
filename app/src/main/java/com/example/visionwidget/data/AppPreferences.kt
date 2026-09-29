@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.visionwidget.ui.theme.Alignments
 import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.CardThemes
+import com.example.visionwidget.ui.theme.CornerRadii
 import com.example.visionwidget.ui.theme.UserFonts
 
 /**
@@ -57,8 +58,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_WIDGET_PHOTO, null)
         set(value) = prefs.edit().putString(KEY_WIDGET_PHOTO, value).apply()
 
+    /** How round the widget cards are, in dp. */
+    var widgetCornerRadius: Int
+        get() = prefs.getInt(KEY_WIDGET_RADIUS, CornerRadii.DEFAULT)
+        set(value) = prefs.edit().putInt(KEY_WIDGET_RADIUS, value).apply()
+
     private companion object {
         const val PREFS_NAME = "vision_prefs"
+        const val KEY_WIDGET_RADIUS = "widget_corner_radius"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"

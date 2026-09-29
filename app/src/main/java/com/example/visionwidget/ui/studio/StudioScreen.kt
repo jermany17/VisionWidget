@@ -7,9 +7,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
@@ -38,11 +45,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +63,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -64,6 +77,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.croppedPhotoBackground
@@ -76,7 +91,11 @@ import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
+import com.example.visionwidget.ui.theme.CornerRadii
 import com.example.visionwidget.ui.theme.DMMono
+import com.example.visionwidget.ui.theme.InstrumentSerif
+import com.example.visionwidget.ui.theme.ThemePreset
+import com.example.visionwidget.ui.theme.ThemePresets
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
@@ -187,6 +206,38 @@ private fun tabLabel(font: UserFontChoice) = TextStyle(
 /** How many faces sit across the picker. */
 private const val FontColumns = 3
 
+// Wider than tall, so a card reads as a widget's proportions rather than as a tile.
+private val PresetCardWidth = 104.dp
+private val PresetCardHeight = 82.dp
+private val PresetCardShape = RoundedCornerShape(18.dp)
+
+// The shelf's own scrollbar — a light groove with a darker grip, and arrows at the ends.
+private val ScrollTrack = Color(0xFFE8E6E1)
+private val ScrollThumb = Color(0xFF9B9892)
+
+private val ScrollArrow = TextStyle(
+    fontFamily = DMMono,
+    fontWeight = FontWeight.Normal,
+    fontSize = 9.sp,
+    lineHeight = 12.sp
+)
+
+/** The "Aa" on a set's card, shown in that set's own face. */
+private fun presetSpecimen(font: UserFontChoice) = TextStyle(
+    fontFamily = font.family,
+    fontWeight = font.weight,
+    fontSize = 26.sp,
+    lineHeight = 30.sp
+)
+
+/** A set's name. Fixed to the app's own face — it labels the card, it isn't part of it. */
+private fun presetName() = TextStyle(
+    fontFamily = InstrumentSerif,
+    fontWeight = FontWeight.Normal,
+    fontSize = 12.sp,
+    lineHeight = 16.sp
+)
+
 /** How many colours sit across their picker — smaller cells, so more of them. */
 private const val ThemeColumns = 6
 
@@ -258,8 +309,14 @@ fun StudioScreen(
     widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
     /** The picture behind the cards under Photo, or null before one is chosen. */
     widgetPhotoUri: String? = null,
-    onApplyStyle: (fontId: Int, themeId: Int, alignId: Int, backgroundId: Int) -> Unit =
-        { _, _, _, _ -> },
+    widgetCornerRadius: Int = CornerRadii.DEFAULT,
+    onApplyStyle: (
+        fontId: Int,
+        themeId: Int,
+        alignId: Int,
+        backgroundId: Int,
+        cornerRadius: Int
+    ) -> Unit = { _, _, _, _, _ -> },
     onPickPhoto: (String?) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
@@ -276,13 +333,28 @@ fun StudioScreen(
     val draftTheme = CardThemes[draftThemeId]
     val draftAlign = Alignments[draftAlignId]
 
+    var draftCornerRadius by rememberSaveable(widgetCornerRadius) {
+        mutableIntStateOf(widgetCornerRadius)
+    }
     val draftSkin = widgetSkin(draftTheme, BackgroundStyles[draftBackgroundId])
+    val draftShape = RoundedCornerShape(draftCornerRadius.dp)
 
-    // One control commits all four, so it reads as applied only when none has moved.
+    // Derived, never stored: a set is only a description of the five values below it, so
+    // building one by hand marks it exactly as picking it would.
+    val matchedPreset = ThemePresets.matching(
+        draftFontId,
+        draftThemeId,
+        draftAlignId,
+        draftBackgroundId,
+        draftCornerRadius
+    )
+
+    // One control commits all five, so it reads as applied only when none has moved.
     val isApplied = draftFontId == widgetFontId &&
         draftThemeId == widgetThemeId &&
         draftAlignId == widgetAlignId &&
-        draftBackgroundId == widgetBackgroundId
+        draftBackgroundId == widgetBackgroundId &&
+        draftCornerRadius == widgetCornerRadius
 
     // The system picker hands back a URI that stays readable across restarts only if
     // the grant is taken persistently.
@@ -315,7 +387,13 @@ fun StudioScreen(
         if (draftBackgroundId == BackgroundStyles.PHOTO && widgetPhotoUri == null) {
             showMissingPhoto = true
         } else {
-            onApplyStyle(draftFontId, draftThemeId, draftAlignId, draftBackgroundId)
+            onApplyStyle(
+                draftFontId,
+                draftThemeId,
+                draftAlignId,
+                draftBackgroundId,
+                draftCornerRadius
+            )
         }
     }
 
@@ -365,16 +443,27 @@ fun StudioScreen(
                 draftThemeId = draftThemeId,
                 draftAlignId = draftAlignId,
                 draftBackgroundId = draftBackgroundId,
+                draftCornerRadius = draftCornerRadius,
                 draftFont = draftFont,
                 draftAlign = draftAlign,
                 draftSkin = draftSkin,
+                draftShape = draftShape,
+                matchedPresetId = matchedPreset?.id,
                 photoUri = widgetPhotoUri,
                 userFont = userFont,
                 isApplied = isApplied,
+                onSelectPreset = { preset ->
+                    draftFontId = preset.fontId
+                    draftThemeId = preset.themeId
+                    draftAlignId = preset.alignId
+                    draftBackgroundId = preset.backgroundId
+                    draftCornerRadius = preset.cornerRadius
+                },
                 onSelectFont = { draftFontId = it },
                 onSelectTheme = { draftThemeId = it },
                 onSelectAlign = { draftAlignId = it },
                 onSelectBackground = { draftBackgroundId = it },
+                onCornerRadiusChange = { draftCornerRadius = it },
                 onPickPhoto = {
                     photoLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -412,16 +501,21 @@ private fun ColumnScope.DesignTab(
     draftThemeId: Int,
     draftAlignId: Int,
     draftBackgroundId: Int,
+    draftCornerRadius: Int,
     draftFont: UserFontChoice,
     draftAlign: AlignChoice,
     draftSkin: WidgetSkin,
+    draftShape: RoundedCornerShape,
+    matchedPresetId: Int?,
     photoUri: String?,
     userFont: UserFontChoice,
     isApplied: Boolean,
+    onSelectPreset: (ThemePreset) -> Unit,
     onSelectFont: (Int) -> Unit,
     onSelectTheme: (Int) -> Unit,
     onSelectAlign: (Int) -> Unit,
     onSelectBackground: (Int) -> Unit,
+    onCornerRadiusChange: (Int) -> Unit,
     onPickPhoto: () -> Unit,
     onClearPhoto: () -> Unit,
     onApplyFont: () -> Unit,
@@ -446,14 +540,27 @@ private fun ColumnScope.DesignTab(
             photoUri = photoUri,
             userFont = draftFont,
             align = draftAlign,
+            shape = draftShape,
             isApplied = isApplied,
             chromeFont = userFont,
             onApply = onApplyFont
         )
     }
 
+    Spacer(Modifier.height(26.dp))
+    // Full width so the row can run past the content margins as it scrolls, the way a
+    // shelf of cards should.
+    Text(
+        text = "COLLECTIONS",
+        style = VisionType.eyebrow,
+        color = OnCanvas,
+        modifier = Modifier.fillMaxWidth(ContentWidthFraction)
+    )
+    Spacer(Modifier.height(14.dp))
+    CollectionsRow(selectedId = matchedPresetId, onSelect = onSelectPreset)
+
     Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(30.dp))
         Text(text = "LAYOUT", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         LayoutPicker(selectedId = draftAlignId, onSelect = onSelectAlign)
@@ -472,7 +579,10 @@ private fun ColumnScope.DesignTab(
             )
         }
 
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(26.dp))
+        CornerRadiusRow(radius = draftCornerRadius, onChange = onCornerRadiusChange)
+
+        Spacer(Modifier.height(24.dp))
         Text(text = "TYPOGRAPHY", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         FontPicker(selectedId = draftFontId, onSelect = onSelectFont)
@@ -670,6 +780,229 @@ private fun FontPicker(selectedId: Int, onSelect: (Int) -> Unit) {
                 repeat(FontColumns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/**
+ * The ready-made sets, as a shelf that scrolls sideways. Each card is its own specimen:
+ * the set's colour behind the set's face, so the name is the least of what it says.
+ */
+@Composable
+private fun CollectionsRow(selectedId: Int?, onSelect: (ThemePreset) -> Unit) {
+    val scroll = rememberScrollState()
+    // The row is the viewport, so its own width is what the bar measures against.
+    var viewportWidth by remember { mutableIntStateOf(0) }
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Taken from the real width rather than as a fraction of the row: inside a
+        // horizontal scroll the row has no bounded width to take a fraction of.
+        val sideMargin = maxWidth * (1f - ContentWidthFraction) / 2f
+
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { viewportWidth = it.width }
+                    .horizontalScroll(scroll)
+                    // Padding inside the scroll, so the first and last cards start and
+                    // end on the content margins but can still scroll past them.
+                    .padding(horizontal = sideMargin),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ThemePresets.all.forEach { preset ->
+                    PresetCard(
+                        preset = preset,
+                        isSelected = preset.id == selectedId,
+                        onClick = { onSelect(preset) }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            ScrollIndicator(
+                scroll = scroll,
+                viewportWidth = viewportWidth,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .fillMaxWidth(ContentWidthFraction)
+            )
+        }
+    }
+}
+
+/**
+ * Says how far along the shelf is and how much of it there is. Drawn rather than left
+ * to the platform: a scrollbar that only appears while a finger is down says nothing
+ * about a row that has more to show when it's sitting still.
+ */
+@Composable
+private fun ScrollIndicator(
+    scroll: ScrollState,
+    viewportWidth: Int,
+    modifier: Modifier = Modifier
+) {
+    val contentWidth = viewportWidth + scroll.maxValue
+    // Nothing to indicate before the row has been measured, or when it all fits.
+    if (viewportWidth == 0 || scroll.maxValue == 0) return
+
+    val visibleShare = (viewportWidth.toFloat() / contentWidth).coerceIn(0.1f, 1f)
+    val progress = (scroll.value.toFloat() / scroll.maxValue).coerceIn(0f, 1f)
+
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "◀", style = ScrollArrow, color = OnCanvasMuted)
+        Spacer(Modifier.width(8.dp))
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                // A groove six dp tall is far too thin to hit, so the bar carries a
+                // taller transparent box and draws the groove inside it.
+                .height(24.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            val trackWidth = maxWidth
+            val thumbWidth = trackWidth * visibleShare
+            val travel = trackWidth - thumbWidth
+
+            // Where a touch at [x] should put the row, reading the point as the middle
+            // of the grip rather than its left edge.
+            fun scrollFor(x: Float): Int {
+                val travelPx = with(density) { travel.toPx() }
+                if (travelPx <= 0f) return 0
+                val thumbCentre = with(density) { (thumbWidth / 2).toPx() }
+                val fraction = ((x - thumbCentre) / travelPx).coerceIn(0f, 1f)
+                return (fraction * scroll.maxValue).roundToInt()
+            }
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(ScrollTrack)
+                    .pointerInput(scroll.maxValue, trackWidth, thumbWidth) {
+                        detectTapGestures { offset ->
+                            scope.launch { scroll.scrollTo(scrollFor(offset.x)) }
+                        }
+                    }
+                    .pointerInput(scroll.maxValue, trackWidth, thumbWidth) {
+                        detectHorizontalDragGestures { change, _ ->
+                            scope.launch { scroll.scrollTo(scrollFor(change.position.x)) }
+                        }
+                    }
+            ) {
+                Box(
+                    Modifier
+                        .offset(x = travel * progress)
+                        .width(thumbWidth)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(ScrollThumb)
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(text = "▶", style = ScrollArrow, color = OnCanvasMuted)
+    }
+}
+
+@Composable
+private fun PresetCard(preset: ThemePreset, isSelected: Boolean, onClick: () -> Unit) {
+    val theme = CardThemes[preset.themeId]
+    val font = UserFonts[preset.fontId]
+    // One shape for every card, not each set's own radius: a tight corner clips the
+    // paid mark, and the shelf reads as a set of samples rather than a ragged row.
+    val shape = PresetCardShape
+
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .width(PresetCardWidth)
+                .height(PresetCardHeight)
+                .clip(shape)
+                .background(theme.surface)
+                .border(1.dp, theme.border ?: theme.onSurfaceRule, shape)
+        ) {
+            Text(
+                text = "Aa",
+                style = presetSpecimen(font),
+                color = theme.onSurface,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            if (preset.isPlus) {
+                Text(
+                    text = "+",
+                    style = SwatchPlus,
+                    color = theme.onSurface.copy(alpha = 0.75f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(OnCanvas),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "✓", style = SwatchPlus, color = Canvas)
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            // Always the app's own face, never the set's: these are labels for the
+            // shelf, not part of the specimen above them.
+            text = preset.name,
+            style = presetName(),
+            color = OnCanvas
+        )
+    }
+}
+
+/** The one value Studio offers as a range rather than a set of choices. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CornerRadiusRow(radius: Int, onChange: (Int) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "CORNER RADIUS", style = VisionType.eyebrow, color = OnCanvasMuted)
+            Text(text = "${radius}px", style = VisionType.eyebrow, color = PlusMark)
+        }
+        Slider(
+            value = radius.toFloat(),
+            onValueChange = { onChange(it.roundToInt()) },
+            valueRange = CornerRadii.MIN.toFloat()..CornerRadii.MAX.toFloat(),
+            // One unbroken hairline rather than a filled portion: the figure to the
+            // right already says where the value sits, so the track only has to show
+            // the range it moves along.
+            track = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .clip(CircleShape)
+                        .background(Rule)
+                )
+            },
+            thumb = {
+                Box(
+                    Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(OnCanvas)
+                )
+            }
+        )
     }
 }
 
@@ -941,6 +1274,7 @@ private fun PhonePreview(
     photoUri: String?,
     userFont: UserFontChoice,
     align: AlignChoice,
+    shape: RoundedCornerShape,
     isApplied: Boolean,
     chromeFont: UserFontChoice,
     onApply: () -> Unit
@@ -976,7 +1310,8 @@ private fun PhonePreview(
                 skin = skin,
                 photoUri = photoUri,
                 userFont = userFont,
-                align = align
+                align = align,
+                shape = shape
             )
             TopThreeWidget(
                 tasks = topThreeTasks,
@@ -984,14 +1319,16 @@ private fun PhonePreview(
                 skin = skin,
                 photoUri = photoUri,
                 userFont = userFont,
-                align = align
+                align = align,
+                shape = shape
             )
             WisdomWidget(
                 wisdom = wisdom,
                 skin = skin,
                 photoUri = photoUri,
                 userFont = userFont,
-                align = align
+                align = align,
+                shape = shape
             )
         }
 
@@ -1018,6 +1355,7 @@ private fun WidgetCard(
     skin: WidgetSkin,
     photoUri: String?,
     align: AlignChoice,
+    shape: RoundedCornerShape,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // A chosen picture replaces the fill entirely; the scrim over it is what keeps the
@@ -1028,12 +1366,12 @@ private fun WidgetCard(
             .fillMaxWidth()
             .then(
                 if (skin.castsShadow) {
-                    Modifier.shadow(elevation = 10.dp, shape = WidgetShape, clip = false)
+                    Modifier.shadow(elevation = 10.dp, shape = shape, clip = false)
                 } else {
                     Modifier
                 }
             )
-            .clip(WidgetShape)
+            .clip(shape)
             .then(
                 if (photo != null) {
                     Modifier.croppedPhotoBackground(photo)
@@ -1042,7 +1380,7 @@ private fun WidgetCard(
                 }
             )
             .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
-            .then(skin.border?.let { Modifier.border(1.dp, it, WidgetShape) } ?: Modifier)
+            .then(skin.border?.let { Modifier.border(1.dp, it, shape) } ?: Modifier)
             .padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
         // Set on the column as well as on the text: a checked row is a row, and only
@@ -1058,9 +1396,10 @@ private fun VisionWidget(
     skin: WidgetSkin,
     photoUri: String?,
     userFont: UserFontChoice,
-    align: AlignChoice
+    align: AlignChoice,
+    shape: RoundedCornerShape
 ) {
-    WidgetCard(skin, photoUri, align) {
+    WidgetCard(skin, photoUri, align, shape) {
         Text(
             text = "VISION",
             style = WidgetEyebrow,
@@ -1122,12 +1461,13 @@ private fun TopThreeWidget(
     skin: WidgetSkin,
     photoUri: String?,
     userFont: UserFontChoice,
-    align: AlignChoice
+    align: AlignChoice,
+    shape: RoundedCornerShape
 ) {
     val set = tasks.indices.filter { tasks[it] != null }
     val done = set.count { checked[it] }
 
-    WidgetCard(skin, photoUri, align) {
+    WidgetCard(skin, photoUri, align, shape) {
         Text(
             // Against the tasks that were set rather than a fixed three, matching the
             // count on Today's own card.
@@ -1209,9 +1549,10 @@ private fun WisdomWidget(
     skin: WidgetSkin,
     photoUri: String?,
     userFont: UserFontChoice,
-    align: AlignChoice
+    align: AlignChoice,
+    shape: RoundedCornerShape
 ) {
-    WidgetCard(skin, photoUri, align) {
+    WidgetCard(skin, photoUri, align, shape) {
         Text(
             text = align.format(wisdom.text),
             style = widgetQuote(userFont),

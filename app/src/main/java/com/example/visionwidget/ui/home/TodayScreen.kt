@@ -64,6 +64,7 @@ import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
+import com.example.visionwidget.ui.theme.CornerRadii
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
@@ -123,6 +124,7 @@ fun TodayScreen(
     /** How those cards are filled behind their words, and the picture if Photo is set. */
     widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
     widgetPhotoUri: String? = null,
+    widgetCornerRadius: Int = CornerRadii.DEFAULT,
     vision: Vision? = null,
     streakDays: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
@@ -139,6 +141,7 @@ fun TodayScreen(
     val widgetFont = UserFonts[widgetFontId]
     val widgetAlign = Alignments[widgetAlignId]
     val widgetSkin = widgetSkin(CardThemes[visionThemeId], BackgroundStyles[widgetBackgroundId])
+    val widgetShape = RoundedCornerShape(widgetCornerRadius.dp)
     // Which row is mid-edit and its draft text — purely a UI interaction, not data, so
     // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
@@ -179,6 +182,7 @@ fun TodayScreen(
                     vision = vision,
                     skin = widgetSkin,
                     photoUri = widgetPhotoUri,
+                    shape = widgetShape,
                     userFont = widgetFont,
                     align = widgetAlign,
                     onOpen = onOpenVision
@@ -187,6 +191,7 @@ fun TodayScreen(
                 EmptyVisionCard(
                     skin = widgetSkin,
                     photoUri = widgetPhotoUri,
+                    shape = widgetShape,
                     userFont = widgetFont,
                     align = widgetAlign,
                     onCreate = onOpenVision
@@ -208,6 +213,7 @@ fun TodayScreen(
             TopThreeCard(
                 skin = widgetSkin,
                 photoUri = widgetPhotoUri,
+                shape = widgetShape,
                 userFont = widgetFont,
                 align = widgetAlign,
                 tasks = topThreeTasks,
@@ -244,6 +250,7 @@ fun TodayScreen(
             WisdomCard(
                 skin = widgetSkin,
                 photoUri = widgetPhotoUri,
+                shape = widgetShape,
                 userFont = widgetFont,
                 align = widgetAlign,
                 wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
@@ -347,6 +354,7 @@ private fun SectionLabel(
 private fun TopThreeCard(
     skin: WidgetSkin,
     photoUri: String?,
+    shape: RoundedCornerShape,
     userFont: UserFontChoice,
     align: AlignChoice,
     tasks: List<String?>,
@@ -359,7 +367,7 @@ private fun TopThreeCard(
     onCommitEdit: () -> Unit,
     onRemoveTask: (Int) -> Unit
 ) {
-    ThemedCard(skin = skin, photoUri = photoUri) {
+    ThemedCard(skin = skin, photoUri = photoUri, shape = shape) {
         // Less room above the first row than around it: the row's own 16dp and the
         // card's inset were stacking into too deep a gap at the top.
         Column(Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)) {
@@ -609,11 +617,12 @@ private fun VisionCard(
     vision: Vision,
     skin: WidgetSkin,
     photoUri: String?,
+    shape: RoundedCornerShape,
     userFont: UserFontChoice,
     align: AlignChoice,
     onOpen: () -> Unit
 ) {
-    ThemedCard(skin = skin, photoUri = photoUri, minHeight = 150.dp, onClick = onOpen) {
+    ThemedCard(skin = skin, photoUri = photoUri, shape = shape, minHeight = 150.dp, onClick = onOpen) {
         Column(Modifier.padding(20.dp), horizontalAlignment = align.horizontal) {
             Text(
                 text = align.format(vision.goal),
@@ -668,11 +677,12 @@ private fun VisionCard(
 private fun EmptyVisionCard(
     skin: WidgetSkin,
     photoUri: String?,
+    shape: RoundedCornerShape,
     userFont: UserFontChoice,
     align: AlignChoice,
     onCreate: () -> Unit
 ) {
-    ThemedCard(skin = skin, photoUri = photoUri, minHeight = 150.dp) {
+    ThemedCard(skin = skin, photoUri = photoUri, shape = shape, minHeight = 150.dp) {
         Column(Modifier.padding(20.dp), horizontalAlignment = align.horizontal) {
             Text(
                 text = align.format("What's your vision?"),
@@ -707,6 +717,7 @@ private fun EmptyVisionCard(
 private fun WisdomCard(
     skin: WidgetSkin,
     photoUri: String?,
+    shape: RoundedCornerShape,
     userFont: UserFontChoice,
     align: AlignChoice,
     wisdom: Wisdom,
@@ -714,7 +725,7 @@ private fun WisdomCard(
 ) {
     // No minimum height: a floor would leave slack under the footer on short quotes,
     // so the gap below the meta row would grow as the quote got shorter.
-    ThemedCard(skin = skin, photoUri = photoUri) {
+    ThemedCard(skin = skin, photoUri = photoUri, shape = shape) {
         Column(Modifier.padding(20.dp)) {
             Text(
                 text = align.format(wisdom.text),
@@ -756,6 +767,7 @@ private fun WisdomCard(
 private fun ThemedCard(
     skin: WidgetSkin,
     photoUri: String?,
+    shape: RoundedCornerShape,
     minHeight: Dp = 0.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit = {}
@@ -768,7 +780,7 @@ private fun ThemedCard(
             .fillMaxWidth()
             // A floor rather than a fixed height, so cards with content can grow.
             .heightIn(min = minHeight)
-            .clip(CardShape)
+            .clip(shape)
             .then(
                 if (photo != null) {
                     Modifier.croppedPhotoBackground(photo)
@@ -777,7 +789,7 @@ private fun ThemedCard(
                 }
             )
             .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
-            .then(skin.border?.let { Modifier.border(1.dp, it, CardShape) } ?: Modifier)
+            .then(skin.border?.let { Modifier.border(1.dp, it, shape) } ?: Modifier)
             // Clickable last so the ripple lands inside the clipped, painted card.
             .then(onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)
     ) {
