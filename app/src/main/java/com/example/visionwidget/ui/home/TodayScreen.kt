@@ -59,28 +59,21 @@ import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.theme.AlignChoice
-import com.example.visionwidget.ui.theme.Alignments
-import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
-import com.example.visionwidget.ui.theme.CardTheme
-import com.example.visionwidget.ui.theme.CardThemes
-import com.example.visionwidget.ui.theme.CornerRadii
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.theme.WidgetLook
 import com.example.visionwidget.ui.theme.WidgetSkin
-import com.example.visionwidget.ui.theme.widgetSkin
+import com.example.visionwidget.ui.theme.resolve
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-// Mock data — pinned to the design reference until the real sources are wired up.
-private const val MOCK_THIS_WEEK = "18 / 21"
 
 /** "SUNDAY 13 SEPTEMBER" — the header's own date line, uppercased to sit in the eyebrow. */
 private val HeaderDateFormat = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)
@@ -104,29 +97,25 @@ private val CardShape = RoundedCornerShape(16.dp)
 private val SectionLabelHeight = 20.dp
 
 /**
- * Card and font ids default to their registry defaults; once the DB is wired up the
- * caller passes the stored ids instead and nothing else here has to change.
+ * Looks default to the registry defaults; the caller passes what Studio applied instead
+ * and nothing else here has to change.
  */
 @Composable
 fun TodayScreen(
     contentPadding: PaddingValues = PaddingValues(),
-    visionThemeId: Int = CardThemes.DEFAULT_ID,
-    topThreeThemeId: Int = CardThemes.DEFAULT_ID,
-    wisdomThemeId: Int = CardThemes.DEFAULT_ID,
     userFontId: Int = UserFonts.DEFAULT_ID,
     /**
-     * The face the three cards render in — they're the widgets, so they follow what
-     * Studio applied. Everything around them stays on [userFontId].
+     * How each card is dressed — they're the widgets, so they follow what Studio applied
+     * to that widget in particular. Everything around them stays on [userFontId].
      */
-    widgetFontId: Int = UserFonts.DEFAULT_ID,
-    /** How those same cards set out their words — the layout Studio applied. */
-    widgetAlignId: Int = Alignments.DEFAULT_ID,
-    /** How those cards are filled behind their words, and the picture if Photo is set. */
-    widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
-    widgetPhotoUri: String? = null,
-    widgetCornerRadius: Int = CornerRadii.DEFAULT,
+    visionLook: WidgetLook = WidgetLook(),
+    topThreeLook: WidgetLook = WidgetLook(),
+    wisdomLook: WidgetLook = WidgetLook(),
     vision: Vision? = null,
     streakDays: Int = 0,
+    /** Tasks ticked and tasks set across this week, for the header's second figure. */
+    weekDone: Int = 0,
+    weekTotal: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
     topThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
     onSetTopThreeText: (index: Int, text: String) -> Unit = { _, _ -> },
@@ -138,10 +127,11 @@ fun TodayScreen(
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
-    val widgetFont = UserFonts[widgetFontId]
-    val widgetAlign = Alignments[widgetAlignId]
-    val widgetSkin = widgetSkin(CardThemes[visionThemeId], BackgroundStyles[widgetBackgroundId])
-    val widgetShape = RoundedCornerShape(widgetCornerRadius.dp)
+    // Resolved once each rather than per card: the three are styled apart now, so each
+    // carries its own surface, face and corner.
+    val visionCard = remember(visionLook) { visionLook.resolve() }
+    val topThreeCard = remember(topThreeLook) { topThreeLook.resolve() }
+    val wisdomCard = remember(wisdomLook) { wisdomLook.resolve() }
     // Which row is mid-edit and its draft text — purely a UI interaction, not data, so
     // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
@@ -162,7 +152,12 @@ fun TodayScreen(
             Header(userFont = userFont)
 
             Spacer(Modifier.height(20.dp))
-            MetricsRow(streakDays = streakDays, userFont = userFont)
+            MetricsRow(
+                streakDays = streakDays,
+                weekDone = weekDone,
+                weekTotal = weekTotal,
+                userFont = userFont
+            )
 
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = Rule, thickness = 1.dp)
@@ -180,20 +175,20 @@ fun TodayScreen(
             if (vision != null) {
                 VisionCard(
                     vision = vision,
-                    skin = widgetSkin,
-                    photoUri = widgetPhotoUri,
-                    shape = widgetShape,
-                    userFont = widgetFont,
-                    align = widgetAlign,
+                    skin = visionCard.skin,
+                    photoUri = visionCard.photoUri,
+                    shape = visionCard.shape,
+                    userFont = visionCard.font,
+                    align = visionCard.align,
                     onOpen = onOpenVision
                 )
             } else {
                 EmptyVisionCard(
-                    skin = widgetSkin,
-                    photoUri = widgetPhotoUri,
-                    shape = widgetShape,
-                    userFont = widgetFont,
-                    align = widgetAlign,
+                    skin = visionCard.skin,
+                    photoUri = visionCard.photoUri,
+                    shape = visionCard.shape,
+                    userFont = visionCard.font,
+                    align = visionCard.align,
                     onCreate = onOpenVision
                 )
             }
@@ -211,11 +206,11 @@ fun TodayScreen(
             )
             Spacer(Modifier.height(10.dp))
             TopThreeCard(
-                skin = widgetSkin,
-                photoUri = widgetPhotoUri,
-                shape = widgetShape,
-                userFont = widgetFont,
-                align = widgetAlign,
+                skin = topThreeCard.skin,
+                photoUri = topThreeCard.photoUri,
+                shape = topThreeCard.shape,
+                userFont = topThreeCard.font,
+                align = topThreeCard.align,
                 tasks = topThreeTasks,
                 checkedTasks = topThreeChecked,
                 editingTask = editingTask,
@@ -248,11 +243,11 @@ fun TodayScreen(
             SectionLabel(label = "DAILY WISDOM")
             Spacer(Modifier.height(10.dp))
             WisdomCard(
-                skin = widgetSkin,
-                photoUri = widgetPhotoUri,
-                shape = widgetShape,
-                userFont = widgetFont,
-                align = widgetAlign,
+                skin = wisdomCard.skin,
+                photoUri = wisdomCard.photoUri,
+                shape = wisdomCard.shape,
+                userFont = wisdomCard.font,
+                align = wisdomCard.align,
                 wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
                 onShuffle = onShuffleWisdom
             )
@@ -278,7 +273,12 @@ private fun Header(userFont: UserFontChoice) {
 }
 
 @Composable
-private fun MetricsRow(streakDays: Int, userFont: UserFontChoice) {
+private fun MetricsRow(
+    streakDays: Int,
+    weekDone: Int,
+    weekTotal: Int,
+    userFont: UserFontChoice
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -290,7 +290,13 @@ private fun MetricsRow(streakDays: Int, userFont: UserFontChoice) {
             userFont = userFont
         )
         Spacer(Modifier.weight(1f))
-        Metric(label = "THIS WEEK", value = MOCK_THIS_WEEK, userFont = userFont)
+        Metric(
+            // Tasks ticked out of tasks set this week, not days out of seven — a week
+            // is only ever measured against what was actually asked of it.
+            label = "THIS WEEK",
+            value = "$weekDone / $weekTotal",
+            userFont = userFont
+        )
     }
 }
 

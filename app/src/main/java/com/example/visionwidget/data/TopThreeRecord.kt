@@ -37,6 +37,23 @@ data class TopThreeStats(
     val daysRecorded: Int
 )
 
+/** Tasks ticked against tasks set, counted by task rather than by day. */
+data class TaskTally(val done: Int, val total: Int)
+
+/**
+ * The tally across a stretch of days, both ends inclusive.
+ *
+ * Counted by task, not by day: a day where two of three were ticked contributes both
+ * halves of what it was, where counting days would round it away entirely.
+ */
+fun tallyBetween(records: List<DayRecord>, fromEpochDay: Long, toEpochDay: Long): TaskTally {
+    val within = records.filter { it.epochDay in fromEpochDay..toEpochDay }
+    return TaskTally(
+        done = within.sumOf { it.doneCount },
+        total = within.sumOf { it.total }
+    )
+}
+
 /**
  * Consecutive kept days ending yesterday. Today is deliberately excluded — it's still
  * open, so counting it would make the streak fall as the day starts and climb again by

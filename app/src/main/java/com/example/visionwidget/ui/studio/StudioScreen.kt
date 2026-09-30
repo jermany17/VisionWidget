@@ -100,12 +100,16 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
 import com.example.visionwidget.ui.theme.OnNavBar
+import com.example.visionwidget.ui.theme.ResolvedLook
 import com.example.visionwidget.ui.theme.Rule
+import com.example.visionwidget.ui.theme.resolve
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.theme.WidgetLook
 import com.example.visionwidget.ui.theme.WidgetSkin
-import com.example.visionwidget.ui.theme.widgetSkin
+import com.example.visionwidget.ui.theme.WidgetStyle
+import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
@@ -196,11 +200,39 @@ private enum class StudioTab(val label: String) {
     Gallery("Gallery")
 }
 
+/**
+ * Which widgets the choices below are being made for.
+ *
+ * All is a way of writing rather than a look of its own — it commits one arrangement to
+ * every widget at once, which is why it has no picture: a photo belongs to the single
+ * card it fills, so it's offered only once a widget has been singled out.
+ */
+private enum class StyleScope(val label: String, val targets: Set<WidgetTarget>) {
+    All("All", WidgetTarget.entries.toSet()),
+    Vision("Vision", setOf(WidgetTarget.Vision)),
+    TopThree("Top 3", setOf(WidgetTarget.TopThree)),
+    Wisdom("Wisdom", setOf(WidgetTarget.Wisdom));
+
+    /** The one widget being styled, or null while every widget is. */
+    val single: WidgetTarget? get() = targets.singleOrNull()
+}
+
 private fun tabLabel(font: UserFontChoice) = TextStyle(
     fontFamily = font.family,
     fontWeight = font.weight,
     fontSize = 19.sp,
     lineHeight = 24.sp
+)
+
+/**
+ * The scope bar's own label. Smaller than [tabLabel]: four across where the tabs are
+ * two, so "Wisdom" has to sit in a quarter of the width rather than a half.
+ */
+private fun scopeLabel(font: UserFontChoice) = TextStyle(
+    fontFamily = font.family,
+    fontWeight = font.weight,
+    fontSize = 14.sp,
+    lineHeight = 18.sp
 )
 
 /** How many faces sit across the picker. */
@@ -302,42 +334,60 @@ fun StudioScreen(
     topThreeTasks: List<String?> = List(3) { null },
     topThreeChecked: List<Boolean> = List(3) { false },
     wisdomIndex: Int = 0,
-    /** The look currently applied to the widgets — what the preview starts from. */
-    widgetFontId: Int = UserFonts.DEFAULT_ID,
-    widgetThemeId: Int = CardThemes.DEFAULT_ID,
-    widgetAlignId: Int = Alignments.DEFAULT_ID,
-    widgetBackgroundId: Int = BackgroundStyles.DEFAULT_ID,
-    /** The picture behind the cards under Photo, or null before one is chosen. */
-    widgetPhotoUri: String? = null,
-    widgetCornerRadius: Int = CornerRadii.DEFAULT,
-    onApplyStyle: (
-        fontId: Int,
-        themeId: Int,
-        alignId: Int,
-        backgroundId: Int,
-        cornerRadius: Int
-    ) -> Unit = { _, _, _, _, _ -> },
-    onPickPhoto: (String?) -> Unit = {},
+    /** The look applied to each widget — what the preview starts from. */
+    looks: Map<WidgetTarget, WidgetLook> = WidgetTarget.entries.associateWith { WidgetLook() },
+    onApplyStyle: (targets: Set<WidgetTarget>, style: WidgetStyle) -> Unit = { _, _ -> },
+    onPickPhoto: (target: WidgetTarget, uri: String?) -> Unit = { _, _ -> },
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
-    // Keyed on what's applied, so committing a choice settles the drafts back onto it
-    // and the button falls to its applied state without a second signal.
-    var draftFontId by rememberSaveable(widgetFontId) { mutableIntStateOf(widgetFontId) }
-    var draftThemeId by rememberSaveable(widgetThemeId) { mutableIntStateOf(widgetThemeId) }
-    var draftAlignId by rememberSaveable(widgetAlignId) { mutableIntStateOf(widgetAlignId) }
-    var draftBackgroundId by rememberSaveable(widgetBackgroundId) {
-        mutableIntStateOf(widgetBackgroundId)
-    }
-    val draftFont = UserFonts[draftFontId]
-    val draftTheme = CardThemes[draftThemeId]
-    val draftAlign = Alignments[draftAlignId]
+    var scope by rememberSaveable { mutableStateOf(StyleScope.All) }
+    val lookOf = { target: WidgetTarget -> looks[target] ?: WidgetLook() }
 
-    var draftCornerRadius by rememberSaveable(widgetCornerRadius) {
-        mutableIntStateOf(widgetCornerRadius)
+    // Only a single widget can carry a picture: under All the same photo behind all
+    // three isn't a look anyone asked for, so the style is offered without it.
+    val allowsPhoto = scope.single != null
+    val scopePhotoUri = scope.single?.let { lookOf(it).photoUri }
+
+    // What the controls settle onto. Keyed on the applied look so committing a choice
+    // drops the drafts back onto it and the button falls to its applied state without a
+    // second signal — and on the scope, so moving between widgets picks up that widget's
+    // own arrangement rather than carrying the last one across.
+    val seed = remember(scope, looks) {
+        val applied = lookOf(scope.targets.first()).style
+        if (!allowsPhoto && applied.backgroundId == BackgroundStyles.PHOTO) {
+            applied.copy(backgroundId = BackgroundStyles.DEFAULT_ID)
+        } else {
+            applied
+        }
     }
-    val draftSkin = widgetSkin(draftTheme, BackgroundStyles[draftBackgroundId])
-    val draftShape = RoundedCornerShape(draftCornerRadius.dp)
+
+    // Reset on the scope as well as on the seed, not on the seed alone: All borrows
+    // Vision's style, so the two scopes can seed identically and an uncommitted change
+    // made under Vision would otherwise ride across into All and dress all three.
+    var draftFontId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.fontId) }
+    var draftThemeId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.themeId) }
+    var draftAlignId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.alignId) }
+    var draftBackgroundId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.backgroundId) }
+    var draftCornerRadius by rememberSaveable(scope, seed) { mutableIntStateOf(seed.cornerRadius) }
+
+    /**
+     * Whether a control has been used since the scope was picked.
+     *
+     * The drafts have to hold one arrangement, but under All the three widgets may
+     * already be wearing three different ones — so until something is actually chosen
+     * the drafts stand for nothing, and the preview shows each widget as it really is
+     * rather than flattening all three onto an arrangement nobody asked for.
+     */
+    var touched by rememberSaveable(scope, seed) { mutableStateOf(false) }
+
+    val draft = WidgetStyle(
+        fontId = draftFontId,
+        themeId = draftThemeId,
+        alignId = draftAlignId,
+        backgroundId = draftBackgroundId,
+        cornerRadius = draftCornerRadius
+    )
 
     // Derived, never stored: a set is only a description of the five values below it, so
     // building one by hand marks it exactly as picking it would.
@@ -349,12 +399,19 @@ fun StudioScreen(
         draftCornerRadius
     )
 
-    // One control commits all five, so it reads as applied only when none has moved.
-    val isApplied = draftFontId == widgetFontId &&
-        draftThemeId == widgetThemeId &&
-        draftAlignId == widgetAlignId &&
-        draftBackgroundId == widgetBackgroundId &&
-        draftCornerRadius == widgetCornerRadius
+    // What the phone draws. Once a choice is made every widget in scope follows it —
+    // that's what applying to a scope means — but before then each keeps its own.
+    val previewLooks = scope.targets.associateWith { target ->
+        if (touched) {
+            WidgetLook(draft, scopePhotoUri).resolve()
+        } else {
+            lookOf(target).resolve()
+        }
+    }
+
+    // One control commits all five to every widget in scope. With nothing chosen there's
+    // nothing pending, however far apart the three happen to be.
+    val isApplied = !touched || scope.targets.all { lookOf(it).style == draft }
 
     // The system picker hands back a URI that stays readable across restarts only if
     // the grant is taken persistently.
@@ -362,14 +419,15 @@ fun StudioScreen(
     val photoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) {
+        val target = scope.single
+        if (uri != null && target != null) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            onPickPhoto(uri.toString())
+            onPickPhoto(target, uri.toString())
         }
     }
 
@@ -382,18 +440,12 @@ fun StudioScreen(
     var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
 
     // Photo has nothing to show without a picture, so applying it would blank the
-    // widgets. The choice is kept as it is and the alert says what's missing.
+    // widget. The choice is kept as it is and the alert says what's missing.
     val applyStyle = {
-        if (draftBackgroundId == BackgroundStyles.PHOTO && widgetPhotoUri == null) {
+        if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
             showMissingPhoto = true
         } else {
-            onApplyStyle(
-                draftFontId,
-                draftThemeId,
-                draftAlignId,
-                draftBackgroundId,
-                draftCornerRadius
-            )
+            onApplyStyle(scope.targets, draft)
         }
     }
 
@@ -439,17 +491,17 @@ fun StudioScreen(
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
                 wisdomIndex = wisdomIndex,
+                scope = scope,
+                onSelectScope = { scope = it },
+                allowsPhoto = allowsPhoto,
                 draftFontId = draftFontId,
                 draftThemeId = draftThemeId,
                 draftAlignId = draftAlignId,
                 draftBackgroundId = draftBackgroundId,
                 draftCornerRadius = draftCornerRadius,
-                draftFont = draftFont,
-                draftAlign = draftAlign,
-                draftSkin = draftSkin,
-                draftShape = draftShape,
+                previewLooks = previewLooks,
                 matchedPresetId = matchedPreset?.id,
-                photoUri = widgetPhotoUri,
+                photoUri = scopePhotoUri,
                 userFont = userFont,
                 isApplied = isApplied,
                 onSelectPreset = { preset ->
@@ -458,18 +510,19 @@ fun StudioScreen(
                     draftAlignId = preset.alignId
                     draftBackgroundId = preset.backgroundId
                     draftCornerRadius = preset.cornerRadius
+                    touched = true
                 },
-                onSelectFont = { draftFontId = it },
-                onSelectTheme = { draftThemeId = it },
-                onSelectAlign = { draftAlignId = it },
-                onSelectBackground = { draftBackgroundId = it },
-                onCornerRadiusChange = { draftCornerRadius = it },
+                onSelectFont = { draftFontId = it; touched = true },
+                onSelectTheme = { draftThemeId = it; touched = true },
+                onSelectAlign = { draftAlignId = it; touched = true },
+                onSelectBackground = { draftBackgroundId = it; touched = true },
+                onCornerRadiusChange = { draftCornerRadius = it; touched = true },
                 onPickPhoto = {
                     photoLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
-                onClearPhoto = { onPickPhoto(null) },
+                onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
                 onApplyFont = applyStyle,
                 contentPadding = contentPadding
             )
@@ -497,15 +550,16 @@ private fun ColumnScope.DesignTab(
     topThreeTasks: List<String?>,
     topThreeChecked: List<Boolean>,
     wisdomIndex: Int,
+    scope: StyleScope,
+    onSelectScope: (StyleScope) -> Unit,
+    allowsPhoto: Boolean,
     draftFontId: Int,
     draftThemeId: Int,
     draftAlignId: Int,
     draftBackgroundId: Int,
     draftCornerRadius: Int,
-    draftFont: UserFontChoice,
-    draftAlign: AlignChoice,
-    draftSkin: WidgetSkin,
-    draftShape: RoundedCornerShape,
+    /** What the phone draws, per widget — the keys are the widgets in scope. */
+    previewLooks: Map<WidgetTarget, ResolvedLook>,
     matchedPresetId: Int?,
     photoUri: String?,
     userFont: UserFontChoice,
@@ -535,16 +589,18 @@ private fun ColumnScope.DesignTab(
             topThreeTasks = topThreeTasks,
             topThreeChecked = topThreeChecked,
             wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
-            // One surface across all three: Studio applies to every widget at once.
-            skin = draftSkin,
-            photoUri = photoUri,
-            userFont = draftFont,
-            align = draftAlign,
-            shape = draftShape,
+            // Only what's being styled: singling out a widget is a request to look at
+            // that widget, and the other two would only be there to be ignored.
+            looks = previewLooks,
             isApplied = isApplied,
             chromeFont = userFont,
             onApply = onApplyFont
         )
+    }
+
+    Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
+        Spacer(Modifier.height(10.dp))
+        ScopeBar(selected = scope, userFont = userFont, onSelect = onSelectScope)
     }
 
     Spacer(Modifier.height(26.dp))
@@ -557,7 +613,11 @@ private fun ColumnScope.DesignTab(
         modifier = Modifier.fillMaxWidth(ContentWidthFraction)
     )
     Spacer(Modifier.height(14.dp))
-    CollectionsRow(selectedId = matchedPresetId, onSelect = onSelectPreset)
+    CollectionsRow(
+        selectedId = matchedPresetId,
+        allowsPhoto = allowsPhoto,
+        onSelect = onSelectPreset
+    )
 
     Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
         Spacer(Modifier.height(30.dp))
@@ -568,7 +628,11 @@ private fun ColumnScope.DesignTab(
         Spacer(Modifier.height(30.dp))
         Text(text = "BACKGROUND", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
-        BackgroundPicker(selectedId = draftBackgroundId, onSelect = onSelectBackground)
+        BackgroundPicker(
+            selectedId = draftBackgroundId,
+            allowsPhoto = allowsPhoto,
+            onSelect = onSelectBackground
+        )
         if (draftBackgroundId == BackgroundStyles.PHOTO) {
             Spacer(Modifier.height(12.dp))
             PhotoRow(
@@ -640,6 +704,44 @@ private fun TabBar(
                     style = tabLabel(userFont),
                     color = if (isSelected) OnCanvas else OnCanvasMuted,
                     modifier = Modifier.padding(vertical = 12.dp)
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(if (isSelected) 2.dp else 1.dp)
+                        .background(if (isSelected) OnCanvas else Rule)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Which widgets the pickers below are dressing. Built like [TabBar] rather than as chips
+ * so the two read as the same kind of control — one splits the screen, one splits what
+ * the screen is acting on.
+ */
+@Composable
+private fun ScopeBar(
+    selected: StyleScope,
+    userFont: UserFontChoice,
+    onSelect: (StyleScope) -> Unit
+) {
+    Row(Modifier.fillMaxWidth()) {
+        StyleScope.entries.forEach { entry ->
+            val isSelected = entry == selected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onSelect(entry) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = entry.label,
+                    style = scopeLabel(userFont),
+                    color = if (isSelected) OnCanvas else OnCanvasMuted,
+                    maxLines = 1,
+                    modifier = Modifier.padding(vertical = 10.dp)
                 )
                 Box(
                     Modifier
@@ -788,7 +890,16 @@ private fun FontPicker(selectedId: Int, onSelect: (Int) -> Unit) {
  * the set's colour behind the set's face, so the name is the least of what it says.
  */
 @Composable
-private fun CollectionsRow(selectedId: Int?, onSelect: (ThemePreset) -> Unit) {
+private fun CollectionsRow(
+    selectedId: Int?,
+    allowsPhoto: Boolean,
+    onSelect: (ThemePreset) -> Unit
+) {
+    // A set built on Photo has nothing to stand on until a picture has been chosen for
+    // one particular card, so it's held back until a widget has been singled out.
+    val presets = remember(allowsPhoto) {
+        ThemePresets.all.filter { allowsPhoto || it.backgroundId != BackgroundStyles.PHOTO }
+    }
     val scroll = rememberScrollState()
     // The row is the viewport, so its own width is what the bar measures against.
     var viewportWidth by remember { mutableIntStateOf(0) }
@@ -809,7 +920,7 @@ private fun CollectionsRow(selectedId: Int?, onSelect: (ThemePreset) -> Unit) {
                     .padding(horizontal = sideMargin),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                ThemePresets.all.forEach { preset ->
+                presets.forEach { preset ->
                     PresetCard(
                         preset = preset,
                         isSelected = preset.id == selectedId,
@@ -975,7 +1086,7 @@ private fun CornerRadiusRow(radius: Int, onChange: (Int) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "CORNER RADIUS", style = VisionType.eyebrow, color = OnCanvasMuted)
+            Text(text = "CORNER RADIUS", style = VisionType.eyebrow, color = OnCanvas)
             Text(text = "${radius}px", style = VisionType.eyebrow, color = PlusMark)
         }
         Slider(
@@ -1009,13 +1120,15 @@ private fun CornerRadiusRow(radius: Int, onChange: (Int) -> Unit) {
 /** The ways a card can be filled behind its words. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BackgroundPicker(selectedId: Int, onSelect: (Int) -> Unit) {
+private fun BackgroundPicker(selectedId: Int, allowsPhoto: Boolean, onSelect: (Int) -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        BackgroundStyles.all.forEach { style ->
+        // Photo fills one card with one picture, so it's offered only once the choices
+        // are being made for a single widget rather than for all three at once.
+        BackgroundStyles.all.filter { allowsPhoto || it.id != BackgroundStyles.PHOTO }.forEach { style ->
             val isSelected = style.id == selectedId
             Box(
                 modifier = Modifier
@@ -1270,11 +1383,11 @@ private fun PhonePreview(
     topThreeTasks: List<String?>,
     topThreeChecked: List<Boolean>,
     wisdom: Wisdom,
-    skin: WidgetSkin,
-    photoUri: String?,
-    userFont: UserFontChoice,
-    align: AlignChoice,
-    shape: RoundedCornerShape,
+    /**
+     * How to draw each widget. A widget missing from the map is out of scope and stays
+     * off the phone; the three may well be dressed differently, so each brings its own.
+     */
+    looks: Map<WidgetTarget, ResolvedLook>,
     isApplied: Boolean,
     chromeFont: UserFontChoice,
     onApply: () -> Unit
@@ -1305,31 +1418,37 @@ private fun PhonePreview(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            VisionWidget(
-                vision = vision,
-                skin = skin,
-                photoUri = photoUri,
-                userFont = userFont,
-                align = align,
-                shape = shape
-            )
-            TopThreeWidget(
-                tasks = topThreeTasks,
-                checked = topThreeChecked,
-                skin = skin,
-                photoUri = photoUri,
-                userFont = userFont,
-                align = align,
-                shape = shape
-            )
-            WisdomWidget(
-                wisdom = wisdom,
-                skin = skin,
-                photoUri = photoUri,
-                userFont = userFont,
-                align = align,
-                shape = shape
-            )
+            looks[WidgetTarget.Vision]?.let { look ->
+                VisionWidget(
+                    vision = vision,
+                    skin = look.skin,
+                    photoUri = look.photoUri,
+                    userFont = look.font,
+                    align = look.align,
+                    shape = look.shape
+                )
+            }
+            looks[WidgetTarget.TopThree]?.let { look ->
+                TopThreeWidget(
+                    tasks = topThreeTasks,
+                    checked = topThreeChecked,
+                    skin = look.skin,
+                    photoUri = look.photoUri,
+                    userFont = look.font,
+                    align = look.align,
+                    shape = look.shape
+                )
+            }
+            looks[WidgetTarget.Wisdom]?.let { look ->
+                WisdomWidget(
+                    wisdom = wisdom,
+                    skin = look.skin,
+                    photoUri = look.photoUri,
+                    userFont = look.font,
+                    align = look.align,
+                    shape = look.shape
+                )
+            }
         }
 
         // Pinned to the bottom edge rather than following the widgets, the way a dock

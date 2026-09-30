@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visionwidget.data.VisionAppViewModel
+import com.example.visionwidget.data.tallyBetween
 import com.example.visionwidget.data.topThreeStats
 import com.example.visionwidget.ui.home.TodayScreen
 import com.example.visionwidget.ui.home.WISDOM
@@ -46,8 +47,16 @@ import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.theme.WidgetLook
+import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.VisionScreen
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
+
+/** Falls back to the defaults rather than throwing if a target was never written. */
+private fun Map<WidgetTarget, WidgetLook>.lookOf(target: WidgetTarget) =
+    this[target] ?: WidgetLook()
 
 enum class VisionTab(val label: String) {
     Today("Today"),
@@ -82,16 +91,18 @@ fun VisionApp(
     val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
     val topThreeChecked by viewModel.topThreeChecked.collectAsStateWithLifecycle()
     val dayRecords by viewModel.dayRecords.collectAsStateWithLifecycle()
-    val widgetFontId by viewModel.widgetFontId.collectAsStateWithLifecycle()
-    val widgetThemeId by viewModel.widgetThemeId.collectAsStateWithLifecycle()
-    val widgetAlignId by viewModel.widgetAlignId.collectAsStateWithLifecycle()
-    val widgetBackgroundId by viewModel.widgetBackgroundId.collectAsStateWithLifecycle()
-    val widgetPhotoUri by viewModel.widgetPhotoUri.collectAsStateWithLifecycle()
-    val widgetCornerRadius by viewModel.widgetCornerRadius.collectAsStateWithLifecycle()
+    val widgetLooks by viewModel.widgetLooks.collectAsStateWithLifecycle()
 
     // Today's header and the Insights tab read the same figures, so they're derived once
     // here rather than computed separately in each screen.
     val stats = remember(dayRecords) { topThreeStats(dayRecords, LocalDate.now().toEpochDay()) }
+
+    // Weeks run Sunday to Saturday here as they do in Insights, so the two screens
+    // can't disagree about which days "this week" covers.
+    val weekTally = remember(dayRecords) {
+        val start = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+        tallyBetween(dayRecords, start.toEpochDay(), start.plusDays(6).toEpochDay())
+    }
 
     // Today and the Studio preview both follow the main vision — it's the one the
     // widgets are bound to.
@@ -126,17 +137,15 @@ fun VisionApp(
         when (selectedTab) {
             VisionTab.Today -> TodayScreen(
                 contentPadding = screenPadding,
-                widgetFontId = widgetFontId,
-                widgetAlignId = widgetAlignId,
-                widgetBackgroundId = widgetBackgroundId,
-                widgetPhotoUri = widgetPhotoUri,
-                widgetCornerRadius = widgetCornerRadius,
-                // Studio sets one colour for every widget, so the three cards share it.
-                visionThemeId = widgetThemeId,
-                topThreeThemeId = widgetThemeId,
-                wisdomThemeId = widgetThemeId,
+                // Each card wears what Studio applied to that widget — the three can be
+                // styled apart, so none of them borrows another's look.
+                visionLook = widgetLooks.lookOf(WidgetTarget.Vision),
+                topThreeLook = widgetLooks.lookOf(WidgetTarget.TopThree),
+                wisdomLook = widgetLooks.lookOf(WidgetTarget.Wisdom),
                 vision = mainVision,
                 streakDays = stats.streak,
+                weekDone = weekTally.done,
+                weekTotal = weekTally.total,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
                 onSetTopThreeText = viewModel::setTopThreeText,
@@ -166,12 +175,7 @@ fun VisionApp(
             )
             VisionTab.Studio -> StudioScreen(
                 contentPadding = screenPadding,
-                widgetFontId = widgetFontId,
-                widgetThemeId = widgetThemeId,
-                widgetAlignId = widgetAlignId,
-                widgetBackgroundId = widgetBackgroundId,
-                widgetPhotoUri = widgetPhotoUri,
-                widgetCornerRadius = widgetCornerRadius,
+                looks = widgetLooks,
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
                 vision = mainVision,

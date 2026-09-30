@@ -3,6 +3,9 @@ package com.example.visionwidget.data
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.visionwidget.ui.theme.WidgetLook
+import com.example.visionwidget.ui.theme.WidgetStyle
+import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.ui.vision.Vision
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -81,63 +85,43 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     private val ruleOfThreeDao = db.ruleOfThreeDao()
     private val preferences = AppPreferences(application)
 
-    // Preferences don't emit on their own, so the stored value is read once and the
+    // Preferences don't emit on their own, so the stored values are read once and the
     // flow is what everything observes from then on.
-    private val _widgetFontId = MutableStateFlow(preferences.widgetFontId)
-    private val _widgetThemeId = MutableStateFlow(preferences.widgetThemeId)
-    private val _widgetAlignId = MutableStateFlow(preferences.widgetAlignId)
-    private val _widgetBackgroundId = MutableStateFlow(preferences.widgetBackgroundId)
-    private val _widgetPhotoUri = MutableStateFlow(preferences.widgetPhotoUri)
-    private val _widgetCornerRadius = MutableStateFlow(preferences.widgetCornerRadius)
-
-    /** The face the widget cards render in. The rest of the app keeps the default. */
-    val widgetFontId: StateFlow<Int> = _widgetFontId.asStateFlow()
-
-    /** The colour the widget cards are painted in. */
-    val widgetThemeId: StateFlow<Int> = _widgetThemeId.asStateFlow()
-
-    /** How the widget cards set out their words. */
-    val widgetAlignId: StateFlow<Int> = _widgetAlignId.asStateFlow()
-
-    /** How the widget cards are filled behind their words. */
-    val widgetBackgroundId: StateFlow<Int> = _widgetBackgroundId.asStateFlow()
-
-    /** The picture behind the cards under the Photo background, if one has been chosen. */
-    val widgetPhotoUri: StateFlow<String?> = _widgetPhotoUri.asStateFlow()
-
-    /** How round the widget cards are, in dp. */
-    val widgetCornerRadius: StateFlow<Int> = _widgetCornerRadius.asStateFlow()
+    private val _widgetLooks = MutableStateFlow(
+        WidgetTarget.entries.associateWith {
+            WidgetLook(preferences.widgetStyle(it), preferences.widgetPhotoUri(it))
+        }
+    )
 
     /**
-     * Commits every part of the widget's look at once — Studio applies them together,
-     * so they can't be left half-applied by a caller that only sets one.
+     * How each of the three widgets is dressed. One map rather than a flow per value:
+     * Studio may write one widget or all three in a single act, and a map moves as one.
      */
-    fun applyWidgetStyle(
-        fontId: Int,
-        themeId: Int,
-        alignId: Int,
-        backgroundId: Int,
-        cornerRadius: Int
-    ) {
-        preferences.widgetFontId = fontId
-        preferences.widgetThemeId = themeId
-        preferences.widgetAlignId = alignId
-        preferences.widgetBackgroundId = backgroundId
-        preferences.widgetCornerRadius = cornerRadius
-        _widgetFontId.value = fontId
-        _widgetThemeId.value = themeId
-        _widgetAlignId.value = alignId
-        _widgetBackgroundId.value = backgroundId
-        _widgetCornerRadius.value = cornerRadius
+    val widgetLooks: StateFlow<Map<WidgetTarget, WidgetLook>> = _widgetLooks.asStateFlow()
+
+    /**
+     * Commits every part of a look at once, to as many widgets as the caller names —
+     * Studio applies the five together, so they can't be left half-applied by a caller
+     * that only sets one.
+     */
+    fun applyWidgetStyle(targets: Set<WidgetTarget>, style: WidgetStyle) {
+        targets.forEach { preferences.setWidgetStyle(it, style) }
+        _widgetLooks.update { looks ->
+            looks.mapValues { (target, look) ->
+                if (target in targets) look.copy(style = style) else look
+            }
+        }
     }
 
     /**
      * Saved as soon as it's chosen rather than waiting on apply: picking a picture is
      * its own deliberate act, and the preview has nothing to show until it lands.
      */
-    fun setWidgetPhoto(uri: String?) {
-        preferences.widgetPhotoUri = uri
-        _widgetPhotoUri.value = uri
+    fun setWidgetPhoto(target: WidgetTarget, uri: String?) {
+        preferences.setWidgetPhotoUri(target, uri)
+        _widgetLooks.update { looks ->
+            looks + (target to (looks[target] ?: WidgetLook()).copy(photoUri = uri))
+        }
     }
 
     init {
