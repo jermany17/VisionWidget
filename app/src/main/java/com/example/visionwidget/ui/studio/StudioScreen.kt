@@ -688,11 +688,7 @@ private fun ColumnScope.DesignTab(
         Spacer(Modifier.height(14.dp))
         ThemePicker(selectedId = draftThemeId, onSelect = onSelectTheme)
 
-        // Ruled off from the pickers above it: no scope governs this one, since the
-        // daily line belongs to the app rather than to any single widget.
         Spacer(Modifier.height(30.dp))
-        HorizontalDivider(color = Rule, thickness = 1.dp)
-        Spacer(Modifier.height(26.dp))
         Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
