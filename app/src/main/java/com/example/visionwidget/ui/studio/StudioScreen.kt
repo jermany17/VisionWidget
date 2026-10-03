@@ -75,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -271,6 +272,26 @@ private fun presetName() = TextStyle(
     fontWeight = FontWeight.Normal,
     fontSize = 12.sp,
     lineHeight = 16.sp
+)
+
+/** Two faces across, with room between them for the shelf to read as a grid. */
+private val GalleryGutter = 14.dp
+
+/** A face's name. The app's own serif, as the labels on the Design shelf are. */
+private fun galleryName() = TextStyle(
+    fontFamily = InstrumentSerif,
+    fontWeight = FontWeight.Normal,
+    fontSize = 15.sp,
+    lineHeight = 19.sp
+)
+
+/** What the face is, under its name — size and grid, set like every other eyebrow. */
+private val GalleryMeta = TextStyle(
+    fontFamily = DMMono,
+    fontWeight = FontWeight.Normal,
+    fontSize = 8.sp,
+    lineHeight = 12.sp,
+    letterSpacing = 1.2.sp
 )
 
 /** How many colours sit across their picker — smaller cells, so more of them. */
@@ -557,10 +578,7 @@ fun StudioScreen(
                 contentPadding = contentPadding
             )
 
-            StudioTab.Gallery -> GalleryTab(
-                userFont = userFont,
-                contentPadding = contentPadding
-            )
+            StudioTab.Gallery -> GalleryTab(contentPadding = contentPadding)
         }
     }
 
@@ -738,20 +756,31 @@ private fun WisdomThemePicker(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
-/** Nothing here yet — the tab exists so the split is in place for the work to land in. */
+/**
+ * Faces that stand on their own.
+ *
+ * Nothing here is bound to the user's vision or tasks — these only ever show the date,
+ * so they're shown as finished things rather than as something to dress. Two for now,
+ * while the shelf is being built out.
+ */
 @Composable
-private fun ColumnScope.GalleryTab(userFont: UserFontChoice, contentPadding: PaddingValues) {
-    Column(
-        modifier = Modifier.fillMaxWidth(ContentWidthFraction),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(64.dp))
-        Text(
-            text = "Nothing here yet.",
-            style = VisionType.bodyText(userFont),
-            color = OnCanvasMuted
-        )
-        Spacer(Modifier.height(64.dp))
+private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
+    Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
+        Spacer(Modifier.height(26.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(GalleryGutter)) {
+            GalleryItem(
+                name = "Clock",
+                meta = "LARGE · 4 × 4",
+                modifier = Modifier.weight(1f)
+            ) { size -> ClockWidget(size) }
+
+            GalleryItem(
+                name = "Quote",
+                meta = "LARGE · 4 × 4",
+                modifier = Modifier.weight(1f)
+            ) { size -> QuoteWidget(size) }
+        }
+        Spacer(Modifier.height(30.dp))
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
     }
 }
@@ -786,6 +815,32 @@ private fun TabBar(
                 )
             }
         }
+    }
+}
+
+/**
+ * One face on the shelf: the widget itself at whatever width the column gives it, with
+ * its name and what it is underneath.
+ *
+ * The face is handed its own measured width rather than a fixed size, since every
+ * measurement inside it is a fraction of that — a thumbnail and a full-size preview are
+ * then the same drawing at two scales.
+ */
+@Composable
+private fun GalleryItem(
+    name: String,
+    meta: String,
+    modifier: Modifier = Modifier,
+    face: @Composable (size: Dp) -> Unit
+) {
+    Column(modifier) {
+        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            face(maxWidth)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(text = name, style = galleryName(), color = OnCanvas)
+        Spacer(Modifier.height(3.dp))
+        Text(text = meta, style = GalleryMeta, color = OnCanvasMuted)
     }
 }
 
