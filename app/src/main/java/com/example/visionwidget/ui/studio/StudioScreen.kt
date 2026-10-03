@@ -86,6 +86,7 @@ import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.WISDOM_THEMES
 import com.example.visionwidget.ui.home.Wisdom
+import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.theme.AlignChoice
 import com.example.visionwidget.ui.theme.Alignments
 import com.example.visionwidget.ui.theme.BackgroundStyles
@@ -385,6 +386,11 @@ fun StudioScreen(
      */
     var touched by rememberSaveable(scope, seed) { mutableStateOf(false) }
 
+    // Keyed on the applied theme alone, not on the scope: the daily line belongs to the
+    // app rather than to a widget, so moving between widgets leaves a pending choice
+    // standing instead of quietly dropping it.
+    var draftWisdomCategory by rememberSaveable(wisdomCategory) { mutableStateOf(wisdomCategory) }
+
     val draft = WidgetStyle(
         fontId = draftFontId,
         themeId = draftThemeId,
@@ -413,9 +419,18 @@ fun StudioScreen(
         }
     }
 
-    // One control commits all five to every widget in scope. With nothing chosen there's
-    // nothing pending, however far apart the three happen to be.
-    val isApplied = !touched || scope.targets.all { lookOf(it).style == draft }
+    // The quote the phone shows follows the drafted theme, so picking one shows the line
+    // it would actually put on the card rather than holding the old one until applying.
+    val previewWisdom = remember(draftWisdomCategory, wisdomIndex) {
+        val pool = wisdomIndices(draftWisdomCategory)
+        WISDOM[if (wisdomIndex in pool) wisdomIndex else pool.first()]
+    }
+
+    // One control commits all five to every widget in scope, and the daily theme with
+    // them. With nothing chosen there's nothing pending, however far apart the three
+    // happen to be.
+    val isApplied = (!touched || scope.targets.all { lookOf(it).style == draft }) &&
+        draftWisdomCategory == wisdomCategory
 
     // The system picker hands back a URI that stays readable across restarts only if
     // the grant is taken persistently.
@@ -449,7 +464,13 @@ fun StudioScreen(
         if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
             showMissingPhoto = true
         } else {
-            onApplyStyle(scope.targets, draft)
+            // Only when a control was used: the control can now be live for a theme
+            // change alone, and under All an untouched draft stands for nothing — writing
+            // it would flatten three different looks onto one nobody picked.
+            if (touched) onApplyStyle(scope.targets, draft)
+            if (draftWisdomCategory != wisdomCategory) {
+                draftWisdomCategory?.let(onSelectWisdomCategory)
+            }
         }
     }
 
@@ -494,7 +515,7 @@ fun StudioScreen(
                 vision = vision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
-                wisdomIndex = wisdomIndex,
+                wisdom = previewWisdom,
                 scope = scope,
                 onSelectScope = { scope = it },
                 allowsPhoto = allowsPhoto,
@@ -528,8 +549,10 @@ fun StudioScreen(
                 },
                 onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
                 onApplyFont = applyStyle,
-                wisdomCategory = wisdomCategory,
-                onSelectWisdomCategory = onSelectWisdomCategory,
+                wisdomCategory = draftWisdomCategory,
+                // Normalised here so a drafted theme and an applied one are the same
+                // string, and the two can be compared for whether anything is pending.
+                onSelectWisdomCategory = { draftWisdomCategory = it.lowercase() },
                 contentPadding = contentPadding
             )
 
@@ -555,7 +578,7 @@ private fun ColumnScope.DesignTab(
     vision: Vision?,
     topThreeTasks: List<String?>,
     topThreeChecked: List<Boolean>,
-    wisdomIndex: Int,
+    wisdom: Wisdom,
     scope: StyleScope,
     onSelectScope: (StyleScope) -> Unit,
     allowsPhoto: Boolean,
@@ -596,7 +619,7 @@ private fun ColumnScope.DesignTab(
             vision = vision,
             topThreeTasks = topThreeTasks,
             topThreeChecked = topThreeChecked,
-            wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
+            wisdom = wisdom,
             // Only what's being styled: singling out a widget is a request to look at
             // that widget, and the other two would only be there to be ignored.
             looks = previewLooks,

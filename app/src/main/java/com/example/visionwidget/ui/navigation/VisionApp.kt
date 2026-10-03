@@ -194,9 +194,7 @@ fun VisionApp(
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
                 wisdomCategory = wisdomCategory,
-                // Stored lowercase, the way onboarding stores it, so one spelling of a
-                // theme is all that ever reaches the lookup.
-                onSelectWisdomCategory = { viewModel.setWisdomCategory(it.lowercase()) },
+                onSelectWisdomCategory = { viewModel.setWisdomCategory(it) },
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
