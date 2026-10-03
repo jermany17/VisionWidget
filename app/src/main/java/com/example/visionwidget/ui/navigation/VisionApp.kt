@@ -194,7 +194,7 @@ fun VisionApp(
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
                 wisdomCategory = wisdomCategory,
-                onSelectWisdomCategory = { viewModel.setWisdomCategory(it) },
+                onSelectWisdomCategory = viewModel::setWisdomCategory,
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,

@@ -95,10 +95,10 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _wisdomCategory = MutableStateFlow(preferences.wisdomCategory)
 
-    /** The theme the daily line is drawn from. Null draws from every theme. */
-    val wisdomCategory: StateFlow<String?> = _wisdomCategory.asStateFlow()
+    /** The theme the daily line is drawn from. */
+    val wisdomCategory: StateFlow<String> = _wisdomCategory.asStateFlow()
 
-    fun setWisdomCategory(category: String?) {
+    fun setWisdomCategory(category: String) {
         preferences.wisdomCategory = category
         _wisdomCategory.value = category
     }

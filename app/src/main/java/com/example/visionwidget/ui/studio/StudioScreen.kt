@@ -81,6 +81,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.WISDOM
@@ -340,8 +341,8 @@ fun StudioScreen(
     looks: Map<WidgetTarget, WidgetLook> = WidgetTarget.entries.associateWith { WidgetLook() },
     onApplyStyle: (targets: Set<WidgetTarget>, style: WidgetStyle) -> Unit = { _, _ -> },
     onPickPhoto: (target: WidgetTarget, uri: String?) -> Unit = { _, _ -> },
-    /** The theme the daily line is drawn from. Null draws from every theme. */
-    wisdomCategory: String? = null,
+    /** The theme the daily line is drawn from. */
+    wisdomCategory: String = DEFAULT_WISDOM_THEME,
     onSelectWisdomCategory: (String) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
@@ -469,7 +470,7 @@ fun StudioScreen(
             // it would flatten three different looks onto one nobody picked.
             if (touched) onApplyStyle(scope.targets, draft)
             if (draftWisdomCategory != wisdomCategory) {
-                draftWisdomCategory?.let(onSelectWisdomCategory)
+                onSelectWisdomCategory(draftWisdomCategory)
             }
         }
     }
@@ -602,7 +603,7 @@ private fun ColumnScope.DesignTab(
     onPickPhoto: () -> Unit,
     onClearPhoto: () -> Unit,
     onApplyFont: () -> Unit,
-    wisdomCategory: String?,
+    wisdomCategory: String,
     onSelectWisdomCategory: (String) -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -713,7 +714,7 @@ private fun ColumnScope.DesignTab(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WisdomThemePicker(selected: String?, onSelect: (String) -> Unit) {
+private fun WisdomThemePicker(selected: String, onSelect: (String) -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

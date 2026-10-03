@@ -1,6 +1,7 @@
 package com.example.visionwidget.data
 
 import android.content.Context
+import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.theme.Alignments
 import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.CardThemes
@@ -33,10 +34,11 @@ class AppPreferences(context: Context) {
 
     /**
      * The theme the daily line is drawn from, as picked on the last onboarding step.
-     * Null until one is chosen, which draws from every theme.
+     * Skipping that step leaves it on [DEFAULT_WISDOM_THEME] rather than on no theme at
+     * all, so the card is always drawn from somewhere nameable.
      */
-    var wisdomCategory: String?
-        get() = prefs.getString(KEY_WISDOM_CATEGORY, null)
+    var wisdomCategory: String
+        get() = prefs.getString(KEY_WISDOM_CATEGORY, null) ?: DEFAULT_WISDOM_THEME
         set(value) = prefs.edit().putString(KEY_WISDOM_CATEGORY, value).apply()
 
     /**
