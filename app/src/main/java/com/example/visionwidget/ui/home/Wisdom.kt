@@ -29,9 +29,42 @@ val WISDOM = listOf(
 )
 
 /**
- * Picks an entry other than [current], so a shuffle tap always visibly changes the
- * quote instead of sometimes landing on the one already showing.
+ * The themes offered as a choice, in the order they're listed. Named here rather than at
+ * each picker so onboarding and Studio can't drift into offering different sets.
  */
-fun nextWisdomIndex(current: Int): Int =
-    if (WISDOM.size < 2) current
-    else (current + 1 + Random.nextInt(WISDOM.size - 1)) % WISDOM.size
+val WISDOM_THEMES = listOf(
+    "Motivation",
+    "Success",
+    "Life",
+    "Happiness",
+    "Wisdom"
+)
+
+/**
+ * The lines belonging to [category], or every line when no theme has been chosen.
+ *
+ * A name with nothing under it falls back to the whole list rather than to nothing: an
+ * empty theme would leave the card with no quote to draw at all.
+ */
+fun wisdomIndices(category: String?): List<Int> {
+    if (category == null) return WISDOM.indices.toList()
+    val matching = WISDOM.indices.filter { WISDOM[it].category.equals(category, ignoreCase = true) }
+    return matching.ifEmpty { WISDOM.indices.toList() }
+}
+
+/** A line to open on, drawn from within [category]. */
+fun randomWisdomIndex(category: String?): Int = wisdomIndices(category).random()
+
+/**
+ * Picks an entry other than [current] from within [category], so a shuffle tap always
+ * visibly changes the quote instead of sometimes landing on the one already showing.
+ */
+fun nextWisdomIndex(current: Int, category: String?): Int {
+    val pool = wisdomIndices(category)
+    if (pool.size < 2) return pool.firstOrNull() ?: current
+    val position = pool.indexOf(current)
+    // Showing a line from outside the theme — it was just changed under the card — so
+    // anything in the new theme is a move rather than a repeat.
+    if (position < 0) return pool.random()
+    return pool[(position + 1 + Random.nextInt(pool.size - 1)) % pool.size]
+}

@@ -84,6 +84,7 @@ import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.WISDOM
+import com.example.visionwidget.ui.home.WISDOM_THEMES
 import com.example.visionwidget.ui.home.Wisdom
 import com.example.visionwidget.ui.theme.AlignChoice
 import com.example.visionwidget.ui.theme.Alignments
@@ -338,6 +339,9 @@ fun StudioScreen(
     looks: Map<WidgetTarget, WidgetLook> = WidgetTarget.entries.associateWith { WidgetLook() },
     onApplyStyle: (targets: Set<WidgetTarget>, style: WidgetStyle) -> Unit = { _, _ -> },
     onPickPhoto: (target: WidgetTarget, uri: String?) -> Unit = { _, _ -> },
+    /** The theme the daily line is drawn from. Null draws from every theme. */
+    wisdomCategory: String? = null,
+    onSelectWisdomCategory: (String) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
@@ -524,6 +528,8 @@ fun StudioScreen(
                 },
                 onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
                 onApplyFont = applyStyle,
+                wisdomCategory = wisdomCategory,
+                onSelectWisdomCategory = onSelectWisdomCategory,
                 contentPadding = contentPadding
             )
 
@@ -573,6 +579,8 @@ private fun ColumnScope.DesignTab(
     onPickPhoto: () -> Unit,
     onClearPhoto: () -> Unit,
     onApplyFont: () -> Unit,
+    wisdomCategory: String?,
+    onSelectWisdomCategory: (String) -> Unit,
     contentPadding: PaddingValues
 ) {
     // Full-bleed rather than held to the content column: the panel is the backdrop
@@ -661,7 +669,53 @@ private fun ColumnScope.DesignTab(
         // inside the phone is long out of reach.
         Spacer(Modifier.height(28.dp))
         ApplyButton(isApplied = isApplied, userFont = userFont, onApply = onApplyFont)
+
+        // Below the apply control, and ruled off from it: the theme belongs to the app
+        // rather than to a widget, so no scope governs it, and like a photo it takes
+        // effect as it's picked rather than waiting to be applied with the rest.
+        Spacer(Modifier.height(32.dp))
+        HorizontalDivider(color = Rule, thickness = 1.dp)
+        Spacer(Modifier.height(26.dp))
+        Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
+
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+    }
+}
+
+/**
+ * The theme the daily line is drawn from. One choice for the app, not one per widget,
+ * and saved as it's picked rather than on apply.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WisdomThemePicker(selected: String?, onSelect: (String) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        WISDOM_THEMES.forEach { theme ->
+            // Stored lowercase, offered in title case, so the two are compared loosely.
+            val isSelected = theme.equals(selected, ignoreCase = true)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (isSelected) NavBar else Canvas)
+                    .then(
+                        if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape)
+                    )
+                    .clickable { onSelect(theme) }
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = theme,
+                    style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                    color = if (isSelected) OnNavBar else OnCanvas
+                )
+            }
+        }
     }
 }
 

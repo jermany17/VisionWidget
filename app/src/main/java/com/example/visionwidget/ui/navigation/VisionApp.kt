@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,8 +37,9 @@ import com.example.visionwidget.data.VisionAppViewModel
 import com.example.visionwidget.data.tallyBetween
 import com.example.visionwidget.data.topThreeStats
 import com.example.visionwidget.ui.home.TodayScreen
-import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.nextWisdomIndex
+import com.example.visionwidget.ui.home.randomWisdomIndex
+import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.insights.InsightsScreen
 import com.example.visionwidget.ui.studio.StudioScreen
 import com.example.visionwidget.ui.onboarding.OnboardingData
@@ -82,9 +84,19 @@ fun VisionApp(
     // it stays here rather than in the database.
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+    val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
+
     // Which quote is showing. Held here rather than inside Today because Studio previews
     // the same card, and the two would drift apart if each picked its own.
-    var wisdomIndex by rememberSaveable { mutableIntStateOf(WISDOM.indices.random()) }
+    var wisdomIndex by rememberSaveable { mutableIntStateOf(randomWisdomIndex(wisdomCategory)) }
+
+    // A theme picked after the quote was drawn — on the last onboarding step — would
+    // otherwise leave the card showing a line from somewhere else until the next shuffle.
+    LaunchedEffect(wisdomCategory) {
+        if (wisdomIndex !in wisdomIndices(wisdomCategory)) {
+            wisdomIndex = randomWisdomIndex(wisdomCategory)
+        }
+    }
 
     val visions by viewModel.visions.collectAsStateWithLifecycle()
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
@@ -123,6 +135,9 @@ fun VisionApp(
                 if (data.goal.isNotBlank() && targetDateMillis != null) {
                     viewModel.createVision(data.goal, data.why, targetDateMillis)
                 }
+                // The theme the last step asked for. Skipping it leaves the daily line
+                // drawn from all of them, which is what it was before being asked.
+                data.wisdomCategory?.let(viewModel::setWisdomCategory)
                 onFinishOnboarding()
             }
         )
@@ -152,7 +167,7 @@ fun VisionApp(
                 onToggleTopThree = viewModel::toggleTopThreeChecked,
                 onClearTopThree = viewModel::clearTopThree,
                 wisdomIndex = wisdomIndex,
-                onShuffleWisdom = { wisdomIndex = nextWisdomIndex(wisdomIndex) },
+                onShuffleWisdom = { wisdomIndex = nextWisdomIndex(wisdomIndex, wisdomCategory) },
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(
@@ -178,6 +193,10 @@ fun VisionApp(
                 looks = widgetLooks,
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
+                wisdomCategory = wisdomCategory,
+                // Stored lowercase, the way onboarding stores it, so one spelling of a
+                // theme is all that ever reaches the lookup.
+                onSelectWisdomCategory = { viewModel.setWisdomCategory(it.lowercase()) },
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,

@@ -93,6 +93,16 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         }
     )
 
+    private val _wisdomCategory = MutableStateFlow(preferences.wisdomCategory)
+
+    /** The theme the daily line is drawn from. Null draws from every theme. */
+    val wisdomCategory: StateFlow<String?> = _wisdomCategory.asStateFlow()
+
+    fun setWisdomCategory(category: String?) {
+        preferences.wisdomCategory = category
+        _wisdomCategory.value = category
+    }
+
     /**
      * How each of the three widgets is dressed. One map rather than a flow per value:
      * Studio may write one widget or all three in a single act, and a map moves as one.

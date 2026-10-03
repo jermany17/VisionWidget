@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.home.WISDOM_THEMES
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
@@ -86,15 +87,6 @@ private val GoalPresets = listOf(
     "Run a marathon",
     "Harvard Law School",
     "Financial freedom"
-)
-
-/** The wisdom themes on step 5. The daily line is drawn from the one chosen. */
-private val WisdomCategories = listOf(
-    "Motivation",
-    "Success",
-    "Life",
-    "Happiness",
-    "Wisdom"
 )
 
 /** Everything the flow collects — the goal, its reason, a target date, a wisdom theme. */
@@ -685,7 +677,7 @@ private fun ColumnScope.WisdomStep(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            WisdomCategories.forEach { theme ->
+            WISDOM_THEMES.forEach { theme ->
                 OnboardingChip(
                     label = theme,
                     selected = theme.equals(category, ignoreCase = true),

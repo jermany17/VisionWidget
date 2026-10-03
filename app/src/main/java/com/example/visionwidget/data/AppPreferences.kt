@@ -32,6 +32,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_SEEN_ONBOARDING, value).apply()
 
     /**
+     * The theme the daily line is drawn from, as picked on the last onboarding step.
+     * Null until one is chosen, which draws from every theme.
+     */
+    var wisdomCategory: String?
+        get() = prefs.getString(KEY_WISDOM_CATEGORY, null)
+        set(value) = prefs.edit().putString(KEY_WISDOM_CATEGORY, value).apply()
+
+    /**
      * How one widget renders the user's own words — face, colour, layout, fill and
      * corner. Held per widget, so the three can be styled apart or together. The rest of
      * the app stays on the default face, so this is a choice about the widgets alone.
@@ -101,6 +109,7 @@ class AppPreferences(context: Context) {
         const val PREFS_NAME = "vision_prefs"
         const val KEY_WIDGET_RADIUS = "widget_corner_radius"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
+        const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_ALIGN = "widget_align_id"
