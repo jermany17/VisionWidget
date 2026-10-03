@@ -688,29 +688,28 @@ private fun ColumnScope.DesignTab(
         Spacer(Modifier.height(14.dp))
         ThemePicker(selectedId = draftThemeId, onSelect = onSelectTheme)
 
-        // The same action as the one on the preview, repeated at the foot of the
-        // list: by the time the pickers have been scrolled through, the control up
-        // inside the phone is long out of reach.
-        Spacer(Modifier.height(28.dp))
-        ApplyButton(isApplied = isApplied, userFont = userFont, onApply = onApplyFont)
-
-        // Below the apply control, and ruled off from it: the theme belongs to the app
-        // rather than to a widget, so no scope governs it, and like a photo it takes
-        // effect as it's picked rather than waiting to be applied with the rest.
-        Spacer(Modifier.height(32.dp))
+        // Ruled off from the pickers above it: no scope governs this one, since the
+        // daily line belongs to the app rather than to any single widget.
+        Spacer(Modifier.height(30.dp))
         HorizontalDivider(color = Rule, thickness = 1.dp)
         Spacer(Modifier.height(26.dp))
         Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
 
+        // The same action as the one on the preview, repeated at the foot of the
+        // list: by the time the pickers have been scrolled through, the control up
+        // inside the phone is long out of reach. It stays last, under everything it
+        // commits.
+        Spacer(Modifier.height(28.dp))
+        ApplyButton(isApplied = isApplied, userFont = userFont, onApply = onApplyFont)
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
     }
 }
 
 /**
  * The theme the daily line is drawn from. One choice for the app, not one per widget,
- * and saved as it's picked rather than on apply.
+ * and committed with the rest by the apply control below it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
