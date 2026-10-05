@@ -48,6 +48,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -117,6 +118,13 @@ import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.visionwidget.widget.ClockWidgetReceiver
+import com.example.visionwidget.widget.QuoteWidgetReceiver
+import com.example.visionwidget.widget.placedWidgetCount
+import com.example.visionwidget.widget.requestPinWidget
 
 /** The panel the mock phone sits on — a warm neutral, distinct from the white canvas. */
 private val Backdrop = Color(0xFFF3F1EC)
@@ -765,23 +773,40 @@ private fun WisdomThemePicker(selected: String, onSelect: (String) -> Unit) {
  */
 @Composable
 private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
+    val context = LocalContext.current
+    var showPinUnsupported by rememberSaveable { mutableStateOf(false) }
+
+    // The launcher does the asking and the placing; all this can do is start it, and
+    // say so on the rare launcher that won't be asked.
+    val pin = { receiver: Class<*> ->
+        if (!requestPinWidget(context, receiver)) showPinUnsupported = true
+    }
+
     Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
         Spacer(Modifier.height(26.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(GalleryGutter)) {
             GalleryItem(
                 name = "Clock",
                 meta = "LARGE · 4 × 4",
+                placed = rememberPlacedCount(ClockWidgetReceiver::class.java),
+                onAdd = { pin(ClockWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> ClockWidget(size) }
 
             GalleryItem(
                 name = "Quote",
                 meta = "LARGE · 4 × 4",
+                placed = rememberPlacedCount(QuoteWidgetReceiver::class.java),
+                onAdd = { pin(QuoteWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> QuoteWidget(size) }
         }
         Spacer(Modifier.height(30.dp))
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+    }
+
+    if (showPinUnsupported) {
+        PinUnsupportedAlert(onDismiss = { showPinUnsupported = false })
     }
 }
 
@@ -830,18 +855,115 @@ private fun TabBar(
 private fun GalleryItem(
     name: String,
     meta: String,
+    /** How many of this face are already on the home screen. */
+    placed: Int,
+    onAdd: () -> Unit,
     modifier: Modifier = Modifier,
     face: @Composable (size: Dp) -> Unit
 ) {
     Column(modifier) {
         BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f)) {
             face(maxWidth)
+            if (placed > 0) {
+                // Marked the way a chosen set is on the Design shelf, and set in the
+                // one corner neither face puts anything in.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(OnCanvas),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "✓", style = SwatchPlus, color = Canvas)
+                }
+            }
         }
         Spacer(Modifier.height(10.dp))
         Text(text = name, style = galleryName(), color = OnCanvas)
         Spacer(Modifier.height(3.dp))
-        Text(text = meta, style = GalleryMeta, color = OnCanvasMuted)
+        Text(
+            // Where it ended up is the launcher's business, so the mark says only that
+            // it was added, not where to.
+            text = if (placed > 0) "$meta · ADDED" else meta,
+            style = GalleryMeta,
+            color = OnCanvasMuted
+        )
+
+        // Puts the face up without sending anyone off to hunt through the launcher's
+        // own picker for it. One wording whatever the state: the same face can sit in
+        // more than one place, so having added it is no reason to stop offering, and
+        // naming a destination would be wrong wherever it isn't the home screen.
+        Spacer(Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .border(1.dp, Rule, CircleShape)
+                .clickable(onClick = onAdd)
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Add widget",
+                style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                color = OnCanvas,
+                maxLines = 1
+            )
+        }
     }
+}
+
+/**
+ * How many of [receiver]'s widgets are up, re-read whenever the screen comes back.
+ *
+ * There is nothing to subscribe to here: a widget can be dropped from the home screen
+ * without the app running at all, and the confirmation that adds one is another app's
+ * window. Reading again on the way back in catches both.
+ */
+@Composable
+private fun rememberPlacedCount(receiver: Class<*>): Int {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var placed by remember(receiver) { mutableIntStateOf(placedWidgetCount(context, receiver)) }
+
+    DisposableEffect(lifecycleOwner, receiver) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                placed = placedWidgetCount(context, receiver)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return placed
+}
+
+/** Says why nothing happened, on a launcher that won't take the request. */
+@Composable
+private fun PinUnsupportedAlert(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Canvas,
+        title = {
+            Text(text = "CAN'T ADD IT FROM HERE", style = VisionType.eyebrow, color = OnCanvas)
+        },
+        text = {
+            Text(
+                text = "This launcher won't take the request. Add the widget from its " +
+                    "own picker instead — hold an empty spot on the home screen, " +
+                    "choose Widgets, and look for Vision Widget.",
+                style = VisionType.bodyText(UserFonts[UserFonts.DEFAULT_ID]),
+                color = OnCanvasMuted
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "OK", style = VisionType.eyebrow, color = OnCanvas)
+            }
+        }
+    )
 }
 
 /**
