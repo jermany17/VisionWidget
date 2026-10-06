@@ -121,6 +121,9 @@ import com.example.visionwidget.widget.BLUSH_DESIGN_HEIGHT
 import com.example.visionwidget.widget.BLUSH_DESIGN_WIDTH
 import com.example.visionwidget.widget.BlushWidgetReceiver
 import com.example.visionwidget.widget.ClockWidgetReceiver
+import com.example.visionwidget.widget.TopThreeWidgetReceiver
+import com.example.visionwidget.widget.VisionCardWidgetReceiver
+import com.example.visionwidget.widget.WisdomWidgetReceiver
 import com.example.visionwidget.widget.renderBlushCalendar
 import com.example.visionwidget.widget.QuoteWidgetReceiver
 import com.example.visionwidget.widget.requestPinWidget
@@ -375,6 +378,15 @@ fun StudioScreen(
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var showPinUnsupported by rememberSaveable { mutableStateOf(false) }
+
+    // The launcher does the asking and the placing; all this can do is start it, and
+    // say so on the rare launcher that won't be asked.
+    val pin = { receiver: Class<*> ->
+        if (!requestPinWidget(context, receiver)) showPinUnsupported = true
+    }
+
     var scope by rememberSaveable { mutableStateOf(StyleScope.All) }
     val lookOf = { target: WidgetTarget -> looks[target] ?: WidgetLook() }
 
@@ -463,7 +475,6 @@ fun StudioScreen(
 
     // The system picker hands back a URI that stays readable across restarts only if
     // the grant is taken persistently.
-    val context = LocalContext.current
     val photoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -582,10 +593,11 @@ fun StudioScreen(
                 // Normalised here so a drafted theme and an applied one are the same
                 // string, and the two can be compared for whether anything is pending.
                 onSelectWisdomCategory = { draftWisdomCategory = it.lowercase() },
+                onAddWidget = pin,
                 contentPadding = contentPadding
             )
 
-            StudioTab.Gallery -> GalleryTab(contentPadding = contentPadding)
+            StudioTab.Gallery -> GalleryTab(pin = pin, contentPadding = contentPadding)
         }
     }
 
@@ -595,6 +607,10 @@ fun StudioScreen(
 
     if (showMissingPhoto) {
         MissingPhotoAlert(userFont = userFont, onDismiss = { showMissingPhoto = false })
+    }
+
+    if (showPinUnsupported) {
+        PinUnsupportedAlert(onDismiss = { showPinUnsupported = false })
     }
 }
 
@@ -630,6 +646,7 @@ private fun ColumnScope.DesignTab(
     onApplyFont: () -> Unit,
     wisdomCategory: String,
     onSelectWisdomCategory: (String) -> Unit,
+    onAddWidget: (Class<*>) -> Unit,
     contentPadding: PaddingValues
 ) {
     // Full-bleed rather than held to the content column: the panel is the backdrop
@@ -724,6 +741,17 @@ private fun ColumnScope.DesignTab(
         // commits.
         Spacer(Modifier.height(28.dp))
         ApplyButton(isApplied = isApplied, userFont = userFont, onApply = onApplyFont)
+
+        // Applying dresses a card; this puts one up. Offered per widget rather than
+        // per scope, since a widget is what the launcher takes.
+        Spacer(Modifier.height(30.dp))
+        Text(text = "ADD TO YOUR SCREEN", style = VisionType.eyebrow, color = OnCanvas)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AddWidgetChip("Vision", Modifier.weight(1f)) { onAddWidget(VisionCardWidgetReceiver::class.java) }
+            AddWidgetChip("Top 3", Modifier.weight(1f)) { onAddWidget(TopThreeWidgetReceiver::class.java) }
+            AddWidgetChip("Wisdom", Modifier.weight(1f)) { onAddWidget(WisdomWidgetReceiver::class.java) }
+        }
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
     }
 }
@@ -771,16 +799,10 @@ private fun WisdomThemePicker(selected: String, onSelect: (String) -> Unit) {
  * while the shelf is being built out.
  */
 @Composable
-private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
-    val context = LocalContext.current
-    var showPinUnsupported by rememberSaveable { mutableStateOf(false) }
-
-    // The launcher does the asking and the placing; all this can do is start it, and
-    // say so on the rare launcher that won't be asked.
-    val pin = { receiver: Class<*> ->
-        if (!requestPinWidget(context, receiver)) showPinUnsupported = true
-    }
-
+private fun ColumnScope.GalleryTab(
+    pin: (Class<*>) -> Unit,
+    contentPadding: PaddingValues
+) {
     Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
         Spacer(Modifier.height(26.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(GalleryGutter)) {
@@ -810,10 +832,6 @@ private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
         ) { size -> BlushCalendarFace(size) }
         Spacer(Modifier.height(30.dp))
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
-    }
-
-    if (showPinUnsupported) {
-        PinUnsupportedAlert(onDismiss = { showPinUnsupported = false })
     }
 }
 
@@ -902,6 +920,26 @@ private fun GalleryItem(
     }
 }
 
+
+/** One widget's offer to be put up, narrow enough that three sit across a row. */
+@Composable
+private fun AddWidgetChip(label: String, modifier: Modifier = Modifier, onAdd: () -> Unit) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .border(1.dp, Rule, CircleShape)
+            .clickable(onClick = onAdd)
+            .padding(vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+            color = OnCanvas,
+            maxLines = 1
+        )
+    }
+}
 
 /** Says why nothing happened, on a launcher that won't take the request. */
 @Composable

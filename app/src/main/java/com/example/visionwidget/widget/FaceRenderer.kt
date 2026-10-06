@@ -260,7 +260,7 @@ private fun coverRect(srcWidth: Int, srcHeight: Int, sizePx: Int, bias: Float): 
  * Masked through a shader rather than clipped: a clipped path leaves the corners
  * stepped, and a widget sits against whatever wallpaper the user has, where that shows.
  */
-private fun roundedCanvas(
+internal fun roundedCanvas(
     widthPx: Int,
     heightPx: Int,
     radius: Float,
@@ -299,7 +299,7 @@ private fun textPaint(
  * Sets a line by the box it occupies rather than by its baseline, so the measurements
  * can be read straight off the design instead of being worked back from the metrics.
  */
-private fun Canvas.drawTextLine(
+internal fun Canvas.drawTextLine(
     text: String,
     x: Float,
     lineTop: Float,

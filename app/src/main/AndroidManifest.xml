@@ -62,6 +62,39 @@
                 android:resource="@xml/quote_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.VisionCardWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/vision_card_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TopThreeWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/top_three_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WisdomWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wisdom_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>

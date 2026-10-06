@@ -7,6 +7,7 @@ import com.example.visionwidget.ui.theme.WidgetLook
 import com.example.visionwidget.ui.theme.WidgetStyle
 import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Milestone
+import com.example.visionwidget.widget.updateDesignWidgets
 import com.example.visionwidget.ui.vision.Vision
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -101,6 +102,7 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     fun setWisdomCategory(category: String) {
         preferences.wisdomCategory = category
         _wisdomCategory.value = category
+        redrawWidgets()
     }
 
     /**
@@ -121,6 +123,7 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
                 if (target in targets) look.copy(style = style) else look
             }
         }
+        redrawWidgets()
     }
 
     /**
@@ -132,6 +135,18 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         _widgetLooks.update { looks ->
             looks + (target to (looks[target] ?: WidgetLook()).copy(photoUri = uri))
         }
+        redrawWidgets()
+    }
+
+    /**
+     * Tells whatever is already on the home screen that it no longer looks right.
+     *
+     * A widget is otherwise only asked to redraw on its own schedule, which is half an
+     * hour away at best — far too long for a change the user just watched themselves
+     * make.
+     */
+    private fun redrawWidgets() {
+        viewModelScope.launch { updateDesignWidgets(getApplication()) }
     }
 
     init {

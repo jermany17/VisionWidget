@@ -4,4 +4,7 @@
     <string name="clock_widget_description">A clock, and the date</string>
     <string name="quote_widget_description">A line to keep, and the date</string>
     <string name="blush_widget_description">The month, with today picked out</string>
+    <string name="vision_card_widget_description">Your vision, and what is left</string>
+    <string name="top_three_widget_description">Three for today, tickable</string>
+    <string name="wisdom_widget_description">The daily line</string>
 </resources>
