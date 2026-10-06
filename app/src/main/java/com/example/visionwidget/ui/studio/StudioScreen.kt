@@ -48,7 +48,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -118,12 +117,12 @@ import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.visionwidget.widget.BLUSH_DESIGN_HEIGHT
+import com.example.visionwidget.widget.BLUSH_DESIGN_WIDTH
+import com.example.visionwidget.widget.BlushWidgetReceiver
 import com.example.visionwidget.widget.ClockWidgetReceiver
+import com.example.visionwidget.widget.renderBlushCalendar
 import com.example.visionwidget.widget.QuoteWidgetReceiver
-import com.example.visionwidget.widget.placedWidgetCount
 import com.example.visionwidget.widget.requestPinWidget
 
 /** The panel the mock phone sits on — a warm neutral, distinct from the white canvas. */
@@ -788,7 +787,6 @@ private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
             GalleryItem(
                 name = "Clock",
                 meta = "LARGE · 4 × 4",
-                placed = rememberPlacedCount(ClockWidgetReceiver::class.java),
                 onAdd = { pin(ClockWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> ClockWidget(size) }
@@ -796,11 +794,20 @@ private fun ColumnScope.GalleryTab(contentPadding: PaddingValues) {
             GalleryItem(
                 name = "Quote",
                 meta = "LARGE · 4 × 4",
-                placed = rememberPlacedCount(QuoteWidgetReceiver::class.java),
                 onAdd = { pin(QuoteWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> QuoteWidget(size) }
         }
+
+        // Wide, so it takes a row of its own rather than half of one.
+        Spacer(Modifier.height(24.dp))
+        GalleryItem(
+            name = "Calendar",
+            meta = "MEDIUM · 4 × 2",
+            onAdd = { pin(BlushWidgetReceiver::class.java) },
+            aspect = BLUSH_DESIGN_WIDTH / BLUSH_DESIGN_HEIGHT,
+            modifier = Modifier.fillMaxWidth()
+        ) { size -> BlushCalendarFace(size) }
         Spacer(Modifier.height(30.dp))
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
     }
@@ -855,46 +862,26 @@ private fun TabBar(
 private fun GalleryItem(
     name: String,
     meta: String,
-    /** How many of this face are already on the home screen. */
-    placed: Int,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Width over height, as the face was drawn. */
+    aspect: Float = 1f,
     face: @Composable (size: Dp) -> Unit
 ) {
     Column(modifier) {
-        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(aspect)) {
             face(maxWidth)
-            if (placed > 0) {
-                // Marked the way a chosen set is on the Design shelf, and set in the
-                // one corner neither face puts anything in.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(OnCanvas),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "✓", style = SwatchPlus, color = Canvas)
-                }
-            }
         }
         Spacer(Modifier.height(10.dp))
         Text(text = name, style = galleryName(), color = OnCanvas)
         Spacer(Modifier.height(3.dp))
-        Text(
-            // Where it ended up is the launcher's business, so the mark says only that
-            // it was added, not where to.
-            text = if (placed > 0) "$meta · ADDED" else meta,
-            style = GalleryMeta,
-            color = OnCanvasMuted
-        )
+        Text(text = meta, style = GalleryMeta, color = OnCanvasMuted)
 
         // Puts the face up without sending anyone off to hunt through the launcher's
-        // own picker for it. One wording whatever the state: the same face can sit in
-        // more than one place, so having added it is no reason to stop offering, and
-        // naming a destination would be wrong wherever it isn't the home screen.
+        // own picker for it. Nothing is said about whether one is already up: the same
+        // face can sit in as many places as the user likes, so that would answer a
+        // question nobody is asking. Nor is a destination named — the launcher decides
+        // where it lands, and it needn't be the home screen.
         Spacer(Modifier.height(10.dp))
         Box(
             modifier = Modifier
@@ -915,30 +902,6 @@ private fun GalleryItem(
     }
 }
 
-/**
- * How many of [receiver]'s widgets are up, re-read whenever the screen comes back.
- *
- * There is nothing to subscribe to here: a widget can be dropped from the home screen
- * without the app running at all, and the confirmation that adds one is another app's
- * window. Reading again on the way back in catches both.
- */
-@Composable
-private fun rememberPlacedCount(receiver: Class<*>): Int {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var placed by remember(receiver) { mutableIntStateOf(placedWidgetCount(context, receiver)) }
-
-    DisposableEffect(lifecycleOwner, receiver) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                placed = placedWidgetCount(context, receiver)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    return placed
-}
 
 /** Says why nothing happened, on a launcher that won't take the request. */
 @Composable

@@ -3,4 +3,5 @@
     <string name="widget_description">Vision Widget</string>
     <string name="clock_widget_description">A clock, and the date</string>
     <string name="quote_widget_description">A line to keep, and the date</string>
+    <string name="blush_widget_description">The month, with today picked out</string>
 </resources>

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,9 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +47,7 @@ import androidx.compose.material3.Text
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.theme.DMSans
 import com.example.visionwidget.ui.theme.InstrumentSerif
+import com.example.visionwidget.widget.renderBlushCalendar
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -363,4 +368,28 @@ fun QuoteWidget(size: Dp, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/**
+ * The blush calendar, drawn by the very renderer the widget uses.
+ *
+ * Painted rather than composed: the widget has to paint it anyway, and showing the same
+ * bitmap here means the shelf can't drift from what actually lands on the home screen.
+ */
+@Composable
+fun BlushCalendarFace(size: Dp, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val today = rememberNow().toLocalDate()
+    val widthPx = with(density) { size.roundToPx() }
+
+    val bitmap = remember(widthPx, today) {
+        renderBlushCalendar(context, widthPx, today).asImageBitmap()
+    }
+    Image(
+        bitmap = bitmap,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier.fillMaxWidth()
+    )
 }

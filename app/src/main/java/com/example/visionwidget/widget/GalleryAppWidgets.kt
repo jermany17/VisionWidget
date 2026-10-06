@@ -88,3 +88,33 @@ class ClockWidgetReceiver : GlanceAppWidgetReceiver() {
 class QuoteWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = QuoteAppWidget()
 }
+
+/**
+ * The calendar is wide rather than square, so it is given the cell's full width and
+ * drawn at its own proportion beneath that.
+ */
+class BlushAppWidget : GlanceAppWidget() {
+    override val sizeMode = SizeMode.Exact
+
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent {
+            val glanceContext = LocalContext.current
+            val size = LocalSize.current
+            val density = glanceContext.resources.displayMetrics.density
+            val widthPx = (size.width.value * density).toInt().coerceIn(1, MaxFacePx)
+
+            Image(
+                provider = ImageProvider(renderBlushCalendar(glanceContext, widthPx)),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .clickable(actionStartActivity<MainActivity>())
+            )
+        }
+    }
+}
+
+class BlushWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = BlushAppWidget()
+}

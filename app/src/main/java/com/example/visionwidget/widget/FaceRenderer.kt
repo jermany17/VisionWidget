@@ -16,6 +16,7 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.core.content.res.ResourcesCompat
 import com.example.visionwidget.R
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -55,7 +56,7 @@ fun renderClockFace(context: Context, sizePx: Int, now: LocalDateTime = LocalDat
     val sans = ResourcesCompat.getFont(context, R.font.dm_sans_variable)
     val ink = Color.argb(240, 255, 255, 255)
 
-    return roundedCanvas(sizePx, p(32f)) { canvas ->
+    return roundedCanvas(sizePx, sizePx, p(32f)) { canvas ->
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
         // The three layers the design states: the wallpaper, the panel's own
@@ -172,7 +173,7 @@ fun renderQuoteFace(context: Context, sizePx: Int, now: LocalDateTime = LocalDat
     val serif = ResourcesCompat.getFont(context, R.font.instrument_serif_regular)
     val ink = 0xFF433A37.toInt()
 
-    return roundedCanvas(sizePx, p(31f)) { canvas ->
+    return roundedCanvas(sizePx, sizePx, p(31f)) { canvas ->
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         fill.color = 0xFFF5F0E9.toInt()
         canvas.drawRect(0f, 0f, sizePx.toFloat(), sizePx.toFloat(), fill)
@@ -259,16 +260,21 @@ private fun coverRect(srcWidth: Int, srcHeight: Int, sizePx: Int, bias: Float): 
  * Masked through a shader rather than clipped: a clipped path leaves the corners
  * stepped, and a widget sits against whatever wallpaper the user has, where that shows.
  */
-private fun roundedCanvas(sizePx: Int, radius: Float, content: (Canvas) -> Unit): Bitmap {
-    val square = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+private fun roundedCanvas(
+    widthPx: Int,
+    heightPx: Int,
+    radius: Float,
+    content: (Canvas) -> Unit
+): Bitmap {
+    val square = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
     content(Canvas(square))
 
-    val rounded = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val rounded = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         shader = BitmapShader(square, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
     }
     Canvas(rounded).drawRoundRect(
-        RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat()),
+        RectF(0f, 0f, widthPx.toFloat(), heightPx.toFloat()),
         radius,
         radius,
         paint
@@ -304,3 +310,189 @@ private fun Canvas.drawTextLine(
     val baseline = lineTop + (lineHeight - (metrics.descent - metrics.ascent)) / 2f - metrics.ascent
     drawText(text, x, baseline, paint)
 }
+
+// ── 02 Blush ────────────────────────────────────────────────────────────────────
+//
+// A calendar rather than a date: the month laid out in full with today picked out of
+// it. Drawn at the proportions its design states, which are wide rather than square.
+
+/** The width the blush calendar is drawn at, and the height that goes with it. */
+const val BLUSH_DESIGN_WIDTH = 480f
+const val BLUSH_DESIGN_HEIGHT = 255f
+
+/** Paints the blush calendar at [widthPx] across, in its own proportion. */
+fun renderBlushCalendar(
+    context: Context,
+    widthPx: Int,
+    today: LocalDate = LocalDate.now()
+): Bitmap {
+    val s = widthPx / BLUSH_DESIGN_WIDTH
+    fun p(px: Float) = px * s
+    val heightPx = (BLUSH_DESIGN_HEIGHT * s).toInt().coerceAtLeast(1)
+
+    val serif = ResourcesCompat.getFont(context, R.font.instrument_serif_regular)
+    val sans = ResourcesCompat.getFont(context, R.font.dm_sans_variable)
+
+    return roundedCanvas(widthPx, heightPx, p(29f)) { canvas ->
+        val w = widthPx.toFloat()
+        val h = heightPx.toFloat()
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // The blush itself: one wash across the whole card, then three soft lights
+        // pooled on top of it.
+        fill.shader = LinearGradient(
+            0f, 0f, w, h,
+            intArrayOf(0xFFF9DFE3.toInt(), 0xFFF4C6CF.toInt(), 0xFFF3CDD4.toInt()),
+            floatArrayOf(0f, 0.48f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        canvas.drawRect(0f, 0f, w, h, fill)
+
+        listOf(
+            Quintuple(p(96f), p(107f), p(120f), p(180f), Color.argb(133, 255, 239, 241)),
+            Quintuple(p(360f), p(46f), p(160f), p(100f), Color.argb(128, 255, 231, 236)),
+            Quintuple(p(326f), p(199f), p(170f), p(150f), Color.argb(43, 218, 139, 157))
+        ).forEach { (cx, cy, rx, ry, colour) ->
+            fill.shader = ellipseGlow(cx, cy, rx, ry, colour)
+            canvas.drawRect(0f, 0f, w, h, fill)
+        }
+        fill.shader = null
+
+        // The ruled grain. A single repeating hairline rather than noise — it is what
+        // keeps a flat wash from reading as plastic.
+        fill.color = Color.argb(10, 255, 255, 255)
+        fill.strokeWidth = p(1f)
+        var y = 0f
+        while (y < h) {
+            canvas.drawLine(0f, y, w, y, fill)
+            y += p(4f)
+        }
+
+        val weekdayPaint = italicPaint(serif, p(25f), Color.argb(209, 121, 68, 79))
+        canvas.drawTextLine(
+            today.format(FullWeekdayFormat),
+            p(38f),
+            p(27f),
+            p(28.8f),
+            weekdayPaint
+        )
+
+        val monthPaint = italicPaint(serif, p(14f), Color.argb(199, 111, 66, 76)).apply {
+            textAlign = Paint.Align.CENTER
+        }
+        val columnWidth = p(190f) / 7f
+        canvas.drawTextLine(
+            today.monthValue.toString(),
+            w - p(38f) - columnWidth / 2f,
+            p(38f),
+            p(14f),
+            monthPaint
+        )
+
+        val dayPaint = italicPaint(serif, p(88f), Color.argb(219, 151, 68, 86)).apply {
+            letterSpacing = -0.07f
+        }
+        val dayMetrics = dayPaint.fontMetrics
+        canvas.drawText(
+            today.dayOfMonth.toString(),
+            p(38f),
+            h - p(39f) - dayMetrics.descent,
+            dayPaint
+        )
+
+        drawMonthGrid(canvas, today, s, w, serif, sans)
+    }
+}
+
+/** The month as a grid, with today picked out of it. */
+private fun drawMonthGrid(
+    canvas: Canvas,
+    today: LocalDate,
+    s: Float,
+    widthPx: Float,
+    serif: android.graphics.Typeface?,
+    sans: android.graphics.Typeface?
+) {
+    fun p(px: Float) = px * s
+
+    val gridWidth = p(190f)
+    val left = widthPx - p(38f) - gridWidth
+    val column = gridWidth / 7f
+    val ink = Color.argb(214, 111, 66, 76)
+
+    val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = sans
+        textSize = p(9f)
+        color = ink
+        letterSpacing = 0.08f
+        textAlign = Paint.Align.CENTER
+    }
+    listOf("S", "M", "T", "W", "T", "F", "S").forEachIndexed { index, letter ->
+        canvas.drawTextLine(
+            letter,
+            left + column * (index + 0.5f),
+            p(64f),
+            p(9f),
+            headingPaint
+        )
+    }
+
+    val dayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = serif
+        textSize = p(10f)
+        color = ink
+        textAlign = Paint.Align.CENTER
+    }
+    val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(102, 255, 255, 255) }
+
+    // Weeks run Sunday first, as the heading row does, so the first of the month is
+    // pushed along by however many days precede it.
+    val first = today.withDayOfMonth(1)
+    val lead = first.dayOfWeek.value % 7
+    val rowTop = p(64f) + p(9f) + p(9f)
+    val rowHeight = p(17f) + p(8f)
+
+    for (day in 1..today.lengthOfMonth()) {
+        val cell = lead + day - 1
+        val cx = left + column * (cell % 7 + 0.5f)
+        val cy = rowTop + rowHeight * (cell / 7)
+        if (day == today.dayOfMonth) {
+            canvas.drawCircle(cx, cy + p(17f) / 2f, p(10f), markPaint)
+        }
+        canvas.drawTextLine(day.toString(), cx, cy, p(17f), dayPaint)
+    }
+}
+
+/** Georgia sets this face in italic, and none of the app's own faces carry one. */
+private fun italicPaint(face: android.graphics.Typeface?, sizePx: Float, colour: Int) =
+    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = face
+        textSize = sizePx
+        color = colour
+        textSkewX = -0.21f
+    }
+
+/**
+ * A pool of light rather than a circle of it. Android's radial shader is round, so the
+ * ellipse the design asks for is a round one squashed along the way.
+ */
+private fun ellipseGlow(cx: Float, cy: Float, rx: Float, ry: Float, colour: Int): Shader {
+    val shader = android.graphics.RadialGradient(
+        cx, cy, rx,
+        intArrayOf(colour, colour and 0x00FFFFFF),
+        floatArrayOf(0f, 0.73f),
+        Shader.TileMode.CLAMP
+    )
+    shader.setLocalMatrix(android.graphics.Matrix().apply { setScale(1f, ry / rx, cx, cy) })
+    return shader
+}
+
+private data class Quintuple(
+    val cx: Float,
+    val cy: Float,
+    val rx: Float,
+    val ry: Float,
+    val colour: Int
+)
+
+private val FullWeekdayFormat = DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH)

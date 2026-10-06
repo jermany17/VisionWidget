@@ -20,15 +20,3 @@ fun requestPinWidget(context: Context, receiver: Class<*>): Boolean {
     if (!manager.isRequestPinAppWidgetSupported) return false
     return manager.requestPinAppWidget(ComponentName(context, receiver), null, null)
 }
-
-/**
- * How many of [receiver]'s widgets are on the home screen.
- *
- * A count rather than a yes or no: the same face can be put up more than once, on
- * different pages or at different sizes, so having one already is no reason to stop
- * offering another.
- */
-fun placedWidgetCount(context: Context, receiver: Class<*>): Int {
-    val manager = AppWidgetManager.getInstance(context) ?: return 0
-    return manager.getAppWidgetIds(ComponentName(context, receiver)).size
-}
