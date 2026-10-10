@@ -320,15 +320,24 @@ internal fun Canvas.drawTextLine(
 const val BLUSH_DESIGN_WIDTH = 480f
 const val BLUSH_DESIGN_HEIGHT = 255f
 
-/** Paints the blush calendar at [widthPx] across, in its own proportion. */
+/**
+ * Paints the blush calendar at [widthPx] across.
+ *
+ * Taller than its own proportion if the cell it is filling is, with the wash running
+ * the full height and the calendar set in the middle of it. Letterboxing it instead
+ * would put bars above and below that read as the card having stopped early.
+ */
 fun renderBlushCalendar(
     context: Context,
     widthPx: Int,
-    today: LocalDate = LocalDate.now()
+    today: LocalDate = LocalDate.now(),
+    cellHeightPx: Int = 0
 ): Bitmap {
     val s = widthPx / BLUSH_DESIGN_WIDTH
     fun p(px: Float) = px * s
-    val heightPx = (BLUSH_DESIGN_HEIGHT * s).toInt().coerceAtLeast(1)
+    val naturalHeight = BLUSH_DESIGN_HEIGHT * s
+    val heightPx = max(naturalHeight, cellHeightPx.toFloat()).toInt().coerceAtLeast(1)
+    val offsetY = (heightPx - naturalHeight) / 2f
 
     val serif = ResourcesCompat.getFont(context, R.font.instrument_serif_regular)
     val sans = ResourcesCompat.getFont(context, R.font.dm_sans_variable)
@@ -368,6 +377,9 @@ fun renderBlushCalendar(
             y += p(4f)
         }
 
+        canvas.save()
+        canvas.translate(0f, offsetY)
+
         val weekdayPaint = italicPaint(serif, p(25f), Color.argb(209, 121, 68, 79))
         canvas.drawTextLine(
             today.format(FullWeekdayFormat),
@@ -396,11 +408,12 @@ fun renderBlushCalendar(
         canvas.drawText(
             today.dayOfMonth.toString(),
             p(38f),
-            h - p(39f) - dayMetrics.descent,
+            naturalHeight - p(39f) - dayMetrics.descent,
             dayPaint
         )
 
         drawMonthGrid(canvas, today, s, w, serif, sans)
+        canvas.restore()
     }
 }
 

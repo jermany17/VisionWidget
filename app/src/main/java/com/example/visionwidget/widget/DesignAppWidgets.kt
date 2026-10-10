@@ -69,12 +69,17 @@ private fun CardImage(bitmap: android.graphics.Bitmap) {
     )
 }
 
-/** The width to paint at, from whatever cell the launcher handed over. */
+/** The cell the launcher handed over, in pixels — the card is painted to fill it. */
 @Composable
 private fun cardWidthPx(): Int {
-    val context = LocalContext.current
-    val density = context.resources.displayMetrics.density
+    val density = LocalContext.current.resources.displayMetrics.density
     return (LocalSize.current.width.value * density).toInt().coerceIn(1, MaxCardPx)
+}
+
+@Composable
+private fun cardHeightPx(): Int {
+    val density = LocalContext.current.resources.displayMetrics.density
+    return (LocalSize.current.height.value * density).toInt().coerceIn(1, MaxCardPx)
 }
 
 class VisionAppWidget : GlanceAppWidget() {
@@ -92,6 +97,7 @@ class VisionAppWidget : GlanceAppWidget() {
                 renderVisionCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
+                    cellHeightPx = cardHeightPx(),
                     style = style,
                     photoUri = photo,
                     goal = main?.vision?.goal,
@@ -122,6 +128,7 @@ class WisdomAppWidget : GlanceAppWidget() {
                 renderWisdomCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
+                    cellHeightPx = cardHeightPx(),
                     style = style,
                     photoUri = photo,
                     quote = wisdom.text,
@@ -154,6 +161,7 @@ class TopThreeAppWidget : GlanceAppWidget() {
             val rendered = renderTopThreeCard(
                 context = LocalContext.current,
                 widthPx = widthPx,
+                cellHeightPx = cardHeightPx(),
                 style = style,
                 photoUri = photo,
                 tasks = tasks,

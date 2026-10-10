@@ -113,9 +113,12 @@ class BlushAppWidget : GlanceAppWidget() {
             val size = LocalSize.current
             val density = glanceContext.resources.displayMetrics.density
             val widthPx = (size.width.value * density).toInt().coerceIn(1, MaxFacePx)
+            val heightPx = (size.height.value * density).toInt().coerceIn(1, MaxFacePx)
 
             Image(
-                provider = ImageProvider(renderBlushCalendar(glanceContext, widthPx)),
+                provider = ImageProvider(
+                    renderBlushCalendar(glanceContext, widthPx, cellHeightPx = heightPx)
+                ),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = GlanceModifier

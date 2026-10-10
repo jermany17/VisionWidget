@@ -239,18 +239,26 @@ private fun Canvas.draw(layout: StaticLayout, x: Float, y: Float) {
 private fun card(
     context: Context,
     widthPx: Int,
+    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     measure: (scale: Float) -> Float,
-    content: (canvas: Canvas, scale: Float) -> Unit
+    content: (canvas: Canvas, scale: Float, offsetY: Float, heightPx: Float) -> Unit
 ): Bitmap {
     val scale = widthPx / CARD_DESIGN_WIDTH
-    val heightPx = measure(scale).toInt().coerceAtLeast(1)
+    val contentHeight = measure(scale)
+
+    // The card fills the cell it was given rather than shrinking to fit its contents.
+    // A drawing shorter than the cell is letterboxed inside it, and those bars read as
+    // the card having stopped early rather than as room around it. Taller than the
+    // cell it keeps its own height, since cutting the words off would be worse.
+    val heightPx = max(cellHeightPx.toFloat(), contentHeight).toInt().coerceAtLeast(1)
+    val offsetY = (heightPx - contentHeight) / 2f
     val radius = style.cornerRadius * scale
 
     return roundedCanvas(widthPx, heightPx, radius) { canvas ->
         drawCardSurface(canvas, context, style, photoUri, widthPx.toFloat(), heightPx.toFloat())
-        content(canvas, scale)
+        content(canvas, scale, offsetY, heightPx.toFloat())
 
         cardInk(context, style).border?.let { border ->
             val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -275,6 +283,7 @@ private fun card(
 fun renderVisionCard(
     context: Context,
     widthPx: Int,
+    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     goal: String?,
@@ -303,17 +312,17 @@ fun renderVisionCard(
         return Triple(eyebrow, title, rows)
     }
 
-    return card(context, widthPx, style, photoUri, measure = { s ->
+    return card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
         val (eyebrow, title, rows) = layouts(s)
         val body = if (rows.isEmpty()) 12f * s else rows.sumOf { it.height }.toFloat() +
             CARD_SPACING * s * (rows.size - 1)
         2 * CARD_PADDING * s + eyebrow.height + CARD_SPACING * s + (title?.height ?: 0) +
             CARD_SPACING * s + s + CARD_SPACING * s + body +
             CARD_SPACING * s + s + CARD_SPACING * s + 10f * s
-    }) { canvas, s ->
+    }) { canvas, s, offsetY, _ ->
         val (eyebrow, title, rows) = layouts(s)
         val left = CARD_PADDING * s
-        var y = CARD_PADDING * s
+        var y = CARD_PADDING * s + offsetY
 
         canvas.draw(eyebrow, left, y); y += eyebrow.height + CARD_SPACING * s
         title?.let { canvas.draw(it, left, y); y += it.height + CARD_SPACING * s }
@@ -382,6 +391,7 @@ private fun drawCheck(canvas: Canvas, ink: CardInk, left: Float, rowTop: Float, 
 fun renderTopThreeCard(
     context: Context,
     widthPx: Int,
+    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     tasks: List<String?>,
@@ -410,18 +420,16 @@ fun renderTopThreeCard(
     }
 
     val bounds = mutableListOf<ClosedFloatingPointRange<Float>>()
-    var height = 1f
 
-    val bitmap = card(context, widthPx, style, photoUri, measure = { s ->
+    val bitmap = card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
         val (eyebrow, rows) = parts(s)
         val body = if (rows.isEmpty()) 12f * s
         else rows.sumOf { it.height }.toFloat() + CARD_SPACING * s * (rows.size - 1)
-        height = 2 * CARD_PADDING * s + eyebrow.height + CARD_SPACING * s + body
-        height
-    }) { canvas, s ->
+        2 * CARD_PADDING * s + eyebrow.height + CARD_SPACING * s + body
+    }) { canvas, s, offsetY, drawnHeight ->
         val (eyebrow, rows) = parts(s)
         val left = CARD_PADDING * s
-        var y = CARD_PADDING * s
+        var y = CARD_PADDING * s + offsetY
 
         canvas.draw(eyebrow, left, y); y += eyebrow.height + CARD_SPACING * s
 
@@ -436,7 +444,7 @@ fun renderTopThreeCard(
                 drawCheck(canvas, ink, left, y, checked[index], s)
                 canvas.draw(rows[position], left + 9f * s + 8f * s, y)
                 y += rows[position].height + CARD_SPACING * s
-                bounds += (rowTop / height)..((rowTop + rows[position].height) / height)
+                bounds += (rowTop / drawnHeight)..((rowTop + rows[position].height) / drawnHeight)
             }
         }
     }
@@ -448,6 +456,7 @@ fun renderTopThreeCard(
 fun renderWisdomCard(
     context: Context,
     widthPx: Int,
+    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     quote: String,
@@ -464,13 +473,13 @@ fun renderWisdomCard(
         category.uppercase(), ink.face, 7f * s, 10f * s, ink.onSurfaceMuted, inner, style.alignId, 0.18f
     )
 
-    return card(context, widthPx, style, photoUri, measure = { s ->
+    return card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
         val (line, meta) = parts(s)
         2 * CARD_PADDING * s + line.height + CARD_SPACING * s + meta.height
-    }) { canvas, s ->
+    }) { canvas, s, offsetY, _ ->
         val (line, meta) = parts(s)
         val left = CARD_PADDING * s
-        canvas.draw(line, left, CARD_PADDING * s)
-        canvas.draw(meta, left, CARD_PADDING * s + line.height + CARD_SPACING * s)
+        canvas.draw(line, left, CARD_PADDING * s + offsetY)
+        canvas.draw(meta, left, CARD_PADDING * s + offsetY + line.height + CARD_SPACING * s)
     }
 }
