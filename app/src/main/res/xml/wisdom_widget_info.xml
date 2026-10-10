@@ -21,5 +21,4 @@
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:previewImage="@drawable/preview_card"
-    android:initialLayout="@layout/vision_widget_loading"
-    android:description="@string/wisdom_widget_description" />
+    android:initialLayout="@layout/vision_widget_loading" />

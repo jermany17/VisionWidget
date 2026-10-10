@@ -17,21 +17,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <receiver
-            android:name=".widget.VisionWidgetReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/vision_widget_info" />
-        </receiver>
-
         <receiver
             android:name=".widget.ClockWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_clock">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -42,7 +31,8 @@
 
         <receiver
             android:name=".widget.BlushWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_calendar">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -53,7 +43,8 @@
 
         <receiver
             android:name=".widget.QuoteWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_quote">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -64,7 +55,8 @@
 
         <receiver
             android:name=".widget.VisionCardWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_vision">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -75,7 +67,8 @@
 
         <receiver
             android:name=".widget.TopThreeWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_top_three">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -86,7 +79,8 @@
 
         <receiver
             android:name=".widget.WisdomWidgetReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_wisdom">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

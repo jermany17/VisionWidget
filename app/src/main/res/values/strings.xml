@@ -1,10 +1,15 @@
 <resources>
     <string name="app_name">Vision Widget</string>
-    <string name="widget_description">Vision Widget</string>
-    <string name="clock_widget_description">A clock, and the date</string>
-    <string name="quote_widget_description">A line to keep, and the date</string>
-    <string name="blush_widget_description">The month, with today picked out</string>
-    <string name="vision_card_widget_description">Your vision, and what is left</string>
-    <string name="top_three_widget_description">Three for today, tickable</string>
-    <string name="wisdom_widget_description">The daily line</string>
+
+    <!--
+      What the launcher's picker calls each widget. These are the names, not
+      descriptions of them: the picker gives a line for each and repeating the app's
+      own name in both only crowds the list.
+    -->
+    <string name="widget_label_vision">Vision</string>
+    <string name="widget_label_top_three">Today\'s Top 3</string>
+    <string name="widget_label_wisdom">Daily Wisdom</string>
+    <string name="widget_label_clock">Clock</string>
+    <string name="widget_label_quote">Quote</string>
+    <string name="widget_label_calendar">Calendar</string>
 </resources>
