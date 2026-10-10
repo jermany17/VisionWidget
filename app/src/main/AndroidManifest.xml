@@ -95,6 +95,10 @@
                 android:resource="@xml/wisdom_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.ClockTickReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

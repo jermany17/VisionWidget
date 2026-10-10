@@ -1,16 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Four cells square, the proportion the face was drawn at. Half an hour is the shortest
-  period the platform honours here; the hands are stepped forward by hand from the app
-  rather than relied on from this.
+  Resizable within bounds rather than fixed: the drawing is fitted into whatever cell it
+  lands in, so it only ever scales and never distorts, and there is no reason to stop
+  someone making it bigger or smaller.
+
+  The preview is what the picker shows before the widget is placed. A Glance widget has
+  no static layout to draw one from, and without it the picker says it cannot add the
+  widget at all.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="250dp"
     android:targetCellWidth="4"
     android:targetCellHeight="4"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="360dp"
+    android:maxResizeHeight="360dp"
     android:updatePeriodMillis="1800000"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
+    android:previewImage="@drawable/preview_clock"
     android:initialLayout="@layout/vision_widget_loading"
     android:description="@string/clock_widget_description" />

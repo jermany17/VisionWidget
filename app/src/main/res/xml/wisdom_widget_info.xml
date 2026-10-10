@@ -1,12 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Wide, and as tall as the card turns out to be. Fitted, so resizing only scales. -->
+<!--
+  Resizable within bounds rather than fixed: the drawing is fitted into whatever cell it
+  lands in, so it only ever scales and never distorts, and there is no reason to stop
+  someone making it bigger or smaller.
+
+  The preview is what the picker shows before the widget is placed. A Glance widget has
+  no static layout to draw one from, and without it the picker says it cannot add the
+  widget at all.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minHeight="100dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="3"
+    android:targetCellHeight="2"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="70dp"
+    android:maxResizeWidth="400dp"
+    android:maxResizeHeight="300dp"
     android:updatePeriodMillis="1800000"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
+    android:previewImage="@drawable/preview_card"
     android:initialLayout="@layout/vision_widget_loading"
     android:description="@string/wisdom_widget_description" />

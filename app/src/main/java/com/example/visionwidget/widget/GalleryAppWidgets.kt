@@ -83,6 +83,17 @@ class QuoteAppWidget : GlanceAppWidget() {
 
 class ClockWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ClockAppWidget()
+
+    // The minute runs only while a clock is up, and stops with the last of them.
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleClockTick(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        cancelClockTick(context)
+        super.onDisabled(context)
+    }
 }
 
 class QuoteWidgetReceiver : GlanceAppWidgetReceiver() {
