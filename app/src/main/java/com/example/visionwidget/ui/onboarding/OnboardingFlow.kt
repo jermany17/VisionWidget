@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
-import com.example.visionwidget.ui.components.FittedText
 import com.example.visionwidget.ui.home.WISDOM_THEMES
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -270,7 +269,7 @@ private fun StepHeader(
             }
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            FittedText(
+            Text(
                 text = "STEP $step OF $ONBOARDING_STEPS",
                 style = StepLabel,
                 color = OnCanvasMuted,

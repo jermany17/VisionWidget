@@ -51,7 +51,6 @@ import com.example.visionwidget.data.DayRecord
 import com.example.visionwidget.data.TopThreeStats
 import com.example.visionwidget.data.longestStreak
 import com.example.visionwidget.data.topThreeStats
-import com.example.visionwidget.ui.components.FittedText
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardThemes
@@ -238,17 +237,15 @@ fun InsightsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                FittedText(
+                Text(
                     text = when (period) {
                         InsightsPeriod.Week -> "THIS WEEK'S TOP 3"
                         InsightsPeriod.Month -> "THIS MONTH'S TOP 3"
                     },
                     style = VisionType.eyebrow,
-                    color = OnCanvas,
-                    modifier = Modifier.weight(1f, fill = false)
+                    color = OnCanvas
                 )
-                Spacer(Modifier.width(8.dp))
-                FittedText(
+                Text(
                     text = "${stats.daysRecorded} DAYS KEPT",
                     style = VisionType.eyebrow,
                     color = OnCanvasMuted
@@ -370,7 +367,7 @@ private fun StatCard(
             .then(if (filled) Modifier else Modifier.border(1.dp, Rule, CardShape))
             .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
-        FittedText(
+        Text(
             text = label,
             style = VisionType.eyebrow,
             color = if (filled) ink.copy(alpha = 0.7f) else OnCanvasMuted
@@ -458,7 +455,7 @@ private fun FilterRow(selected: DayFilter, onSelect: (DayFilter) -> Unit) {
                     .clickable { onSelect(entry) }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
-                FittedText(
+                Text(
                     text = entry.label,
                     style = VisionType.eyebrow,
                     color = if (isSelected) OnNavBar else OnCanvas

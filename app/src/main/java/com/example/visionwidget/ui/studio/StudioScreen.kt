@@ -82,7 +82,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.example.visionwidget.R
 import com.example.visionwidget.ui.ContentWidthFraction
-import com.example.visionwidget.ui.components.FittedText
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
@@ -1338,14 +1337,8 @@ private fun CornerRadiusRow(radius: Int, onChange: (Int) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            FittedText(
-                text = "CORNER RADIUS",
-                style = VisionType.eyebrow,
-                color = OnCanvas,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-            Spacer(Modifier.width(8.dp))
-            FittedText(text = "${radius}px", style = VisionType.eyebrow, color = PlusMark)
+            Text(text = "CORNER RADIUS", style = VisionType.eyebrow, color = OnCanvas)
+            Text(text = "${radius}px", style = VisionType.eyebrow, color = PlusMark)
         }
         Slider(
             value = radius.toFloat(),

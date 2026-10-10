@@ -54,7 +54,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.ContentWidthFraction
-import com.example.visionwidget.ui.components.FittedText
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.components.croppedPhotoBackground
@@ -304,7 +303,7 @@ private fun MetricsRow(
 @Composable
 private fun Metric(label: String, value: String, userFont: UserFontChoice) {
     Row(verticalAlignment = Alignment.Bottom) {
-        FittedText(
+        Text(
             text = label,
             style = VisionType.eyebrow,
             color = OnCanvas,
@@ -332,13 +331,7 @@ private fun SectionLabel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        FittedText(
-            text = label,
-            style = VisionType.eyebrow,
-            color = OnCanvas,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-        Spacer(Modifier.width(8.dp))
+        Text(text = label, style = VisionType.eyebrow, color = OnCanvas)
         when {
             action != null -> Box(
                 modifier = Modifier
@@ -347,10 +340,10 @@ private fun SectionLabel(
                     .clickable(enabled = onActionClick != null) { onActionClick?.invoke() },
                 contentAlignment = Alignment.Center
             ) {
-                FittedText(text = action, style = VisionType.eyebrow, color = OnCanvas)
+                Text(text = action, style = VisionType.eyebrow, color = OnCanvas)
             }
 
-            trailing != null -> FittedText(
+            trailing != null -> Text(
                 text = trailing,
                 style = VisionType.eyebrow,
                 color = OnCanvas
@@ -753,16 +746,12 @@ private fun WisdomCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // The theme can be any length, so it yields the row and the control
-                // beside it keeps its own width.
-                FittedText(
+                Text(
                     text = "DAILY WISDOM · ${wisdom.category.uppercase()}",
                     style = VisionType.eyebrow,
-                    color = skin.onSurfaceMuted,
-                    modifier = Modifier.weight(1f, fill = false)
+                    color = skin.onSurfaceMuted
                 )
-                Spacer(Modifier.width(8.dp))
-                FittedText(
+                Text(
                     text = "SHUFFLE ↻",
                     style = VisionType.eyebrow,
                     color = skin.onSurfaceMuted,
