@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.FittedText
 import com.example.visionwidget.ui.components.CreateVisionRow
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -314,12 +315,14 @@ private fun VisionDetail(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
+            FittedText(
                 text = "YOUR VISIONS · ${visions.size} / $MAX_VISIONS",
                 style = VisionType.eyebrow,
-                color = OnCanvas
+                color = OnCanvas,
+                modifier = Modifier.weight(1f, fill = false)
             )
-            Text(text = "TAP TO SWITCH", style = VisionType.eyebrow, color = OnCanvasMuted)
+            Spacer(Modifier.width(12.dp))
+            FittedText(text = "TAP TO SWITCH", style = VisionType.eyebrow, color = OnCanvasMuted)
         }
 
         Spacer(Modifier.height(14.dp))
@@ -469,14 +472,16 @@ private fun VisionMainRow(isMain: Boolean, onSetMain: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        FittedText(
             text = "SHOWN ON YOUR WIDGETS",
             style = SheetLabel,
-            color = if (isMain) OnCanvas else OnCanvasMuted
+            color = if (isMain) OnCanvas else OnCanvasMuted,
+            modifier = Modifier.weight(1f, fill = false)
         )
         // No label to tap when it isn't main — the whole row is already the control.
         if (isMain) {
-            Text(text = "◆ MAIN", style = SheetLabel, color = OnCanvas)
+            Spacer(Modifier.width(12.dp))
+            FittedText(text = "◆ MAIN", style = SheetLabel, color = OnCanvas)
         }
     }
 }
@@ -602,8 +607,14 @@ private fun MilestonesSection(
     val checkedCount = vision.milestones.count { it.checked }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = "MILESTONES", style = VisionType.eyebrow, color = OnCanvasMuted)
-        Text(
+        FittedText(
+            text = "MILESTONES",
+            style = VisionType.eyebrow,
+            color = OnCanvasMuted,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        Spacer(Modifier.width(8.dp))
+        FittedText(
             text = if (vision.milestones.isEmpty()) {
                 "NONE YET"
             } else {
