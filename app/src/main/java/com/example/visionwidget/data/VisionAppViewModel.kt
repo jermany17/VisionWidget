@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.visionwidget.ui.theme.WidgetLook
 import com.example.visionwidget.ui.theme.WidgetStyle
 import com.example.visionwidget.ui.theme.WidgetTarget
+import com.example.visionwidget.ui.home.nextWisdomIndex
+import com.example.visionwidget.ui.home.randomWisdomIndex
+import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.widget.updateDesignWidgets
 import com.example.visionwidget.ui.vision.Vision
@@ -104,7 +107,29 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     fun setWisdomCategory(category: String) {
         preferences.wisdomCategory = category
         _wisdomCategory.value = category
+        // A theme the line no longer belongs to would leave the card showing something
+        // from the one before it.
+        if (_wisdomIndex.value !in wisdomIndices(category)) {
+            setWisdomIndex(randomWisdomIndex(category))
+        } else {
+            redrawWidgets()
+        }
+    }
+
+    private val _wisdomIndex = MutableStateFlow(preferences.wisdomIndex)
+
+    /** Which line the daily card is showing — the same one the widget draws. */
+    val wisdomIndex: StateFlow<Int> = _wisdomIndex.asStateFlow()
+
+    fun setWisdomIndex(index: Int) {
+        preferences.wisdomIndex = index
+        _wisdomIndex.value = index
         redrawWidgets()
+    }
+
+    /** Moves to another line in the same theme, and takes the widget with it. */
+    fun shuffleWisdom() {
+        setWisdomIndex(nextWisdomIndex(_wisdomIndex.value, _wisdomCategory.value))
     }
 
     /**
@@ -148,7 +173,10 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
      * make.
      */
     private fun redrawWidgets() {
-        viewModelScope.launch { updateDesignWidgets(getApplication()) }
+        // A failure to redraw must not take the caller with it, and must not cancel the
+        // watcher below — one unlucky update would otherwise leave every later change
+        // unannounced for the rest of the session.
+        viewModelScope.launch { runCatching { updateDesignWidgets(getApplication()) } }
     }
 
     init {
@@ -172,7 +200,7 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
                 .distinctUntilChanged()
                 // The first is only what the widgets are already showing.
                 .drop(1)
-                .collect { updateDesignWidgets(getApplication()) }
+                .collect { runCatching { updateDesignWidgets(getApplication()) } }
         }
     }
 

@@ -23,6 +23,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Spacer
+import androidx.glance.background
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -56,6 +57,37 @@ private const val MaxCardPx = 640
 /** What a widget needs to paint itself, gathered before any of it is drawn. */
 private suspend fun lookOf(context: Context, target: WidgetTarget) =
     AppPreferences(context).let { it.widgetStyle(target) to it.widgetPhotoUri(target) }
+
+/**
+ * A card, with each of its rows able to be kept.
+ *
+ * The card is a bitmap and a bitmap cannot be acted on, so a transparent target is laid
+ * over each row from the fractions the renderer handed back. Given a background rather
+ * than left empty: an empty box has nothing to receive a tap with.
+ */
+@Composable
+private fun TappableCard(rendered: RenderedCard, onRow: (Int) -> androidx.glance.action.Action) {
+    val density = LocalContext.current.resources.displayMetrics.density
+    val drawnHeight = (rendered.bitmap.height / density).dp
+
+    Box(GlanceModifier.fillMaxSize()) {
+        CardImage(rendered.bitmap)
+        Column(GlanceModifier.fillMaxSize()) {
+            var previous = 0f
+            rendered.rows.forEachIndexed { position, bounds ->
+                Spacer(GlanceModifier.height(drawnHeight * (bounds.start - previous)))
+                Box(
+                    GlanceModifier
+                        .fillMaxWidth()
+                        .height(drawnHeight * (bounds.endInclusive - bounds.start))
+                        .background(androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable(onRow(position))
+                ) {}
+                previous = bounds.endInclusive
+            }
+        }
+    }
+}
 
 @Composable
 private fun CardImage(bitmap: android.graphics.Bitmap) {
@@ -91,10 +123,11 @@ class VisionAppWidget : GlanceAppWidget() {
             .observeVisionsWithMilestones().first()
         // The main one, the same one Today follows — it's what the widgets are bound to.
         val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
+        val milestoneIds = main?.milestones.orEmpty().map { it.id }
 
         provideContent {
-            CardImage(
-                renderVisionCard(
+            TappableCard(
+                rendered = renderVisionCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
                     cellHeightPx = cardHeightPx(),
@@ -104,7 +137,12 @@ class VisionAppWidget : GlanceAppWidget() {
                     milestones = main?.milestones.orEmpty().map { it.step to it.checked },
                     targetLine = main?.let { formatTargetDate(it.vision.targetDateMillis).uppercase() }.orEmpty(),
                     weeksLine = main?.let { formatWeeksLeft(it.vision.targetDateMillis) }.orEmpty()
-                )
+                ),
+                onRow = { position ->
+                    actionRunCallback<ToggleMilestoneAction>(
+                        actionParametersOf(ToggleMilestoneAction.IdKey to milestoneIds[position])
+                    )
+                }
             )
         }
     }
@@ -115,13 +153,13 @@ class WisdomAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.Wisdom)
-        val category = AppPreferences(context).wisdomCategory
+        val preferences = AppPreferences(context)
 
-        // One line a day, settled by the date rather than picked afresh on every
-        // update — a widget that changed its quote whenever the launcher asked would
-        // be a shuffle nobody tapped.
-        val pool = wisdomIndices(category)
-        val wisdom = WISDOM[pool[(LocalDate.now().toEpochDay() % pool.size).toInt()]]
+        // The line the app settled on, not one picked here. Shuffling is a thing the
+        // user does, and the card on the home screen is the same card.
+        val pool = wisdomIndices(preferences.wisdomCategory)
+        val index = preferences.wisdomIndex.takeIf { it in pool } ?: pool.first()
+        val wisdom = WISDOM[index]
 
         provideContent {
             CardImage(
@@ -157,42 +195,22 @@ class TopThreeAppWidget : GlanceAppWidget() {
         val set = tasks.indices.filter { tasks[it] != null }
 
         provideContent {
-            val widthPx = cardWidthPx()
-            val rendered = renderTopThreeCard(
-                context = LocalContext.current,
-                widthPx = widthPx,
-                cellHeightPx = cardHeightPx(),
-                style = style,
-                photoUri = photo,
-                tasks = tasks,
-                checked = checked
-            )
-            // The image is fitted, so the rows sit inside however tall the drawing ends
-            // up rather than inside the cell the launcher gave.
-            val drawnHeight = LocalSize.current.width * (rendered.bitmap.height.toFloat() / widthPx)
-
-            Box(GlanceModifier.fillMaxSize()) {
-                CardImage(rendered.bitmap)
-                Column(GlanceModifier.fillMaxWidth()) {
-                    var previous = 0f
-                    rendered.rows.forEachIndexed { position, bounds ->
-                        Spacer(
-                            GlanceModifier.height(drawnHeight * (bounds.start - previous))
-                        )
-                        Box(
-                            GlanceModifier
-                                .fillMaxWidth()
-                                .height(drawnHeight * (bounds.endInclusive - bounds.start))
-                                .clickable(
-                                    actionRunCallback<ToggleTaskAction>(
-                                        actionParametersOf(ToggleTaskAction.SlotKey to set[position])
-                                    )
-                                )
-                        ) {}
-                        previous = bounds.endInclusive
-                    }
+            TappableCard(
+                rendered = renderTopThreeCard(
+                    context = LocalContext.current,
+                    widthPx = cardWidthPx(),
+                    cellHeightPx = cardHeightPx(),
+                    style = style,
+                    photoUri = photo,
+                    tasks = tasks,
+                    checked = checked
+                ),
+                onRow = { position ->
+                    actionRunCallback<ToggleTaskAction>(
+                        actionParametersOf(ToggleTaskAction.SlotKey to set[position])
+                    )
                 }
-            }
+            )
         }
     }
 }
@@ -214,6 +232,23 @@ class ToggleTaskAction : ActionCallback {
 
     companion object {
         val SlotKey = ActionParameters.Key<Int>("slotIndex")
+    }
+}
+
+/** Keeps a step from the home screen, and redraws the card that was tapped. */
+class ToggleMilestoneAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters
+    ) {
+        val id = parameters[IdKey] ?: return
+        AppDatabase.getInstance(context).visionDao().toggleMilestone(id)
+        VisionAppWidget().updateAll(context)
+    }
+
+    companion object {
+        val IdKey = ActionParameters.Key<Long>("milestoneId")
     }
 }
 

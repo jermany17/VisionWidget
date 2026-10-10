@@ -328,7 +328,7 @@ fun renderVisionCard(
     milestones: List<Pair<String, Boolean>>,
     targetLine: String,
     weeksLine: String
-): Bitmap {
+): RenderedCard {
     val ink = cardInk(context, style)
     val align = Alignments[style.alignId]
     val scale = widthPx / CARD_DESIGN_WIDTH
@@ -350,14 +350,17 @@ fun renderVisionCard(
         return Triple(eyebrow, title, rows)
     }
 
-    return card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
+    val bounds = mutableListOf<ClosedFloatingPointRange<Float>>()
+
+    val bitmap = card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
         val (eyebrow, title, rows) = layouts(s)
         val body = if (rows.isEmpty()) 12f * s else rows.sumOf { it.height }.toFloat() +
             CARD_SPACING * s * (rows.size - 1)
         2 * CARD_PADDING * s + eyebrow.height + CARD_SPACING * s + (title?.height ?: 0) +
             CARD_SPACING * s + s + CARD_SPACING * s + body +
             CARD_SPACING * s + s + CARD_SPACING * s + 10f * s
-    }) { canvas, s, offsetY, _ ->
+    }) { canvas, s, offsetY, drawnHeight ->
+        bounds.clear()
         val (eyebrow, title, rows) = layouts(s)
         val left = CARD_PADDING * s
         var y = CARD_PADDING * s + offsetY
@@ -374,9 +377,11 @@ fun renderVisionCard(
             y += 12f * s + CARD_SPACING * s
         } else {
             milestones.forEachIndexed { index, (_, done) ->
+                val rowTop = y
                 drawCheck(canvas, ink, left, y, done, s)
                 canvas.draw(rows[index], left + 9f * s + 8f * s, y)
                 y += rows[index].height + CARD_SPACING * s
+                bounds += (rowTop / drawnHeight)..((rowTop + rows[index].height) / drawnHeight)
             }
         }
         y = rule(canvas, ink, left, y - CARD_SPACING * s + CARD_SPACING * s, widthPx - left, s)
@@ -391,6 +396,8 @@ fun renderVisionCard(
         meta.textAlign = Paint.Align.RIGHT
         canvas.drawTextLine(weeksLine, widthPx - left, y, 10f * s, meta)
     }
+
+    return RenderedCard(bitmap, bounds)
 }
 
 /** A hairline across the card, and where the next thing starts below it. */

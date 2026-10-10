@@ -86,17 +86,9 @@ fun VisionApp(
 
     val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
 
-    // Which quote is showing. Held here rather than inside Today because Studio previews
-    // the same card, and the two would drift apart if each picked its own.
-    var wisdomIndex by rememberSaveable { mutableIntStateOf(randomWisdomIndex(wisdomCategory)) }
-
-    // A theme picked after the quote was drawn — on the last onboarding step — would
-    // otherwise leave the card showing a line from somewhere else until the next shuffle.
-    LaunchedEffect(wisdomCategory) {
-        if (wisdomIndex !in wisdomIndices(wisdomCategory)) {
-            wisdomIndex = randomWisdomIndex(wisdomCategory)
-        }
-    }
+    // Which quote is showing. Kept in the store rather than here: Studio previews the
+    // same card and the widget draws it, and three copies of one choice would drift.
+    val wisdomIndex by viewModel.wisdomIndex.collectAsStateWithLifecycle()
 
     val visions by viewModel.visions.collectAsStateWithLifecycle()
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
@@ -167,7 +159,7 @@ fun VisionApp(
                 onToggleTopThree = viewModel::toggleTopThreeChecked,
                 onClearTopThree = viewModel::clearTopThree,
                 wisdomIndex = wisdomIndex,
-                onShuffleWisdom = { wisdomIndex = nextWisdomIndex(wisdomIndex, wisdomCategory) },
+                onShuffleWisdom = viewModel::shuffleWisdom,
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
             VisionTab.Vision -> VisionScreen(

@@ -42,6 +42,16 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_WISDOM_CATEGORY, value).apply()
 
     /**
+     * Which line the daily card is showing.
+     *
+     * Kept rather than worked out from the date, because the card can be shuffled: the
+     * widget has to see the line the app settled on, not one it picked for itself.
+     */
+    var wisdomIndex: Int
+        get() = prefs.getInt(KEY_WISDOM_INDEX, 0)
+        set(value) = prefs.edit().putInt(KEY_WISDOM_INDEX, value).apply()
+
+    /**
      * How one widget renders the user's own words — face, colour, layout, fill and
      * corner. Held per widget, so the three can be styled apart or together. The rest of
      * the app stays on the default face, so this is a choice about the widgets alone.
@@ -112,6 +122,7 @@ class AppPreferences(context: Context) {
         const val KEY_WIDGET_RADIUS = "widget_corner_radius"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
+        const val KEY_WISDOM_INDEX = "wisdom_index"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_ALIGN = "widget_align_id"
