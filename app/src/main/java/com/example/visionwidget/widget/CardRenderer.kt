@@ -233,8 +233,18 @@ private fun Canvas.draw(layout: StaticLayout, x: Float, y: Float) {
 /**
  * Draws a card: the fill, whatever [content] puts on it, and the hairline over the top.
  *
- * The height is the content's own, measured as it is laid out, so a card is as tall as
- * what it holds rather than padded out to a figure chosen in advance.
+ * The card fills the cell, and the drawing is scaled until its contents fill the card.
+ *
+ * Studio shows a card that sits close around what it holds. A cell is rarely that
+ * proportion, and the two ways of meeting it both go wrong: fitted, the card stops
+ * short and leaves bars; stretched to the cell with the type left alone, the words
+ * huddle in the middle of an empty panel. Neither is the card that was designed.
+ *
+ * So the scale itself is solved for. Everything — type, padding, rules, the tick beside
+ * a row — moves together on one number, which is what holds the proportions; the
+ * number is chosen so the contents come out as tall as the cell. Growing the type wraps
+ * the words onto more lines, which makes the block taller again, so the height is not
+ * a straight line in the scale and is searched rather than divided.
  */
 private fun card(
     context: Context,
@@ -245,13 +255,9 @@ private fun card(
     measure: (scale: Float) -> Float,
     content: (canvas: Canvas, scale: Float, offsetY: Float, heightPx: Float) -> Unit
 ): Bitmap {
-    val scale = widthPx / CARD_DESIGN_WIDTH
+    val scale = scaleToFill(widthPx / CARD_DESIGN_WIDTH, cellHeightPx.toFloat(), measure)
     val contentHeight = measure(scale)
 
-    // The card fills the cell it was given rather than shrinking to fit its contents.
-    // A drawing shorter than the cell is letterboxed inside it, and those bars read as
-    // the card having stopped early rather than as room around it. Taller than the
-    // cell it keeps its own height, since cutting the words off would be worse.
     val heightPx = max(cellHeightPx.toFloat(), contentHeight).toInt().coerceAtLeast(1)
     val offsetY = (heightPx - contentHeight) / 2f
     val radius = style.cornerRadius * scale
@@ -275,6 +281,38 @@ private fun card(
             )
         }
     }
+}
+
+/**
+ * How far the design's own scale has to move for its contents to fill [targetHeight].
+ *
+ * Bounded either side of [designScale]: a card with almost nothing in it would
+ * otherwise blow its three words up to fill a tall cell, and one with a great deal in
+ * it would shrink them past reading. Within those bounds it is a bisection, since
+ * measuring is cheap and the height climbs in steps as lines wrap rather than smoothly.
+ */
+private const val SCALE_FLOOR = 0.75f
+private const val SCALE_CEILING = 1.9f
+private const val SCALE_STEPS = 14
+
+private fun scaleToFill(
+    designScale: Float,
+    targetHeight: Float,
+    measure: (scale: Float) -> Float
+): Float {
+    var low = designScale * SCALE_FLOOR
+    var high = designScale * SCALE_CEILING
+
+    // Already too tall at its smallest, or still too short at its largest — there is
+    // nothing between to find.
+    if (measure(low) >= targetHeight) return low
+    if (measure(high) <= targetHeight) return high
+
+    repeat(SCALE_STEPS) {
+        val mid = (low + high) / 2f
+        if (measure(mid) <= targetHeight) low = mid else high = mid
+    }
+    return low
 }
 
 // ── The three cards ─────────────────────────────────────────────────────────────

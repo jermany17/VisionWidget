@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import com.example.visionwidget.data.AppPreferences
+import com.example.visionwidget.ui.ScaledToDesign
 import com.example.visionwidget.ui.navigation.VisionApp
 
 class MainActivity : ComponentActivity() {
@@ -25,13 +26,18 @@ class MainActivity : ComponentActivity() {
         val showOnboarding = mutableStateOf(!preferences.hasSeenOnboarding)
 
         setContent {
-            VisionApp(
-                showOnboarding = showOnboarding.value,
-                onFinishOnboarding = {
-                    preferences.hasSeenOnboarding = true
-                    showOnboarding.value = false
-                }
-            )
+            // Every screen is measured against one width, so a phone that is narrower
+            // than that gets the same drawing a little smaller rather than a rearranged
+            // one with the labels broken across lines.
+            ScaledToDesign {
+                VisionApp(
+                    showOnboarding = showOnboarding.value,
+                    onFinishOnboarding = {
+                        preferences.hasSeenOnboarding = true
+                        showOnboarding.value = false
+                    }
+                )
+            }
         }
     }
 }
