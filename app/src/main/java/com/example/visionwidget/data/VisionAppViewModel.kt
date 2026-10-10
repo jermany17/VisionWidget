@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -154,6 +156,23 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         // passed, archive them and clear the board for today.
         viewModelScope.launch {
             ruleOfThreeDao.rolloverToToday(LocalDate.now().toEpochDay())
+        }
+
+        // Everything the cards show, watched at the source.
+        //
+        // A widget on the home screen has no way to notice the app changed something
+        // underneath it, and it is only asked to redraw on its own schedule otherwise —
+        // half an hour away at best. Watching here rather than saying so at each of the
+        // dozen call sites that write means a new one can't forget to.
+        viewModelScope.launch {
+            combine(
+                visionDao.observeVisionsWithMilestones(),
+                ruleOfThreeDao.observeSlots()
+            ) { visions, slots -> visions to slots }
+                .distinctUntilChanged()
+                // The first is only what the widgets are already showing.
+                .drop(1)
+                .collect { updateDesignWidgets(getApplication()) }
         }
     }
 
