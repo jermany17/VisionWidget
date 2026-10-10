@@ -112,13 +112,14 @@ class BlushAppWidget : GlanceAppWidget() {
             val glanceContext = LocalContext.current
             val size = LocalSize.current
             val density = glanceContext.resources.displayMetrics.density
+            // Drawn at its own proportion and left there. Stretching the wash to the
+            // cell only moves the card's edges — the month inside it stays the size the
+            // width allows, and the card becomes a near-square of empty pink. Fitted,
+            // it is the card the gallery shows, with wallpaper either side of it.
             val widthPx = (size.width.value * density).toInt().coerceIn(1, MaxFacePx)
-            val heightPx = (size.height.value * density).toInt().coerceIn(1, MaxFacePx)
 
             Image(
-                provider = ImageProvider(
-                    renderBlushCalendar(glanceContext, widthPx, cellHeightPx = heightPx)
-                ),
+                provider = ImageProvider(renderBlushCalendar(glanceContext, widthPx)),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = GlanceModifier
