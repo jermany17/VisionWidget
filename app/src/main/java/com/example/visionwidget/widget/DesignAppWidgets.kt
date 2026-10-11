@@ -108,12 +108,6 @@ private fun cardWidthPx(): Int {
     return (LocalSize.current.width.value * density).toInt().coerceIn(1, MaxCardPx)
 }
 
-@Composable
-private fun cardHeightPx(): Int {
-    val density = LocalContext.current.resources.displayMetrics.density
-    return (LocalSize.current.height.value * density).toInt().coerceIn(1, MaxCardPx)
-}
-
 class VisionAppWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
@@ -130,7 +124,6 @@ class VisionAppWidget : GlanceAppWidget() {
                 rendered = renderVisionCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
-                    cellHeightPx = cardHeightPx(),
                     style = style,
                     photoUri = photo,
                     goal = main?.vision?.goal,
@@ -166,7 +159,6 @@ class WisdomAppWidget : GlanceAppWidget() {
                 renderWisdomCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
-                    cellHeightPx = cardHeightPx(),
                     style = style,
                     photoUri = photo,
                     quote = wisdom.text,
@@ -199,7 +191,6 @@ class TopThreeAppWidget : GlanceAppWidget() {
                 rendered = renderTopThreeCard(
                     context = LocalContext.current,
                     widthPx = cardWidthPx(),
-                    cellHeightPx = cardHeightPx(),
                     style = style,
                     photoUri = photo,
                     tasks = tasks,

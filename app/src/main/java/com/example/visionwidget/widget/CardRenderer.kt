@@ -233,33 +233,25 @@ private fun Canvas.draw(layout: StaticLayout, x: Float, y: Float) {
 /**
  * Draws a card: the fill, whatever [content] puts on it, and the hairline over the top.
  *
- * The card fills the cell, and the drawing is scaled until its contents fill the card.
+ * The card is drawn at the size the design states, and no larger.
  *
- * Studio shows a card that sits close around what it holds. A cell is rarely that
- * proportion, and the two ways of meeting it both go wrong: fitted, the card stops
- * short and leaves bars; stretched to the cell with the type left alone, the words
- * huddle in the middle of an empty panel. Neither is the card that was designed.
- *
- * So the scale itself is solved for. Everything — type, padding, rules, the tick beside
- * a row — moves together on one number, which is what holds the proportions; the
- * number is chosen so the contents come out as tall as the cell. Growing the type wraps
- * the words onto more lines, which makes the block taller again, so the height is not
- * a straight line in the scale and is searched rather than divided.
+ * Studio shows these cards at one scale, and the home screen has to show the same
+ * thing. Solving the scale so the contents fill whatever cell the launcher handed over
+ * does fill it — with type half again the size it was drawn at, which is a different
+ * card. The cell is only ever a window onto this one; what it does not use is
+ * wallpaper, the way it is for the calendar.
  */
 private fun card(
     context: Context,
     widthPx: Int,
-    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     measure: (scale: Float) -> Float,
     content: (canvas: Canvas, scale: Float, offsetY: Float, heightPx: Float) -> Unit
 ): Bitmap {
-    val scale = scaleToFill(widthPx / CARD_DESIGN_WIDTH, cellHeightPx.toFloat(), measure)
-    val contentHeight = measure(scale)
-
-    val heightPx = max(cellHeightPx.toFloat(), contentHeight).toInt().coerceAtLeast(1)
-    val offsetY = (heightPx - contentHeight) / 2f
+    val scale = widthPx / CARD_DESIGN_WIDTH
+    val heightPx = measure(scale).toInt().coerceAtLeast(1)
+    val offsetY = 0f
     val radius = style.cornerRadius * scale
 
     return roundedCanvas(widthPx, heightPx, radius) { canvas ->
@@ -283,45 +275,12 @@ private fun card(
     }
 }
 
-/**
- * How far the design's own scale has to move for its contents to fill [targetHeight].
- *
- * Bounded either side of [designScale]: a card with almost nothing in it would
- * otherwise blow its three words up to fill a tall cell, and one with a great deal in
- * it would shrink them past reading. Within those bounds it is a bisection, since
- * measuring is cheap and the height climbs in steps as lines wrap rather than smoothly.
- */
-private const val SCALE_FLOOR = 0.75f
-private const val SCALE_CEILING = 1.9f
-private const val SCALE_STEPS = 14
-
-private fun scaleToFill(
-    designScale: Float,
-    targetHeight: Float,
-    measure: (scale: Float) -> Float
-): Float {
-    var low = designScale * SCALE_FLOOR
-    var high = designScale * SCALE_CEILING
-
-    // Already too tall at its smallest, or still too short at its largest — there is
-    // nothing between to find.
-    if (measure(low) >= targetHeight) return low
-    if (measure(high) <= targetHeight) return high
-
-    repeat(SCALE_STEPS) {
-        val mid = (low + high) / 2f
-        if (measure(mid) <= targetHeight) low = mid else high = mid
-    }
-    return low
-}
-
 // ── The three cards ─────────────────────────────────────────────────────────────
 
 /** Paints the vision card: its name, the steps toward it, and how long is left. */
 fun renderVisionCard(
     context: Context,
     widthPx: Int,
-    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     goal: String?,
@@ -352,7 +311,7 @@ fun renderVisionCard(
 
     val bounds = mutableListOf<ClosedFloatingPointRange<Float>>()
 
-    val bitmap = card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
+    val bitmap = card(context, widthPx, style, photoUri, measure = { s ->
         val (eyebrow, title, rows) = layouts(s)
         val body = if (rows.isEmpty()) 12f * s else rows.sumOf { it.height }.toFloat() +
             CARD_SPACING * s * (rows.size - 1)
@@ -436,7 +395,6 @@ private fun drawCheck(canvas: Canvas, ink: CardInk, left: Float, rowTop: Float, 
 fun renderTopThreeCard(
     context: Context,
     widthPx: Int,
-    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     tasks: List<String?>,
@@ -466,7 +424,7 @@ fun renderTopThreeCard(
 
     val bounds = mutableListOf<ClosedFloatingPointRange<Float>>()
 
-    val bitmap = card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
+    val bitmap = card(context, widthPx, style, photoUri, measure = { s ->
         val (eyebrow, rows) = parts(s)
         val body = if (rows.isEmpty()) 12f * s
         else rows.sumOf { it.height }.toFloat() + CARD_SPACING * s * (rows.size - 1)
@@ -501,7 +459,6 @@ fun renderTopThreeCard(
 fun renderWisdomCard(
     context: Context,
     widthPx: Int,
-    cellHeightPx: Int,
     style: WidgetStyle,
     photoUri: String?,
     quote: String,
@@ -518,7 +475,7 @@ fun renderWisdomCard(
         category.uppercase(), ink.face, 7f * s, 10f * s, ink.onSurfaceMuted, inner, style.alignId, 0.18f
     )
 
-    return card(context, widthPx, cellHeightPx, style, photoUri, measure = { s ->
+    return card(context, widthPx, style, photoUri, measure = { s ->
         val (line, meta) = parts(s)
         2 * CARD_PADDING * s + line.height + CARD_SPACING * s + meta.height
     }) { canvas, s, offsetY, _ ->

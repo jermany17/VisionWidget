@@ -25,8 +25,11 @@ private const val DESIGN_WIDTH_DP = 393f
  * shrinking each label that happens not to fit, saves the line break and loses the
  * proportions with it: STREAK at full size beside a COMPLETED that gave way.
  *
- * The user's own font-size setting is left alone. Overriding it would make the app
- * immune to a preference it has no business ignoring.
+ * The system font-size setting is held at one as well. It is the other thing that
+ * moves type without moving anything around it, and a card measured to the pixel for
+ * one size of word has nowhere to put a larger one: the date and the countdown meet in
+ * the middle of a row and the line breaks. Everything here already scales with the
+ * screen, so the setting has nothing left to do but break the drawing.
  */
 @Composable
 fun ScaledToDesign(content: @Composable () -> Unit) {
@@ -36,7 +39,7 @@ fun ScaledToDesign(content: @Composable () -> Unit) {
     val scaled = remember(widthDp, density) {
         Density(
             density = density.density * (widthDp / DESIGN_WIDTH_DP),
-            fontScale = density.fontScale
+            fontScale = 1f
         )
     }
 
