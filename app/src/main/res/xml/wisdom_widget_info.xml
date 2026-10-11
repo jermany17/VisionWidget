@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
+  The cell is asked for at about the height the card actually comes out, so the two
+  meet. A card is as tall as the words in it and is fitted into whatever it is given,
+  so a cell taller than the card leaves a transparent band above and below it — and
+  two widgets sitting one under the other end up a long way apart.
+
   Resizable within bounds rather than fixed: the drawing is fitted into whatever cell it
   lands in, so it only ever scales and never distorts, and there is no reason to stop
   someone making it bigger or smaller.
@@ -10,11 +15,11 @@
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="100dp"
+    android:minHeight="60dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="2"
+    android:targetCellHeight="1"
     android:minResizeWidth="180dp"
-    android:minResizeHeight="70dp"
+    android:minResizeHeight="40dp"
     android:maxResizeWidth="400dp"
     android:maxResizeHeight="300dp"
     android:updatePeriodMillis="1800000"
