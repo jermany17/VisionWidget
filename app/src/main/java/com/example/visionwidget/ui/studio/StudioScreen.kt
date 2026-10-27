@@ -808,14 +808,14 @@ private fun ColumnScope.GalleryTab(
         Row(horizontalArrangement = Arrangement.spacedBy(GalleryGutter)) {
             GalleryItem(
                 name = "Clock",
-                meta = "LARGE · 4 × 4",
+                meta = "SMALL · 2 × 2",
                 onAdd = { pin(ClockWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> ClockWidget(size) }
 
             GalleryItem(
                 name = "Quote",
-                meta = "LARGE · 4 × 4",
+                meta = "SMALL · 2 × 2",
                 onAdd = { pin(QuoteWidgetReceiver::class.java) },
                 modifier = Modifier.weight(1f)
             ) { size -> QuoteWidget(size) }
