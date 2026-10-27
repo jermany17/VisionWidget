@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.ui.ScaledToDesign
 import com.example.visionwidget.ui.navigation.VisionApp
+import com.example.visionwidget.widget.OpenGalleryExtra
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +26,10 @@ class MainActivity : ComponentActivity() {
         val preferences = AppPreferences(this)
         val showOnboarding = mutableStateOf(!preferences.hasSeenOnboarding)
 
+        // A Gallery widget's tap carries this; every other entry point leaves it unset
+        // and lands on Today as it always has.
+        val openGallery = intent.getBooleanExtra(OpenGalleryExtra, false)
+
         setContent {
             // Every screen is measured against one width, so a phone that is narrower
             // than that gets the same drawing a little smaller rather than a rearranged
@@ -35,7 +40,8 @@ class MainActivity : ComponentActivity() {
                     onFinishOnboarding = {
                         preferences.hasSeenOnboarding = true
                         showOnboarding.value = false
-                    }
+                    },
+                    openGallery = openGallery
                 )
             }
         }

@@ -6,7 +6,9 @@
 
   The preview is what the picker shows before the widget is placed. A Glance widget has
   no static layout to draw one from, and without it the picker says it cannot add the
-  widget at all.
+  widget at all. Painted from the real face (renderClockFace, in FaceRenderer.kt) and
+  frozen as a PNG rather than drawn live — the picker only ever asks for a static image.
+  Captured 2026-10-27 13:20 KST; re-export it the same way if the face's design changes.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"

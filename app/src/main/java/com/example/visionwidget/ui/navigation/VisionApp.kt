@@ -74,10 +74,14 @@ private const val NavBarWidthFraction = 0.8f
 @Composable
 fun VisionApp(
     showOnboarding: Boolean = false,
-    onFinishOnboarding: () -> Unit = {}
+    onFinishOnboarding: () -> Unit = {},
+    /** A Gallery widget's own tap asks for this — Studio's Gallery tab, not Today. */
+    openGallery: Boolean = false
 ) {
     val viewModel: VisionAppViewModel = viewModel()
-    var selectedTab by rememberSaveable { mutableStateOf(VisionTab.Today) }
+    var selectedTab by rememberSaveable {
+        mutableStateOf(if (openGallery) VisionTab.Studio else VisionTab.Today)
+    }
 
     // Which vision the Vision tab happens to be showing — distinct from mainVisionId,
     // which is the one the widgets and Today read from. Navigation state, not data, so
@@ -190,7 +194,8 @@ fun VisionApp(
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
-                wisdomIndex = wisdomIndex
+                wisdomIndex = wisdomIndex,
+                startOnGallery = openGallery
             )
             VisionTab.Insights -> InsightsScreen(
                 contentPadding = screenPadding,

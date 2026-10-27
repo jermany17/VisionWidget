@@ -9,6 +9,8 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -18,6 +20,13 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
 import com.example.visionwidget.MainActivity
+
+/**
+ * Read on [MainActivity]'s intent to open straight onto Studio's Gallery tab — a Gallery
+ * face is a face from there, so a tap on one goes back to it rather than to Today.
+ */
+const val OpenGalleryExtra = "open_gallery"
+private val OpenGalleryParams = actionParametersOf(ActionParameters.Key<Boolean>(OpenGalleryExtra) to true)
 
 /**
  * The Gallery faces as home screen widgets.
@@ -61,7 +70,7 @@ private fun Face(paint: (Context, Int) -> Bitmap) {
         // which is the only thing a tap here could reasonably mean.
         modifier = GlanceModifier
             .fillMaxSize()
-            .clickable(actionStartActivity<MainActivity>())
+            .clickable(actionStartActivity<MainActivity>(OpenGalleryParams))
     )
 }
 
@@ -124,7 +133,7 @@ class BlushAppWidget : GlanceAppWidget() {
                 contentScale = ContentScale.Fit,
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .clickable(actionStartActivity<MainActivity>())
+                    .clickable(actionStartActivity<MainActivity>(OpenGalleryParams))
             )
         }
     }

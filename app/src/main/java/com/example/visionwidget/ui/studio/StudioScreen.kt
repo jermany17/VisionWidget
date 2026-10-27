@@ -375,6 +375,8 @@ fun StudioScreen(
     /** The theme the daily line is drawn from. */
     wisdomCategory: String = DEFAULT_WISDOM_THEME,
     onSelectWisdomCategory: (String) -> Unit = {},
+    /** Opens on Gallery rather than Design — a Gallery widget's own tap asks for this. */
+    startOnGallery: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
@@ -494,7 +496,9 @@ fun StudioScreen(
     // widgets are set — only the phone preview follows the draft.
     val userFont = UserFonts[UserFonts.DEFAULT_ID]
 
-    var tab by rememberSaveable { mutableStateOf(StudioTab.Design) }
+    var tab by rememberSaveable {
+        mutableStateOf(if (startOnGallery) StudioTab.Gallery else StudioTab.Design)
+    }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
 
