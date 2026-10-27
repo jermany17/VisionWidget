@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -48,6 +49,7 @@ import java.time.format.TextStyle
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.data.DayRecord
+import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
 import com.example.visionwidget.data.TopThreeStats
 import com.example.visionwidget.data.longestStreak
 import com.example.visionwidget.data.topThreeStats
@@ -87,10 +89,38 @@ private const val CONSISTENCY_WEEKS = 5
  */
 private val CellNoRecord = Color(0xFFF2F2F2)
 private val CellNone = Color(0xFFDEDEDE)
-private val CellLow = Color(0xFFB2B2B2)
-private val CellHalf = Color(0xFF8A8A8A)
-private val CellHigh = Color(0xFF565656)
 private val CellFull = Color(0xFF111111)
+
+/**
+ * How many shades the ramp between 0% and 100% is cut into, both ends included.
+ *
+ * A day can hold as few as one task or as many as six. Zero kept is one shade whatever
+ * the total was, and so is every task kept — a day with one task done is "nothing yet"
+ * the same as a day with six set and none started. Everything in between keeps the
+ * shade its own total gave it: one of two is its own step, separate from two of four,
+ * even though the two read the same as a percentage, because a day's total was its own
+ * choice and two days that chose differently aren't quite the same day. That is fifteen
+ * steps — a third, two thirds, a quarter, both quarters of a third not yet a sixth, and
+ * on — plus the two shared ends.
+ */
+private const val COMPLETION_LEVELS = 17
+
+/**
+ * Every in-between state a day can be in, ranked from least to most complete. Ties in
+ * percentage are broken by the smaller total first, then by the smaller count — an
+ * order with no real meaning beyond being the same order every time.
+ */
+private val CompletionRanks: List<Pair<Int, Int>> = buildList {
+    for (total in 2..MAX_TOP_THREE_TASKS) {
+        for (done in 1 until total) add(done to total)
+    }
+}.sortedWith(
+    compareBy(
+        { (done, total) -> done.toFloat() / total },
+        { (_, total) -> total },
+        { (done, _) -> done }
+    )
+)
 
 /** Sunday first, so the week reads the way the calendar app beside it does. */
 private val WeekColumns = listOf(
@@ -183,11 +213,13 @@ fun InsightsScreen(
 
     val longest = remember(records) { longestStreak(records) }
 
-    // Newest week on top, so the grid reads downward into the past like the log above it.
+    // Oldest week on top, current week on the bottom, so the grid reads downward into
+    // the future the same way a calendar page does — and across, the same way within
+    // a row: Sunday on the left, Saturday on the right.
     val weeks = remember(records, today) {
         val byDay = records.associateBy { it.epochDay }
         val thisSunday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
-        (0 until CONSISTENCY_WEEKS).map { week ->
+        (CONSISTENCY_WEEKS - 1 downTo 0).map { week ->
             val start = thisSunday.minusWeeks(week.toLong())
             (0..6).map { column ->
                 val date = start.plusDays(column.toLong())
@@ -525,20 +557,24 @@ private fun DayCard(
 private fun DayRecord?.completion(): Float? =
     this?.let { doneCount.toFloat() / total }
 
-private fun cellColour(fraction: Float?): Color = when {
-    fraction == null -> CellNoRecord
-    fraction <= 0f -> CellNone
-    // Banded rather than matched exactly: a day holds one, two or three tasks, so the
-    // ratio lands on thirds or halves and can't be compared for equality.
-    fraction < 0.4f -> CellLow
-    fraction < 0.6f -> CellHalf
-    fraction < 1f -> CellHigh
-    else -> CellFull
+/** Where a day's own count sits among every state in [CompletionRanks], rank 0 to 16. */
+private fun completionRank(record: DayRecord?): Int = when {
+    record == null -> -1
+    record.doneCount <= 0 -> 0
+    record.doneCount >= record.total -> COMPLETION_LEVELS - 1
+    else -> CompletionRanks.indexOf(record.doneCount to record.total) + 1
+}
+
+private fun cellColour(record: DayRecord?): Color {
+    val rank = completionRank(record)
+    if (rank < 0) return CellNoRecord
+    return lerp(CellNone, CellFull, rank / (COMPLETION_LEVELS - 1).toFloat())
 }
 
 /**
- * Five weeks of days, newest on top. Days after today are simply days with no record —
- * the current week runs to its end like any other rather than being cut short.
+ * Five weeks of days, oldest on top and the current week on the bottom. Days after
+ * today are simply days with no record — the current week runs to its end like any
+ * other rather than being cut short.
  */
 @Composable
 private fun ConsistencyGrid(weeks: List<List<GridCell>>) {
@@ -577,7 +613,7 @@ private fun ConsistencyGrid(weeks: List<List<GridCell>>) {
                                 .fillMaxWidth()
                                 .height(30.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(cellColour(cell.record.completion()))
+                                .background(cellColour(cell.record))
                                 .clickable { opened = if (opened == key) null else key }
                         )
                         if (opened == key) {
