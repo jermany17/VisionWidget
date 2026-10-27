@@ -212,12 +212,12 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), null)
 
     val topThreeTasks: StateFlow<List<String?>> = ruleOfThreeDao.observeSlots()
-        .map { slots -> List(3) { index -> slots.find { it.slotIndex == index }?.task } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(3) { null })
+        .map { slots -> List(visibleSlotCount(slots)) { index -> slots.find { it.slotIndex == index }?.task } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { null })
 
     val topThreeChecked: StateFlow<List<Boolean>> = ruleOfThreeDao.observeSlots()
-        .map { slots -> List(3) { index -> slots.find { it.slotIndex == index }?.checked ?: false } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(3) { false })
+        .map { slots -> List(visibleSlotCount(slots)) { index -> slots.find { it.slotIndex == index }?.checked ?: false } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { false })
 
     /** Every day on record, newest first — what the Insights tab reads. */
     val dayRecords: StateFlow<List<DayRecord>> = combine(

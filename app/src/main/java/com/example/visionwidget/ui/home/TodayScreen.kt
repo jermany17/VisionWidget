@@ -53,6 +53,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
+import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
+import com.example.visionwidget.data.MAX_TOP_THREE_TASK_LENGTH
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
@@ -220,13 +223,16 @@ fun TodayScreen(
                     draft = topThreeTasks[index].orEmpty()
                     editingTask = index
                 },
-                onDraftChange = { draft = it },
+                // Clamped rather than called out: running out of room at the thirtieth
+                // character says itself, without a notice that would flash past.
+                onDraftChange = { value -> draft = value.take(MAX_TOP_THREE_TASK_LENGTH) },
                 onCommitEdit = {
                     // A blank field would leave a nameless row: on an unset slot the
                     // commit is dropped so the prompt stays, on a set slot the old
-                    // text is kept.
+                    // text is kept. An unset extra slot is dropped the same way rather
+                    // than left behind as a row with nothing in it.
                     val edited = draft.trim()
-                    if (edited.isNotEmpty() && editingTask in topThreeTasks.indices) {
+                    if (edited.isNotEmpty() && editingTask in 0 until MAX_TOP_THREE_TASKS) {
                         onSetTopThreeText(editingTask, edited)
                     }
                     editingTask = NoTaskEditing
@@ -236,6 +242,12 @@ fun TodayScreen(
                     // clears with it.
                     onClearTopThree(index)
                     if (editingTask == index) editingTask = NoTaskEditing
+                },
+                onAddMore = {
+                    // One past whatever is already there — the same slot a commit
+                    // would create, just asked for ahead of having anything to say.
+                    draft = ""
+                    editingTask = topThreeTasks.size
                 }
             )
 
@@ -371,8 +383,20 @@ private fun TopThreeCard(
     onStartEdit: (Int) -> Unit,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
-    onRemoveTask: (Int) -> Unit
+    onRemoveTask: (Int) -> Unit,
+    onAddMore: () -> Unit
 ) {
+    // A fresh slot being typed into, one past whatever already exists — not yet a row
+    // of its own in [tasks], since nothing has been committed for it.
+    val addingNew = editingTask == tasks.size
+    // Asked for only once there's nothing left undone: adding a fourth task before the
+    // first three are kept would be asking for more before the three were answered.
+    val canAddMore = !addingNew &&
+        tasks.size < MAX_TOP_THREE_TASKS &&
+        tasks.size >= BASE_TOP_THREE_TASKS &&
+        tasks.all { it != null } &&
+        checkedTasks.take(tasks.size).all { it }
+
     ThemedCard(skin = skin, photoUri = photoUri, shape = shape) {
         // Less room above the first row than around it: the row's own 16dp and the
         // card's inset were stacking into too deep a gap at the top.
@@ -383,7 +407,7 @@ private fun TopThreeCard(
                 }
                 TaskRow(
                     task = task,
-                    prompt = TOP_3_PROMPTS[index],
+                    prompt = TOP_3_PROMPTS.getOrElse(index) { "" },
                     checked = checkedTasks[index],
                     editing = editingTask == index,
                     draft = draft,
@@ -395,6 +419,38 @@ private fun TopThreeCard(
                     onDraftChange = onDraftChange,
                     onCommitEdit = onCommitEdit,
                     onRemove = { onRemoveTask(index) }
+                )
+            }
+
+            if (addingNew) {
+                if (tasks.isNotEmpty()) {
+                    HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
+                }
+                // The same row a committed task gets, just open before it has one —
+                // an unset slot with nothing of its own to prompt with.
+                TaskRow(
+                    task = null,
+                    prompt = "",
+                    checked = false,
+                    editing = true,
+                    draft = draft,
+                    skin = skin,
+                    userFont = userFont,
+                    align = align,
+                    onToggle = {},
+                    onStartEdit = {},
+                    onDraftChange = onDraftChange,
+                    onCommitEdit = onCommitEdit,
+                    onRemove = {}
+                )
+            } else if (canAddMore) {
+                HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
+                AddMoreRow(
+                    extraLeft = MAX_TOP_THREE_TASKS - tasks.size,
+                    skin = skin,
+                    userFont = userFont,
+                    align = align,
+                    onClick = onAddMore
                 )
             }
 
@@ -419,6 +475,69 @@ private fun TopThreeCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * Offered once every task on the board is done, however many there are. Tapping it
+ * opens the same field a fresh slot always does, one past whatever is already there.
+ */
+@Composable
+private fun AddMoreRow(
+    extraLeft: Int,
+    skin: WidgetSkin,
+    userFont: UserFontChoice,
+    align: AlignChoice,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AddMark(color = skin.onSurfaceMuted)
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = align.format("Add one more"),
+            style = VisionType.bodyText(userFont),
+            color = skin.onSurfaceMuted,
+            textAlign = align.textAlign,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "EXTRA · $extraLeft LEFT",
+            style = VisionType.eyebrow,
+            color = skin.onSurfaceMuted
+        )
+    }
+}
+
+/** The same dashed ring an unset task sits behind, carrying the mark that starts one. */
+@Composable
+private fun AddMark(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .drawBehind {
+                val stroke = 1.5.dp.toPx()
+                drawCircle(
+                    color = color,
+                    radius = (size.minDimension - stroke) / 2,
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(3.dp.toPx(), 3.dp.toPx())
+                        )
+                    )
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "+", style = VisionType.glyph, color = color)
     }
 }
 

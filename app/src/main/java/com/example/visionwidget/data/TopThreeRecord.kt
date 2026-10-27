@@ -1,5 +1,24 @@
 package com.example.visionwidget.data
 
+/** How many of today's slots are offered before the user asks for more. */
+const val BASE_TOP_THREE_TASKS = 3
+
+/** How many a day can hold in total, the three base slots plus however many are added. */
+const val MAX_TOP_THREE_TASKS = 6
+
+/** How long a single task's own words can run. */
+const val MAX_TOP_THREE_TASK_LENGTH = 30
+
+/**
+ * How many of today's slots are in play — the base three, or one past whichever extra
+ * slot holds a task, whichever is taller. A slot earns its place by having something in
+ * it; nothing pads the list out to six just because six is allowed.
+ */
+fun visibleSlotCount(slots: List<RuleOfThreeSlotEntity>): Int {
+    val highestSet = slots.filter { it.task != null }.maxOfOrNull { it.slotIndex } ?: -1
+    return maxOf(BASE_TOP_THREE_TASKS, highestSet + 1)
+}
+
 /** One slot of a day's Top 3, as Insights reads it — an empty slot never becomes an entry. */
 data class TopThreeEntry(
     val slotIndex: Int,

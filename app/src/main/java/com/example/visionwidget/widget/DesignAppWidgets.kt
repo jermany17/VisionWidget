@@ -32,6 +32,7 @@ import com.example.visionwidget.MainActivity
 import com.example.visionwidget.data.AppDatabase
 import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.data.RuleOfThreeSlotEntity
+import com.example.visionwidget.data.visibleSlotCount
 import com.example.visionwidget.ui.home.WISDOM
 import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.theme.WidgetTarget
@@ -190,8 +191,9 @@ class TopThreeAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val slots = AppDatabase.getInstance(context).ruleOfThreeDao().observeSlots().first()
-        val tasks = List(3) { index -> slots.find { it.slotIndex == index }?.task }
-        val checked = List(3) { index -> slots.find { it.slotIndex == index }?.checked == true }
+        val slotCount = visibleSlotCount(slots)
+        val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
+        val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
         val set = tasks.indices.filter { tasks[it] != null }
 
         provideContent {
