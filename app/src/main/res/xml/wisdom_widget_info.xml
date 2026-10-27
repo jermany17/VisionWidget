@@ -5,9 +5,9 @@
   so a cell taller than the card leaves a transparent band above and below it — and
   two widgets sitting one under the other end up a long way apart.
 
-  Resizable within bounds rather than fixed: the drawing is fitted into whatever cell it
-  lands in, so it only ever scales and never distorts, and there is no reason to stop
-  someone making it bigger or smaller.
+  Not resizable. The card is a drawing with a proportion of its own, and the launcher's
+  grid is the only say anyone has over the shape of the cell it goes in — dragging that
+  about can only take the card further from what Studio shows.
 
   The preview is what the picker shows before the widget is placed. A Glance widget has
   no static layout to draw one from, and without it the picker says it cannot add the
@@ -18,12 +18,8 @@
     android:minHeight="110dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="70dp"
-    android:maxResizeWidth="400dp"
-    android:maxResizeHeight="300dp"
     android:updatePeriodMillis="1800000"
-    android:resizeMode="horizontal|vertical"
+    android:resizeMode="none"
     android:widgetCategory="home_screen"
     android:previewImage="@drawable/preview_card"
     android:initialLayout="@layout/vision_widget_loading" />

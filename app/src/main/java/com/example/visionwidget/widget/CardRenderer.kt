@@ -257,15 +257,13 @@ private fun card(
     content: (canvas: Canvas, scale: Float, offsetY: Float, heightPx: Float) -> Unit
 ): Bitmap {
     val scale = scaleWithin(widthPx / CARD_DESIGN_WIDTH, cellHeightPx.toFloat(), measure)
-    val contentHeight = measure(scale)
 
-    // The card takes the cell's own shape rather than one of its own. Drawn to its
-    // contents it would be fitted into the cell, and a card even slightly the wrong
-    // height is fitted by its height — giving up width it had no reason to, which is
-    // how one widget ends up narrower than the one above it. Sized to the cell, the
-    // width is always the cell's and the three line up.
-    val heightPx = max(cellHeightPx.toFloat(), contentHeight).toInt().coerceAtLeast(1)
-    val offsetY = (heightPx - contentHeight) / 2f
+    // As tall as its contents, and no taller. Taking the cell's height instead gives
+    // the card the cell's shape — which is how today's three, with nothing set in it,
+    // came out a square of empty colour. The card is the drawing; the cell is only
+    // where it is put.
+    val heightPx = measure(scale).toInt().coerceAtLeast(1)
+    val offsetY = 0f
     val radius = style.cornerRadius * scale
 
     return roundedCanvas(widthPx, heightPx, radius) { canvas ->
