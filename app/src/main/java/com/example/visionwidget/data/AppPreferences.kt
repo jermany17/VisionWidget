@@ -1,4 +1,4 @@
-package com.example.visionwidget.data
+﻿package com.example.visionwidget.data
 
 import android.content.Context
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
@@ -58,6 +58,7 @@ class AppPreferences(context: Context) {
     var wisdomOwnText: String
         get() = prefs.getString(KEY_WISDOM_OWN_TEXT, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_WISDOM_OWN_TEXT, value).apply()
+
 
     /**
      * How one widget renders the user's own words — face, colour, layout, fill and

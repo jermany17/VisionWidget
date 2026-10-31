@@ -7,8 +7,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.lifecycleScope
 import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.ui.ScaledToDesign
+import com.example.visionwidget.ui.gallery.PreviewExport
+import kotlinx.coroutines.launch
 import com.example.visionwidget.ui.navigation.VisionApp
 import com.example.visionwidget.widget.OpenGalleryExtra
 import com.example.visionwidget.widget.OpenVisionExtra
@@ -31,6 +34,12 @@ class MainActivity : ComponentActivity() {
         // leaves both unset and lands on Today as it always has.
         val openGallery = intent.getBooleanExtra(OpenGalleryExtra, false)
         val openVision = intent.getBooleanExtra(OpenVisionExtra, false)
+
+        // Redraws the pictures the launcher's widget picker shows. Debug builds only,
+        // and only when asked for by name — see [PreviewExport] for how to run it.
+        if (intent.getBooleanExtra(PreviewExport.EXTRA, false)) {
+            lifecycleScope.launch { PreviewExport.run(this@MainActivity) }
+        }
 
         setContent {
             // Every screen is measured against one width, so a phone that is narrower

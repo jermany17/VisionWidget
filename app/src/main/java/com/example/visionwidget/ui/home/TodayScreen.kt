@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -142,6 +143,21 @@ fun TodayScreen(
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
     var draft by rememberSaveable { mutableStateOf("") }
 
+    // Keeping what was typed is one act however the row was left — the tick, the
+    // keyboard's Done, or a tap somewhere else entirely. Walking away from a field is
+    // not a way of discarding it, so all three end up here.
+    //
+    // A blank field would leave a nameless row: on an unset slot the commit is dropped
+    // so the prompt stays, on a set slot the old text is kept. An unset extra slot is
+    // dropped the same way rather than left behind as a row with nothing in it.
+    val commitDraft = {
+        val edited = draft.trim()
+        if (edited.isNotEmpty() && editingTask in 0 until MAX_TOP_THREE_TASKS) {
+            onSetTopThreeText(editingTask, edited)
+        }
+        editingTask = NoTaskEditing
+    }
+
     // Outer column owns the background, insets and scrolling at full width; the inner
     // one holds the content at a fixed fraction so every row shares the same edges.
     Column(
@@ -222,23 +238,20 @@ fun TodayScreen(
                 draft = draft,
                 onToggleTask = onToggleTopThree,
                 onStartEdit = { index ->
+                    // Whatever was open keeps what was typed into it before the next
+                    // row takes over.
+                    commitDraft()
                     draft = topThreeTasks[index].orEmpty()
                     editingTask = index
                 },
                 // Clamped rather than called out: running out of room at the thirtieth
                 // character says itself, without a notice that would flash past.
                 onDraftChange = { value -> draft = value.take(MAX_TOP_THREE_TASK_LENGTH) },
-                onCommitEdit = {
-                    // A blank field would leave a nameless row: on an unset slot the
-                    // commit is dropped so the prompt stays, on a set slot the old
-                    // text is kept. An unset extra slot is dropped the same way rather
-                    // than left behind as a row with nothing in it.
-                    val edited = draft.trim()
-                    if (edited.isNotEmpty() && editingTask in 0 until MAX_TOP_THREE_TASKS) {
-                        onSetTopThreeText(editingTask, edited)
-                    }
-                    editingTask = NoTaskEditing
-                },
+                onCommitEdit = commitDraft,
+                // Only for the row that is actually open. A field is let go of as it is
+                // torn down too, and by then the edit may have already moved on — acting
+                // on that would close the row that just took over.
+                onFocusLost = { index -> if (editingTask == index) commitDraft() },
                 onRemoveTask = { index ->
                     // Back to a prompt, and the tick that belonged to the old task
                     // clears with it.
@@ -248,6 +261,7 @@ fun TodayScreen(
                 onAddMore = {
                     // One past whatever is already there — the same slot a commit
                     // would create, just asked for ahead of having anything to say.
+                    commitDraft()
                     draft = ""
                     editingTask = topThreeTasks.size
                 }
@@ -387,6 +401,8 @@ private fun TopThreeCard(
     onStartEdit: (Int) -> Unit,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
+    /** Which row's field was let go of — the open one, or the slot being added. */
+    onFocusLost: (Int) -> Unit,
     onRemoveTask: (Int) -> Unit,
     onAddMore: () -> Unit
 ) {
@@ -422,6 +438,7 @@ private fun TopThreeCard(
                     onStartEdit = { onStartEdit(index) },
                     onDraftChange = onDraftChange,
                     onCommitEdit = onCommitEdit,
+                    onFocusLost = { onFocusLost(index) },
                     onRemove = { onRemoveTask(index) }
                 )
             }
@@ -445,6 +462,7 @@ private fun TopThreeCard(
                     onStartEdit = {},
                     onDraftChange = onDraftChange,
                     onCommitEdit = onCommitEdit,
+                    onFocusLost = { onFocusLost(tasks.size) },
                     onRemove = {}
                 )
             } else if (canAddMore) {
@@ -564,6 +582,7 @@ private fun TaskRow(
     onStartEdit: () -> Unit,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
+    onFocusLost: () -> Unit,
     onRemove: () -> Unit
 ) {
     Row(
@@ -584,6 +603,7 @@ private fun TaskRow(
                 userFont = userFont,
                 onDraftChange = onDraftChange,
                 onCommitEdit = onCommitEdit,
+                onFocusLost = onFocusLost,
                 modifier = Modifier.weight(1f)
             )
         } else {
@@ -626,12 +646,18 @@ private fun TaskField(
     userFont: UserFontChoice,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
+    onFocusLost: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val focusRequester = remember { FocusRequester() }
     // Tapping the text is the whole gesture: without this the field would open silently
     // and wait for a second tap to take focus.
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    // A field starts out unfocused and only takes focus once the request above lands,
+    // so losing it counts for something only after it has actually held it — otherwise
+    // the row would close itself the moment it opened.
+    var hadFocus by remember { mutableStateOf(false) }
 
     BasicTextField(
         value = draft,
@@ -643,6 +669,9 @@ private fun TaskField(
         keyboardActions = KeyboardActions(onDone = { onCommitEdit() }),
         modifier = modifier
             .focusRequester(focusRequester)
+            .onFocusChanged { state ->
+                if (state.isFocused) hadFocus = true else if (hadFocus) onFocusLost()
+            }
             .drawBehind {
                 val stroke = 1.dp.toPx()
                 val y = size.height - stroke / 2

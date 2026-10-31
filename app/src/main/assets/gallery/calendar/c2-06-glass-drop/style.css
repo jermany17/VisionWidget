@@ -1,0 +1,86 @@
+/*! Vision Widget — Collection 02 "Monthly" — c2-widgets.css
+ *  1) 폰트  2) 공통 셸/레이아웃(요일·날짜·달력)  3) 장식  4) 위젯별 테마 .c2-01~.c2-08
+ */
+/* Fonts — 모두 SIL OFL 1.1 (fonts/OFL-*.txt). 로컬 번들, 외부 요청 없음 */
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400;font-display:swap;src:url(../../_fonts/playfair-display-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:500;font-display:swap;src:url(../../_fonts/playfair-display-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url(../../_fonts/playfair-display-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(../../_fonts/playfair-display-400-italic.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:700;font-display:swap;src:url(../../_fonts/playfair-display-700-italic.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:500;font-display:swap;src:url(../../_fonts/cormorant-garamond-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:600;font-display:swap;src:url(../../_fonts/cormorant-garamond-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;font-display:swap;src:url(../../_fonts/cormorant-garamond-400-italic.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:600;font-display:swap;src:url(../../_fonts/cormorant-garamond-600-italic.woff2) format('woff2')}
+
+/* ================= Shell =================
+   크기: .vw2 { width } 하나로 조절. 비율 600:280 고정. 내부는 전부 cqw(위젯 폭 1%) 단위.          */
+.vw2{
+  --f-display:'Playfair Display',Georgia,serif; --f-body:'Cormorant Garamond',Georgia,serif; --f-script:'Ms Madi','Snell Roundhand',cursive;
+  --ink:#333; --ink-soft:#444; --shadow:none; --today-bg:#ccc; --today-ink:#222;
+  --day-x:7%; --day-w:38%; --day-align:left; --cal-l:56%; --cal-r:5%; --cal-t:11%; --cal-b:9%;
+  position:relative; width:min(100%,600px); aspect-ratio:600/280; container-type:inline-size;
+  color:var(--ink); font-family:var(--f-body); -webkit-font-smoothing:antialiased;
+  font-variant-numeric:lining-nums;   /* Playfair·Cormorant 기본 올드스타일 숫자 → 3·5·7·9 하강 방지 */
+  filter:drop-shadow(0 2.4px 4.8px rgba(0,0,0,.10)) drop-shadow(0 9.6px 18px rgba(0,0,0,.10));
+}
+.surface{position:absolute;inset:0;overflow:hidden;background:var(--bg);isolation:isolate}
+.shape-rect .surface{border-radius:25.2px;clip-path:inset(0 round 25.2px)}
+.shape-pill .surface{border-radius:140.4px/50%}
+.shape-cloud .surface,.shape-trio .surface,.shape-glass .surface,.shape-paper .surface{
+  -webkit-mask:var(--shape) center/100% 100% no-repeat; mask:var(--shape) center/100% 100% no-repeat}
+.photo{position:absolute;inset:-2%;width:var(--photo-w,104%);transform:scaleX(var(--photo-flip,1));background:var(--photo) var(--photo-pos,center)/var(--photo-size,cover) no-repeat;filter:var(--photo-filter,none)}
+.c2-04 .photo{inset:0 auto 0 0}
+.surface::after{content:'';position:absolute;inset:0;background:var(--scrim,none);pointer-events:none}
+.deco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+/* ================= Day block ================= */
+.day{position:absolute;left:var(--day-x);width:var(--day-w);top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;
+     align-items:var(--day-items,flex-start);text-align:var(--day-align);text-shadow:var(--shadow);z-index:2}
+.c2-03 .day,.c2-04 .day,.c2-08 .day{align-items:center}
+.dname{font-family:var(--dname-font);font-style:var(--dname-style,normal);font-weight:var(--dname-weight,400);font-size:calc(var(--dname-size) * var(--fit,1));
+       text-transform:var(--dname-case,none);letter-spacing:var(--dname-track,0);line-height:1.15;color:var(--dname-ink,var(--ink));
+       white-space:nowrap;transform:rotate(var(--dname-rot,0));transform-origin:left center;margin-bottom:var(--dname-gap,0)}
+.dname[data-track]{margin-right:calc(-1 * var(--dname-track,0))}
+.dnum{font-family:var(--dnum-font);font-style:var(--dnum-style,normal);font-weight:var(--dnum-weight,400);font-size:var(--dnum-size);
+      line-height:.92;letter-spacing:-.01em;color:var(--dnum-ink,var(--ink));font-variant-numeric:lining-nums proportional-nums;
+      white-space:nowrap;padding-left:var(--dnum-indent,0);transform:rotate(var(--dnum-rot,0))}
+/* 그라데이션 잉크(02) */
+.c2-02 .dnum{background:var(--dnum-ink);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;padding-bottom:6px}
+
+.divider{position:absolute;left:var(--div-x);top:16%;bottom:16%;width:0;border-left:1px solid var(--divider);z-index:2}
+
+/* ================= Calendar ================= */
+.cal{position:absolute;left:var(--cal-l);right:var(--cal-r);top:var(--cal-t);bottom:var(--cal-b);display:flex;flex-direction:column;z-index:2;text-shadow:var(--shadow)}
+.month{font-family:var(--month-font,var(--f-display));font-style:var(--month-style,normal);font-weight:var(--month-weight,700);
+       font-size:25.2px;line-height:1;text-align:center;color:var(--month-ink,var(--ink));margin-bottom:13.2px}
+.grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:1fr;align-items:center;justify-items:center;
+      font-family:var(--grid-font,var(--f-body));font-weight:600;font-size:15.3px;line-height:1;color:var(--ink-soft);
+      font-variant-numeric:lining-nums tabular-nums}
+.grid .dow{font-size:13.8px;font-weight:600;letter-spacing:.04em;align-self:start}
+.grid span{position:relative;z-index:0}
+.grid .today{color:var(--today-ink);text-shadow:none}
+.grid .today::before{content:'';position:absolute;z-index:-1;left:50%;top:50%;width:25.8px;height:25.8px;transform:translate(-50%,-52%);
+                     border-radius:50%;background:var(--today-bg);box-shadow:0 1.2px 3.6px rgba(0,0,0,.08)}
+.vw2[data-weeks="6"] .month{margin-bottom:8.4px}
+.vw2[data-weeks="6"] .grid .today::before{width:23.4px;height:23.4px}
+
+/* ================= Decorations ================= */
+.out{position:absolute;pointer-events:none;z-index:3}
+.ribbon{right:-2.5%;top:-11%;width:22%;transform:rotate(14deg);filter:drop-shadow(0 2.4px 3px rgba(120,70,70,.18))}
+.tape{left:36%;top:-3.4%;width:13%;height:9%;transform:rotate(-2deg);background:linear-gradient(180deg,rgba(150,170,205,.78),rgba(130,152,192,.72));
+      box-shadow:0 1.2px 2.4px rgba(0,0,0,.08);-webkit-mask:linear-gradient(90deg,transparent 0,#000 1.5%,#000 98.5%,transparent);mask:linear-gradient(90deg,transparent,#000 1.5%,#000 98.5%,transparent)}
+.paper-fiber{position:absolute;inset:0;opacity:.18;mix-blend-mode:multiply;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .42 0 0 0 0 .38 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.drop{position:absolute;aspect-ratio:1;border-radius:50%;z-index:3;
+  background:radial-gradient(circle at 34% 30%,#fff 0 12%,rgba(255,255,255,.35) 26%,rgba(200,205,212,.25) 60%,rgba(120,125,135,.35) 100%);
+  box-shadow:inset -1.8px -2.4px 3.6px rgba(255,255,255,.7),inset 1.2px 1.2px 2.4px rgba(90,95,105,.25),1.2px 3px 4.8px rgba(70,75,85,.25)}
+.shape-glass .surface{-webkit-backdrop-filter:blur(14.4px) saturate(1.1);backdrop-filter:blur(14.4px) saturate(1.1)}
+.c2-06{filter:drop-shadow(0 6px 14.4px rgba(60,65,75,.16))}
+.petal{position:absolute;border-radius:50% 50% 46% 46%/60% 60% 40% 40%;
+  background:radial-gradient(60% 70% at 40% 30%,#fffef9,#f1f0e6 45%,#d9dbc6 80%,rgba(175,180,150,.7));box-shadow:inset -7.2px -6px 12px rgba(150,156,120,.35)}
+
+/* ================= Widget themes ================= */
+/* ---------- 06 · Glass · Water drops ---------- */
+.c2-06{--ink:#fbfbfb;--ink-soft:rgba(255,255,255,.92);--today-bg:#fbfbfb;--today-ink:#6b6e74;--bg:linear-gradient(150deg,rgba(255,255,255,.34),rgba(225,228,232,.22) 45%,rgba(255,255,255,.30));--shadow:0 0 6px rgba(70,75,85,.22),0 0 24px rgba(70,75,85,.14);--dname-font:var(--f-display);--dname-style:italic;--dname-size:30px;--dname-weight:400;--dnum-font:var(--f-display);--dnum-size:114px;--dnum-weight:500;--day-x:13.5%;--day-w:33%;--day-align:left;--divider:rgba(255,255,255,.45);--div-x:49%;--cal-l:52%;--cal-r:9%;--cal-t:14%;--cal-b:16%;--shape:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 280' preserveAspectRatio='none'%3E%3Cpath d='M 14 128 C 12 52, 70 18, 170 22 C 270 26, 320 10, 420 8 C 520 6, 588 30, 592 112 C 596 194, 566 266, 470 268 C 380 270, 300 256, 200 264 C 92 272, 16 214, 14 128 Z' fill='%23000'/%3E%3C/svg%3E");}
+/* 06 · 유리 블롭 아래 곡선에 맞춰 6주 달은 줄 간격을 더 좁힘 */
+.c2-06[data-weeks="6"]{--cal-t:12%;--cal-b:15%}

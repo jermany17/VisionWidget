@@ -1,0 +1,38 @@
+/*! Vision Widget — Classic Flip (플립 시계)
+ *  사이즈: .s (Small 1:1) · .m (Medium 364:170) · .l (Large 364:382) — 크기는 .flip { width } 하나로 조절, 내부는 cqw 비례
+ *  색상:   .ivory / .black
+ */
+@font-face{font-family:'Oswald';font-style:normal;font-weight:500;font-display:swap;src:url(../../_fonts/oswald-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Oswald';font-style:normal;font-weight:600;font-display:swap;src:url(../../_fonts/oswald-latin-600-normal.woff2) format('woff2')}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;background:#b9b4ad}
+.flip{
+  --bg:#ece8e2; --bg-hi:#f5f2ed; --edge:rgba(255,255,255,.75); --shadow:0 3.06px 8.16px rgba(70,60,50,.10),0 10.2px 23.8px rgba(70,60,50,.10);
+  --card-top:#fbfaf7; --card-bot:#f1efea; --card-shadow:0 2.38px 5.44px rgba(60,50,40,.16),0 0.51px 1.02px rgba(60,50,40,.10);
+  --split:rgba(60,50,40,.12); --pin:#d9d4cc; --ink:#141414;
+  position:relative; width:min(100%,var(--w,340px)); container-type:inline-size; isolation:isolate;
+  background:none; /* 바깥 판 없음 — 플립 카드 두 장만 위젯으로 보임 */
+  display:flex; align-items:center; justify-content:center; gap:var(--gap);
+  font-family:'Oswald','Bebas Neue','Arial Narrow',sans-serif; font-weight:600; color:var(--ink);
+  font-variant-numeric:lining-nums tabular-nums; -webkit-font-smoothing:antialiased;
+}
+.flip.black{
+  --bg:#0f0f10; --bg-hi:#1b1b1d; --edge:rgba(255,255,255,.06); --shadow:0 3.06px 8.16px rgba(0,0,0,.25),0 10.2px 23.8px rgba(0,0,0,.22);
+  --card-top:#26262a; --card-bot:#1c1c1f; --card-shadow:0 2.38px 6.12px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);
+  --split:rgba(0,0,0,.65); --pin:#050505; --ink:#f4f3f0;
+}
+/* 사이즈별 비율 · 카드 크기 */
+.flip.s{--w:340px;aspect-ratio:1/1;--gap:13.6px;--card-w:156.4px;--card-h:217.6px;--num:122.4px;--r:30.6px}
+.flip.m{--w:600px;aspect-ratio:364/170;--gap:10.2px;--card-w:164.9px;--card-h:149.6px;--num:102px;--r:17px}
+.flip.l{--w:560px;aspect-ratio:364/382;--gap:11.56px;--card-w:164.22px;--card-h:258.4px;--num:136px;--r:22.1px}
+/* 플립 카드 */
+.card{position:relative;width:var(--card-w);height:var(--card-h);border-radius:var(--r);
+  background:linear-gradient(180deg,var(--card-top) 0%,var(--card-top) 49.6%,var(--card-bot) 50.4%,var(--card-bot) 100%);
+  box-shadow:var(--card-shadow);display:grid;place-items:center;overflow:visible}
+.card span{font-size:var(--num);line-height:1;letter-spacing:-.01em;transform:translateY(-6%)}
+/* 가운데 접히는 선 + 양옆 핀 */
+.card::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--split);transform:translateY(-.5px);z-index:2}
+.card::after{content:'';position:absolute;top:50%;left:-3.74px;right:-3.74px;height:6.46px;transform:translateY(-50%);
+  background:radial-gradient(circle at 3.23px 50%,var(--pin) 0 2.89px,transparent 3.23px),radial-gradient(circle at calc(100% - 3.23px) 50%,var(--pin) 0 2.89px,transparent 3.23px);z-index:1}
+@media (prefers-reduced-motion:no-preference){.card.tick span{animation:flipin .45s ease-out}}
+@keyframes flipin{0%{transform:translateY(-6%) rotateX(70deg);opacity:.2}100%{transform:translateY(-6%) rotateX(0);opacity:1}}

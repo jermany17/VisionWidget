@@ -1,0 +1,31 @@
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  display: block !important;
+  overflow: hidden !important;
+}
+
+/* Three designs wrap their widget in a preview frame of their own, and name it
+   underneath. The shelf puts the name under the tile itself, so the design's own
+   caption would be a second one inside the frame. */
+main.preview {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+main.preview > .caption {
+  display: none !important;
+}
+
+/* Nothing is forced on the design itself. These size themselves against the width they
+   are given — some of them responsively, with their own breakpoints — and overriding
+   that was what left one of them a sliver: its width was pinned while its height went
+   on following the variable the design actually sizes from. embed.js measures whatever
+   the design settled on and scales that to the frame. */
+.widget, .cw, .vw2, .flip, .clock-widget {
+  margin: 0 !important;
+}

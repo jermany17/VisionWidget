@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.ScrollState
@@ -40,8 +41,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,7 +56,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,10 +94,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import com.example.visionwidget.R
 import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.gallery.DesignPreview
+import com.example.visionwidget.ui.gallery.GalleryCatalog
+import com.example.visionwidget.ui.gallery.GalleryCategory
+import com.example.visionwidget.ui.gallery.GallerySort
+import com.example.visionwidget.ui.gallery.GalleryWidget
+import com.example.visionwidget.ui.gallery.arrange
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
@@ -135,15 +148,10 @@ import com.example.visionwidget.ui.theme.WidgetTarget
 import com.example.visionwidget.ui.vision.Vision
 import com.example.visionwidget.ui.vision.formatTargetDate
 import com.example.visionwidget.ui.vision.formatWeeksLeft
-import com.example.visionwidget.widget.BLUSH_DESIGN_HEIGHT
-import com.example.visionwidget.widget.BLUSH_DESIGN_WIDTH
-import com.example.visionwidget.widget.BlushWidgetReceiver
-import com.example.visionwidget.widget.ClockWidgetReceiver
+import com.example.visionwidget.widget.receiverFor
 import com.example.visionwidget.widget.TopThreeWidgetReceiver
 import com.example.visionwidget.widget.VisionCardWidgetReceiver
 import com.example.visionwidget.widget.WisdomWidgetReceiver
-import com.example.visionwidget.widget.renderBlushCalendar
-import com.example.visionwidget.widget.QuoteWidgetReceiver
 import com.example.visionwidget.widget.requestPinWidget
 
 /** The panel the mock phone sits on — a warm neutral, distinct from the white canvas. */
@@ -304,6 +312,28 @@ private fun presetName() = TextStyle(
 
 /** Two faces across, with room between them for the shelf to read as a grid. */
 private val GalleryGutter = 14.dp
+private const val GalleryColumns = 2
+
+// Every tile is the same square whatever shape the design inside it is. The inset is
+// what keeps the backdrop reading as a frame rather than as a strip down either side of
+// a design that has covered it.
+private val TileShape = RoundedCornerShape(20.dp)
+private const val TileInset = 0.84f
+
+/**
+ * The washes a tile is backed with, cycled by name.
+ *
+ * Muted and close in weight, so forty of them down a shelf read as one surface the
+ * designs are laid on rather than as a set of colours competing with them.
+ */
+private val TileBackdrops = listOf(
+    listOf(Color(0xFF6F7A64), Color(0xFF3E4A38)),
+    listOf(Color(0xFFD3C7C1), Color(0xFF8C7F79)),
+    listOf(Color(0xFFBFC4C9), Color(0xFF6E757C)),
+    listOf(Color(0xFFD8CDBA), Color(0xFF978970)),
+    listOf(Color(0xFFC9BCC6), Color(0xFF7C6E79)),
+    listOf(Color(0xFFBCC6C3), Color(0xFF6B7975))
+)
 
 /** A face's name. The app's own serif, as the labels on the Design shelf are. */
 private fun galleryName() = TextStyle(
@@ -335,6 +365,16 @@ private val SwatchLabel = TextStyle(
     lineHeight = 11.sp,
     letterSpacing = 0.4.sp
 )
+
+// The colour picker's own square and bar. The square is given real height — it holds
+// two choices at once, and a shallow one makes the lightness half of it hard to land.
+private val SvFieldHeight = 190.dp
+private val SvFieldShape = RoundedCornerShape(12.dp)
+private val HueBarHeight = 22.dp
+private val MarkerSize = 20.dp
+
+/** The hairline outside the marker's white ring, so it reads against a pale colour too. */
+private val MarkerEdge = Color.Black.copy(alpha = 0.35f)
 
 /** The paid mark on a swatch, read against the colour it sits on. */
 private val SwatchPlus = TextStyle(
@@ -564,7 +604,16 @@ fun StudioScreen(
             .fillMaxSize()
             .background(Canvas)
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            // Design is one long column and scrolls as a whole; Gallery hands its own
+            // scrolling to the shelf, which has to stay lazy to keep forty live pages
+            // from all being alive at once.
+            .then(
+                if (tab == StudioTab.Design) {
+                    Modifier.verticalScroll(rememberScrollState())
+                } else {
+                    Modifier
+                }
+            ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
@@ -1081,46 +1130,230 @@ private fun OwnWisdomDialog(
 /**
  * Faces that stand on their own.
  *
- * Nothing here is bound to the user's vision or tasks — these only ever show the date,
- * so they're shown as finished things rather than as something to dress. Two for now,
- * while the shelf is being built out.
+ * Nothing here is bound to the user's vision or tasks — these only ever show the time or
+ * the date, so they're shown as finished things rather than as something to dress.
+ *
+ * The shelf is its own scrolling list rather than part of the screen's: there are forty
+ * of these, each a live page, and only the few on screen should be alive at once.
  */
 @Composable
 private fun ColumnScope.GalleryTab(
     pin: (Class<*>) -> Unit,
     contentPadding: PaddingValues
 ) {
-    Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
-        Spacer(Modifier.height(26.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(GalleryGutter)) {
-            GalleryItem(
-                name = "Clock",
-                meta = "SMALL · 2 × 2",
-                onAdd = { pin(ClockWidgetReceiver::class.java) },
-                modifier = Modifier.weight(1f)
-            ) { size -> ClockWidget(size) }
+    val context = LocalContext.current
+    val catalog = remember { GalleryCatalog.load(context) }
+    val scope = rememberCoroutineScope()
 
-            GalleryItem(
-                name = "Quote",
-                meta = "SMALL · 2 × 2",
-                onAdd = { pin(QuoteWidgetReceiver::class.java) },
-                modifier = Modifier.weight(1f)
-            ) { size -> QuoteWidget(size) }
+    var category by rememberSaveable { mutableStateOf(GalleryCategory.All) }
+    var sort by rememberSaveable { mutableStateOf(GallerySort.Default) }
+    val shown = remember(catalog, category, sort) { catalog.arrange(category, sort) }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(GalleryColumns),
+        modifier = Modifier
+            .fillMaxWidth(ContentWidthFraction)
+            .weight(1f),
+        horizontalArrangement = Arrangement.spacedBy(GalleryGutter),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        contentPadding = PaddingValues(
+            bottom = contentPadding.calculateBottomPadding() + 30.dp
+        )
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            GalleryControls(
+                category = category,
+                sort = sort,
+                onSelectCategory = { category = it },
+                onSelectSort = { sort = it }
+            )
         }
 
-        // Wide, so it takes a row of its own rather than half of one.
-        Spacer(Modifier.height(24.dp))
-        GalleryItem(
-            name = "Calendar",
-            meta = "MEDIUM · 4 × 2",
-            onAdd = { pin(BlushWidgetReceiver::class.java) },
-            aspect = BLUSH_DESIGN_WIDTH / BLUSH_DESIGN_HEIGHT,
-            modifier = Modifier.fillMaxWidth()
-        ) { size -> BlushCalendarFace(size) }
-        Spacer(Modifier.height(30.dp))
-        Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
+        items(shown, key = { it.id }) { widget ->
+            // Each design has a widget of its own, so putting one up says which design
+            // and nothing else — and two of them can sit on the home screen together
+            // showing different faces.
+            GalleryTile(widget) { pin(receiverFor(widget)) }
+        }
     }
 }
+
+/**
+ * What the shelf is showing and in what order.
+ *
+ * The order sits apart from the filters, behind its own control: picking a category
+ * changes which designs are on the shelf, picking an order only changes where they fall,
+ * and the two read better as separate questions.
+ */
+@Composable
+private fun GalleryControls(
+    category: GalleryCategory,
+    sort: GallerySort,
+    onSelectCategory: (GalleryCategory) -> Unit,
+    onSelectSort: (GallerySort) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SortControl(sort = sort, onSelect = onSelectSort)
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .height(18.dp)
+                    .width(1.dp)
+                    .background(Rule)
+            )
+            Spacer(Modifier.width(10.dp))
+            GalleryCategory.entries.forEach { entry ->
+                CategoryPill(
+                    label = entry.label,
+                    isSelected = entry == category,
+                    onClick = { onSelectCategory(entry) }
+                )
+                Spacer(Modifier.width(7.dp))
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+    }
+}
+
+/** The order, as a menu rather than a pill — it isn't one of the filters beside it. */
+@Composable
+private fun SortControl(sort: GallerySort, onSelect: (GallerySort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(IconButtonFill)
+                .border(1.dp, Rule, CircleShape)
+                .clickable { open = true }
+                .padding(start = 14.dp, end = 11.dp, top = 9.dp, bottom = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = sort.label,
+                style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                color = OnCanvas,
+                maxLines = 1
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(text = "▾", style = ScrollArrow, color = OnCanvasMuted)
+        }
+
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            containerColor = Canvas
+        ) {
+            GallerySort.entries.forEach { entry ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = entry.label,
+                            style = galleryName(),
+                            color = if (entry == sort) OnCanvas else OnCanvasMuted
+                        )
+                    },
+                    onClick = {
+                        onSelect(entry)
+                        open = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+/** One filter. Reads like the theme chips on the Design side, at the size of a label. */
+@Composable
+private fun CategoryPill(label: String, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isSelected) NavBar else Canvas)
+            .then(if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 9.dp)
+    ) {
+        Text(
+            text = label,
+            style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+            color = if (isSelected) OnNavBar else OnCanvas,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * One design on the shelf.
+ *
+ * Every tile is square whatever shape the design in it is, so the shelf reads as a grid
+ * rather than as rows of different heights. A wide design sits across the middle of its
+ * square with the backdrop above and below it; a square one is inset far enough that the
+ * backdrop still frames it rather than being covered over.
+ */
+@Composable
+private fun GalleryTile(widget: GalleryWidget, onAdd: () -> Unit) {
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(TileShape)
+                .background(Brush.linearGradient(backdropFor(widget.id))),
+            contentAlignment = Alignment.Center
+        ) {
+            // Left unclipped: each design draws its own corner, and a second one over
+            // the top of it would cut the first.
+            DesignPreview(
+                widget = widget,
+                modifier = Modifier
+                    .fillMaxWidth(TileInset)
+                    .aspectRatio(widget.ratio)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(text = widget.name, style = galleryName(), color = OnCanvas, maxLines = 1)
+        Spacer(Modifier.height(3.dp))
+        Text(text = widget.meta, style = GalleryMeta, color = OnCanvasMuted)
+
+        // Puts the design up without sending anyone off to hunt through the launcher's
+        // own picker for it. Nothing is said about whether one is already up: the same
+        // design can sit in as many places as the user likes.
+        Spacer(Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .border(1.dp, Rule, CircleShape)
+                .clickable(onClick = onAdd)
+                .padding(vertical = 9.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Add widget",
+                style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+                color = OnCanvas,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * The wash behind a design.
+ *
+ * Picked by name rather than chosen per design: there are forty of these and the
+ * backdrop is only there to set the design off the page. Taken from the name's own hash
+ * so a design keeps the same backdrop between runs, and neighbours on the shelf differ.
+ */
+private fun backdropFor(id: String): List<Color> =
+    TileBackdrops[(id.hashCode().absoluteValue) % TileBackdrops.size]
 
 /** Two halves of the screen, the selected one carrying a heavier rule beneath it. */
 @Composable
@@ -1154,59 +1387,6 @@ private fun TabBar(
         }
     }
 }
-
-/**
- * One face on the shelf: the widget itself at whatever width the column gives it, with
- * its name and what it is underneath.
- *
- * The face is handed its own measured width rather than a fixed size, since every
- * measurement inside it is a fraction of that — a thumbnail and a full-size preview are
- * then the same drawing at two scales.
- */
-@Composable
-private fun GalleryItem(
-    name: String,
-    meta: String,
-    onAdd: () -> Unit,
-    modifier: Modifier = Modifier,
-    /** Width over height, as the face was drawn. */
-    aspect: Float = 1f,
-    face: @Composable (size: Dp) -> Unit
-) {
-    Column(modifier) {
-        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(aspect)) {
-            face(maxWidth)
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(text = name, style = galleryName(), color = OnCanvas)
-        Spacer(Modifier.height(3.dp))
-        Text(text = meta, style = GalleryMeta, color = OnCanvasMuted)
-
-        // Puts the face up without sending anyone off to hunt through the launcher's
-        // own picker for it. Nothing is said about whether one is already up: the same
-        // face can sit in as many places as the user likes, so that would answer a
-        // question nobody is asking. Nor is a destination named — the launcher decides
-        // where it lands, and it needn't be the home screen.
-        Spacer(Modifier.height(10.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(CircleShape)
-                .border(1.dp, Rule, CircleShape)
-                .clickable(onClick = onAdd)
-                .padding(vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Add widget",
-                style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
-                color = OnCanvas,
-                maxLines = 1
-            )
-        }
-    }
-}
-
 
 /** One widget's offer to be put up, narrow enough that three sit across a row. */
 @Composable
@@ -1855,7 +2035,7 @@ private fun CustomColourRow(
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = "Your own colour +",
+                text = "Your own color +",
                 style = VisionType.bodyText(UserFonts[UserFonts.DEFAULT_ID]),
                 color = OnCanvas
             )
@@ -1895,12 +2075,13 @@ private fun Color.hex(): String = String.format(
 /**
  * Mixing a colour by hand: its hue, how much of it there is, and how light it runs.
  *
- * Three rails rather than a square and a wheel. A card is read at arm's length on a
- * home screen and the choice that matters is roughly which colour and roughly how dark
- * — a rail says that plainly, and says it the same whichever hand is holding the phone.
+ * A square with a bar under it, which is what nearly every Android app that offers a
+ * colour reaches for. The bar picks the hue; the square picks the other two together,
+ * since how saturated a colour is and how light it runs are judged against each other
+ * rather than one at a time.
  *
- * The preview underneath is the real thing: the card's own surface with the ink this
- * colour works out to, so what the text will look like is settled before the choice is.
+ * The preview above is the real thing: the card's own surface with the ink this colour
+ * works out to, so what the text will look like is settled before the choice is.
  */
 @Composable
 private fun ColourPickerDialog(
@@ -1932,7 +2113,7 @@ private fun ColourPickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Canvas,
-        title = { Text(text = "Your own colour", style = VisionType.screenPromptTitle(UserFonts[UserFonts.DEFAULT_ID]), color = OnCanvas) },
+        title = { Text(text = "YOUR OWN COLOR", style = VisionType.eyebrow, color = OnCanvas) },
         text = {
             Column(Modifier.fillMaxWidth()) {
                 Box(
@@ -1962,17 +2143,15 @@ private fun ColourPickerDialog(
                 }
 
                 Spacer(Modifier.height(18.dp))
-                ColourRail("HUE", hue / 360f, { hue = it * 360f }, List(7) { i ->
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf(i * 60f, 1f, 1f)))
-                })
-                ColourRail("SATURATION", saturation, { saturation = it }, listOf(
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, value))),
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, value)))
-                ))
-                ColourRail("LIGHTNESS", value, { value = it }, listOf(
-                    Color.Black,
-                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))
-                ))
+                SaturationValueField(
+                    hue = hue,
+                    saturation = saturation,
+                    value = value,
+                    marker = surface,
+                    onChange = { s, v -> saturation = s; value = v }
+                )
+                Spacer(Modifier.height(16.dp))
+                HueBar(hue = hue, onChange = { hue = it })
             }
         },
         confirmButton = {
@@ -1988,37 +2167,118 @@ private fun ColourPickerDialog(
     )
 }
 
-/** One labelled rail, its track showing the colours the thumb would land on. */
+/**
+ * The square: the chosen hue at full strength in the top right, washed out to white
+ * across and down into black, so every shade of that hue is somewhere in it.
+ *
+ * One point rather than two rails — the pair is read together, and a point says where
+ * both stand at once.
+ */
 @Composable
-private fun ColourRail(
-    label: String,
-    fraction: Float,
-    onChange: (Float) -> Unit,
-    track: List<Color>
+private fun SaturationValueField(
+    hue: Float,
+    saturation: Float,
+    value: Float,
+    /** Drawn inside the marker, so it carries the colour it is standing on. */
+    marker: Color,
+    onChange: (saturation: Float, value: Float) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        Text(text = label, style = VisionType.eyebrow, color = OnCanvasMuted)
-        Spacer(Modifier.height(6.dp))
-        Box(Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .align(Alignment.Center)
-                    .clip(CircleShape)
-                    .background(Brush.horizontalGradient(track))
-            )
-            Slider(
-                value = fraction.coerceIn(0f, 1f),
-                onValueChange = onChange,
-                colors = SliderDefaults.colors(
-                    thumbColor = OnCanvas,
-                    activeTrackColor = Color.Transparent,
-                    inactiveTrackColor = Color.Transparent
-                )
+    val pure = remember(hue) {
+        Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SvFieldHeight)
+            .clip(SvFieldShape)
+            .border(1.dp, Rule, SvFieldShape)
+    ) {
+        val width = constraints.maxWidth.toFloat()
+        val height = constraints.maxHeight.toFloat()
+
+        // Up is lighter, which is the way round every other picker has it.
+        val report = { offset: Offset ->
+            onChange(
+                (offset.x / width).coerceIn(0f, 1f),
+                1f - (offset.y / height).coerceIn(0f, 1f)
             )
         }
+
+        Box(
+            Modifier
+                .matchParentSize()
+                .drawBehind {
+                    drawRect(Brush.horizontalGradient(listOf(Color.White, pure)))
+                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+                }
+                .pointerInput(width, height) {
+                    detectTapGestures { report(it) }
+                }
+                .pointerInput(width, height) {
+                    detectDragGestures { change, _ -> report(change.position) }
+                }
+        )
+
+        ColourMarker(
+            x = with(LocalDensity.current) { (saturation.coerceIn(0f, 1f) * width).toDp() },
+            y = with(LocalDensity.current) { ((1f - value.coerceIn(0f, 1f)) * height).toDp() },
+            fill = marker
+        )
     }
+}
+
+/** The bar: every hue across it, which is the one choice the square can't hold. */
+@Composable
+private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
+    // Seven stops rather than a sampled sweep — the gradient between them is the
+    // spectrum, so naming the corners of it is enough.
+    val spectrum = remember {
+        List(7) { Color(android.graphics.Color.HSVToColor(floatArrayOf(it * 60f, 1f, 1f))) }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxWidth().height(HueBarHeight)) {
+        val width = constraints.maxWidth.toFloat()
+        val report = { x: Float -> onChange((x / width).coerceIn(0f, 1f) * 360f) }
+
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(CircleShape)
+                .background(Brush.horizontalGradient(spectrum))
+                .pointerInput(width) {
+                    detectTapGestures { report(it.x) }
+                }
+                .pointerInput(width) {
+                    detectHorizontalDragGestures { change, _ -> report(change.position.x) }
+                }
+        )
+
+        ColourMarker(
+            x = with(LocalDensity.current) { ((hue / 360f).coerceIn(0f, 1f) * width).toDp() },
+            y = HueBarHeight / 2,
+            fill = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
+        )
+    }
+}
+
+/**
+ * Where a choice currently stands, centred on its point.
+ *
+ * A white ring with a dark hairline outside it: the square runs from white to black, so
+ * a ring of either alone disappears into one end of it.
+ */
+@Composable
+private fun ColourMarker(x: Dp, y: Dp, fill: Color) {
+    Box(
+        modifier = Modifier
+            .offset(x = x - MarkerSize / 2, y = y - MarkerSize / 2)
+            .size(MarkerSize)
+            .clip(CircleShape)
+            .background(fill)
+            .border(2.dp, Color.White, CircleShape)
+            .border(1.dp, MarkerEdge, CircleShape)
+    )
 }
 
 @Composable

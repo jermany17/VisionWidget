@@ -1,0 +1,49 @@
+/*! Vision Widget — widgets.css
+ *  구조: 1) 폰트  2) 공통 위젯 셸/레이아웃  3) 위젯별 테마(.w01~.w20)
+ *  위젯 크기는 .widget 의 width 로만 조절 (내부 글자는 cqw 단위로 비례)
+ */
+/* Cormorant Garamond — SIL OFL 1.1 (fonts/OFL.txt) */
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400;font-display:swap;src:url(../../_fonts/cormorant-garamond-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:500;font-display:swap;src:url(../../_fonts/cormorant-garamond-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:500;font-display:swap;src:url(../../_fonts/cormorant-garamond-500-italic.woff2) format('woff2')}
+
+*{box-sizing:border-box;margin:0;padding:0}
+/* ===== Widget shell (238×222 비율, 크기는 width로 조절) ===== */
+.widget{
+  --ink:#4a4642; --ink-soft:rgba(74,70,66,.72); --shadow:none;
+  position:relative; width:min(100%,340px); aspect-ratio:238/222;
+  border-radius:11%/11.8%; overflow:hidden; isolation:isolate;
+  container-type:inline-size;
+  background:var(--photo,none) var(--photo-pos,center)/var(--photo-size,cover) no-repeat, var(--bg,#efe9e1);
+  color:var(--ink);
+  font-family:'Cormorant Garamond','Cormorant',Georgia,'Times New Roman',serif;
+  box-shadow:0 1px 2px rgba(0,0,0,.08),0 8px 24px rgba(0,0,0,.12);
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:lining-nums;  /* Cormorant 기본은 올드스타일 숫자 → 3·4·5·7·9가 아래로 내려가 겹침 */
+}
+/* 사진 배경: --photo / --photo-pos (위젯별 테마에서 지정). .scene 은 그 위에 얹는 장식 레이어 */
+.scene{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.scene>*{position:absolute}
+.grain{inset:0;opacity:.09;mix-blend-mode:multiply;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.blob{border-radius:50%}
+/* 흰 글씨 + 밝은 사진: 글자 뒤 옅은 비네트로 가독성 확보 (--scrim-a 로 강도 조절, 0 = 끔) */
+.widget.photo.light::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 62% 48% at 50% 52%,rgba(30,32,48,var(--scrim-a,0)),transparent 78%)}
+.moon{filter:drop-shadow(0 0 5.44px rgba(255,244,220,.75))}
+/* ===== Content ===== */
+.content{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-shadow:var(--shadow)}
+.month{font-size:30.6px;letter-spacing:.06em;line-height:1;font-weight:400}
+.day{font-size:102px;font-style:italic;font-weight:500;line-height:1;letter-spacing:-.02em;margin:3.4px 0 5.1px;font-variant-numeric:lining-nums proportional-nums}
+.weekday{font-size:21.08px;letter-spacing:.1em;color:var(--ink-soft);line-height:1}
+.time{font-size:85px;font-style:italic;font-weight:500;letter-spacing:-.01em;line-height:1;font-variant-numeric:lining-nums tabular-nums}
+.ampm{font-size:22.1px;letter-spacing:.1em;color:var(--ink-soft);margin-top:10.2px;line-height:1}
+.content.cal{justify-content:flex-start;align-items:stretch;padding:30.6px 32.3px 0}
+.cal-title{font-size:35.7px;font-style:italic;font-weight:500;line-height:1;margin-bottom:17px;padding-left:1.7px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:8.5px;text-align:center;font-size:19.72px;line-height:1;font-variant-numeric:lining-nums}
+.cal-grid .dow{font-size:17.68px;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:2.04px}
+/* 흰 글씨 프리셋 */
+.light{--ink:#fbf8f3;--ink-soft:rgba(251,248,243,.85);--shadow:0 0 8.5px rgba(40,40,60,.18)}
+
+/* ====================== Widget themes ====================== */
+/* ---------- 15 · Time · Leaf shadow (dim) ---------- */
+.w15{--bg:linear-gradient(150deg,#d6d0c6 0%,#c7c0b5 100%);--photo:url("images/15-leaf-shadow-dim.webp");--photo-pos:center;--photo-size:cover;--ink:rgba(90,86,80,.85);--ink-soft:rgba(90,86,80,.7);}
