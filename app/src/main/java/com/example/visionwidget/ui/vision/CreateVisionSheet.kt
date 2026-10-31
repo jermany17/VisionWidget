@@ -148,7 +148,9 @@ fun CreateVisionSheet(
                 value = goal,
                 placeholder = "Name it in five words or fewer",
                 textStyle = VisionType.cardTitle(userFont),
-                onValueChange = { goal = it }
+                // Clamped rather than called out, the way a task's own field is:
+                // running out of room at the last character says itself.
+                onValueChange = { value -> goal = value.take(MAX_VISION_GOAL_LENGTH) }
             )
 
             Spacer(Modifier.height(24.dp))
@@ -157,7 +159,7 @@ fun CreateVisionSheet(
                 value = why,
                 placeholder = "Why does this matter to you?",
                 textStyle = VisionType.cardTitle(userFont),
-                onValueChange = { why = it }
+                onValueChange = { value -> why = value.take(MAX_VISION_WHY_LENGTH) }
             )
 
             Spacer(Modifier.height(24.dp))

@@ -52,6 +52,14 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putInt(KEY_WISDOM_INDEX, value).apply()
 
     /**
+     * The one line the user wrote themselves, shown when the theme is their own. Blank
+     * until they write one, which the card stands a placeholder in for.
+     */
+    var wisdomOwnText: String
+        get() = prefs.getString(KEY_WISDOM_OWN_TEXT, "").orEmpty()
+        set(value) = prefs.edit().putString(KEY_WISDOM_OWN_TEXT, value).apply()
+
+    /**
      * How one widget renders the user's own words — face, colour, layout, fill and
      * corner. Held per widget, so the three can be styled apart or together. The rest of
      * the app stays on the default face, so this is a choice about the widgets alone.
@@ -61,7 +69,8 @@ class AppPreferences(context: Context) {
         themeId = prefs.getInt(target.key(KEY_WIDGET_THEME), CardThemes.DEFAULT_ID),
         alignId = prefs.getInt(target.key(KEY_WIDGET_ALIGN), Alignments.DEFAULT_ID),
         backgroundId = prefs.getInt(target.key(KEY_WIDGET_BACKGROUND), BackgroundStyles.DEFAULT_ID),
-        cornerRadius = prefs.getInt(target.key(KEY_WIDGET_RADIUS), CornerRadii.DEFAULT)
+        cornerRadius = prefs.getInt(target.key(KEY_WIDGET_RADIUS), CornerRadii.DEFAULT),
+        customColour = prefs.getInt(target.key(KEY_WIDGET_CUSTOM_COLOUR), 0)
     )
 
     fun setWidgetStyle(target: WidgetTarget, style: WidgetStyle) {
@@ -71,6 +80,7 @@ class AppPreferences(context: Context) {
             .putInt(target.key(KEY_WIDGET_ALIGN), style.alignId)
             .putInt(target.key(KEY_WIDGET_BACKGROUND), style.backgroundId)
             .putInt(target.key(KEY_WIDGET_RADIUS), style.cornerRadius)
+            .putInt(target.key(KEY_WIDGET_CUSTOM_COLOUR), style.customColour)
             .apply()
     }
 
@@ -123,8 +133,10 @@ class AppPreferences(context: Context) {
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WISDOM_INDEX = "wisdom_index"
+        const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
+        const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"
         const val KEY_WIDGET_ALIGN = "widget_align_id"
         const val KEY_WIDGET_BACKGROUND = "widget_background_id"
         const val KEY_WIDGET_PHOTO = "widget_photo_uri"

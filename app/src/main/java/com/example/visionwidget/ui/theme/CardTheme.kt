@@ -29,6 +29,31 @@ private fun Color.lightenBy(fraction: Float) = Color(
 fun hairlineFor(surface: Color): Color = surface.darkenBy(BORDER_DARKEN)
 
 /**
+ * How far the ink is pushed from the surface it has to be read against.
+ *
+ * Far enough to read, and no further: the palette's own pairings are not black on
+ * white but a near-black or near-white carrying a trace of the surface's own hue —
+ * ink on linen is warm, ink on sage is green. Pushing the surface itself this far
+ * lands on much the same colour the palette was hand-tuned to.
+ */
+private const val INK_DARKEN = 0.88f
+private const val INK_LIGHTEN = 0.90f
+
+/**
+ * The text colour a surface should carry, worked out rather than chosen.
+ *
+ * Every colour in the palette below was paired with its ink by hand. A colour the user
+ * mixes themselves has nobody to pair it, so the pairing is derived — which is the
+ * whole of what makes an arbitrary colour safe to offer.
+ */
+fun autoOnSurface(surface: Color): Color =
+    if (surface.luminance() > LIGHT_SURFACE_LUMINANCE) {
+        surface.darkenBy(INK_DARKEN)
+    } else {
+        surface.lightenBy(INK_LIGHTEN)
+    }
+
+/**
  * A card surface and the text colour that always pairs with it.
  *
  * The database stores only the numeric id, so the pairing has to live here —
@@ -85,13 +110,24 @@ object CardThemes {
     const val DEFAULT_ID = 1
 
     /**
-     * Colours above this id are part of the paid tier. Subscription state isn't wired
-     * up yet, so they're selectable — the picker only marks them.
+     * The colour the user mixed themselves, which is no entry in the list below — the
+     * id only says "that one", and the colour itself travels with the style.
      */
-    const val LAST_FREE_ID = 13
+    const val CUSTOM_ID = 0
+
+    /** What a mixed colour is called where the palette's own have names. */
+    const val CUSTOM_NAME = "Yours"
+
+    /** The surface and ink for a colour the user chose, the ink worked out from it. */
+    fun custom(argb: Int): CardTheme {
+        val surface = Color(argb)
+        return CardTheme(CUSTOM_ID, CUSTOM_NAME, surface, autoOnSurface(surface))
+    }
 
     private val byId = listOf(
-        // ── Free (1–13) ──
+        // Every colour is free. The list below was once split at thirteen, with the
+        // rest marked for a paid tier — the whole palette is given now, and the ids
+        // keep their old numbers so a widget already wearing one is undisturbed.
         CardTheme(1, "Plum", Color(0xFF503A53), Color(0xFFEEECEE)),
         CardTheme(2, "Black", Color(0xFF100F0E), Color(0xFFF2EFE9)),
         CardTheme(3, "Paper", Color(0xFFF4F1E8), Color(0xFF252219)),
@@ -106,7 +142,6 @@ object CardThemes {
         CardTheme(12, "Deep Sky", Color(0xFFA7B9CB), Color(0xFF1A1F23)),
         CardTheme(13, "Cocoa", Color(0xFF33261E), Color(0xFFEFEAE4)),
 
-        // ── Vision+ (14–30) ──
         CardTheme(14, "Butter", Color(0xFFF8EDC6), Color(0xFF2C2611)),
         CardTheme(15, "Rose", Color(0xFFF4E5E5), Color(0xFF251818)),
         CardTheme(16, "Sky", Color(0xFFE3EAF1), Color(0xFF191F24)),

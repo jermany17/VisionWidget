@@ -1,11 +1,13 @@
 package com.example.visionwidget.data
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.visionwidget.ui.theme.WidgetLook
 import com.example.visionwidget.ui.theme.WidgetStyle
 import com.example.visionwidget.ui.theme.WidgetTarget
+import com.example.visionwidget.ui.home.isOwnWisdom
 import com.example.visionwidget.ui.home.nextWisdomIndex
 import com.example.visionwidget.ui.home.randomWisdomIndex
 import com.example.visionwidget.ui.home.wisdomIndices
@@ -43,42 +45,8 @@ private fun VisionWithMilestones.toDomain() = Vision(
 /** How long a Flow keeps collecting with no observers before it's torn down. */
 private const val StopTimeoutMillis = 5_000L
 
-/**
- * Every day that holds at least one task, newest first.
- *
- * Archived days come from history; the live day is still sitting in the slots table and
- * is folded in under whichever date those slots belong to, so Insights shows today
- * alongside the rest instead of waiting for the rollover to file it.
- */
-private fun buildDayRecords(
-    history: List<RuleOfThreeHistoryEntity>,
-    slots: List<RuleOfThreeSlotEntity>,
-    liveDate: Long?
-): List<DayRecord> {
-    val byDay = history
-        .groupBy { it.date }
-        .mapValues { (_, rows) -> rows.toEntries { it.slotIndex to (it.task to it.checked) } }
-        .toMutableMap()
-
-    if (liveDate != null) {
-        val live = slots.toEntries { it.slotIndex to (it.task to it.checked) }
-        // An empty live day mustn't erase an archived record for the same date.
-        if (live.isNotEmpty()) byDay[liveDate] = live
-    }
-
-    return byDay
-        .filterValues { it.isNotEmpty() }
-        .map { (day, entries) -> DayRecord(day, entries) }
-        .sortedByDescending { it.epochDay }
-}
-
-/** Drops the slots that were never filled and orders what's left by position. */
-private fun <T> List<T>.toEntries(read: (T) -> Pair<Int, Pair<String?, Boolean>>): List<TopThreeEntry> =
-    mapNotNull { row ->
-        val (slotIndex, value) = read(row)
-        val (task, checked) = value
-        task?.let { TopThreeEntry(slotIndex, it, checked) }
-    }.sortedBy { it.slotIndex }
+/** Where a refused widget redraw is reported, since the home screen won't show it. */
+private const val WidgetLogTag = "VisionWidget"
 
 /**
  * Owns the Room database and exposes it as the reactive state and plain callbacks
@@ -108,8 +76,9 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         preferences.wisdomCategory = category
         _wisdomCategory.value = category
         // A theme the line no longer belongs to would leave the card showing something
-        // from the one before it.
-        if (_wisdomIndex.value !in wisdomIndices(category)) {
+        // from the one before it. The user's own theme has no pool to draw from, so
+        // the index is left where it was for whenever they return to a real theme.
+        if (!isOwnWisdom(category) && _wisdomIndex.value !in wisdomIndices(category)) {
             setWisdomIndex(randomWisdomIndex(category))
         } else {
             redrawWidgets()
@@ -124,6 +93,29 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     fun setWisdomIndex(index: Int) {
         preferences.wisdomIndex = index
         _wisdomIndex.value = index
+        redrawWidgets()
+    }
+
+    private val _wisdomOwnText = MutableStateFlow(preferences.wisdomOwnText)
+
+    /** The one line the user wrote themselves, shown under their own theme. */
+    val wisdomOwnText: StateFlow<String> = _wisdomOwnText.asStateFlow()
+
+    /**
+     * Commits the daily line in one act — the theme, the line settled on within it, and
+     * the user's own words.
+     *
+     * Studio drafts all three and holds them until the apply, so they have to land
+     * together: written one at a time the card would redraw between them, showing a
+     * theme against a line that doesn't belong to it.
+     */
+    fun applyWisdom(category: String, index: Int, ownText: String) {
+        preferences.wisdomCategory = category
+        preferences.wisdomIndex = index
+        preferences.wisdomOwnText = ownText
+        _wisdomCategory.value = category
+        _wisdomIndex.value = index
+        _wisdomOwnText.value = ownText
         redrawWidgets()
     }
 
@@ -175,23 +167,29 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     private fun redrawWidgets() {
         // A failure to redraw must not take the caller with it, and must not cancel the
         // watcher below — one unlucky update would otherwise leave every later change
-        // unannounced for the rest of the session.
-        viewModelScope.launch { runCatching { updateDesignWidgets(getApplication()) } }
+        // unannounced for the rest of the session. Said out loud all the same: a card
+        // that quietly keeps the picture it had looks exactly like one nobody asked to
+        // redraw, and the two want telling apart.
+        viewModelScope.launch {
+            runCatching { updateDesignWidgets(getApplication()) }
+                .onFailure { Log.w(WidgetLogTag, "Widget redraw failed", it) }
+        }
     }
 
     init {
         // Once per process start: if the live slots still belong to a day that's
-        // passed, archive them and clear the board for today.
+        // passed, archive them and clear the board for today. The cards are showing
+        // yesterday's three until they're told, so they're told.
         viewModelScope.launch {
             ruleOfThreeDao.rolloverToToday(LocalDate.now().toEpochDay())
+            redrawWidgets()
         }
 
-        // Everything the cards show, watched at the source.
-        //
-        // A widget on the home screen has no way to notice the app changed something
-        // underneath it, and it is only asked to redraw on its own schedule otherwise —
-        // half an hour away at best. Watching here rather than saying so at each of the
-        // dozen call sites that write means a new one can't forget to.
+        // Everything the cards show, watched at the source — a backstop behind the
+        // redrawWidgets() each write already calls directly. Room's own Flow re-query
+        // runs on its own schedule rather than the instant the write returns, so it
+        // isn't what a tap should wait on; it only catches a call site that forgot to
+        // ask directly, or a write that reached the database some other way.
         viewModelScope.launch {
             combine(
                 visionDao.observeVisionsWithMilestones(),
@@ -200,7 +198,10 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
                 .distinctUntilChanged()
                 // The first is only what the widgets are already showing.
                 .drop(1)
-                .collect { runCatching { updateDesignWidgets(getApplication()) } }
+                .collect {
+                    runCatching { updateDesignWidgets(getApplication()) }
+                        .onFailure { failure -> Log.w(WidgetLogTag, "Widget redraw failed", failure) }
+                }
         }
     }
 
@@ -236,6 +237,9 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             if (epochDay == ruleOfThreeDao.liveDate()) {
                 ruleOfThreeDao.toggleSlot(slotIndex)
+                // Today's own three are what the card shows, however far back in the
+                // log the tap came from.
+                redrawWidgets()
             } else {
                 ruleOfThreeDao.toggleHistory(epochDay, slotIndex)
             }
@@ -250,12 +254,14 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             visionDao.insertVision(
                 VisionEntity(goal = goal, why = why, targetDateMillis = targetDateMillis, isMain = isFirst)
             )
+            redrawWidgets()
         }
     }
 
     fun editVision(id: Long, goal: String, why: String, targetDateMillis: Long) {
         viewModelScope.launch {
             visionDao.updateVision(id, goal, why, targetDateMillis)
+            redrawWidgets()
         }
     }
 
@@ -267,11 +273,15 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             if (visionDao.countMain() == 0) {
                 visionDao.firstVisionId()?.let { visionDao.setMain(it) }
             }
+            redrawWidgets()
         }
     }
 
     fun setMainVision(id: Long) {
-        viewModelScope.launch { visionDao.setMainVision(id) }
+        viewModelScope.launch {
+            visionDao.setMainVision(id)
+            redrawWidgets()
+        }
     }
 
     fun addMilestone(visionId: Long, step: String, dueDateMillis: Long) {
@@ -279,21 +289,29 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             visionDao.insertMilestone(
                 MilestoneEntity(visionId = visionId, step = step, dueDateMillis = dueDateMillis, checked = false)
             )
+            redrawWidgets()
         }
     }
 
     fun toggleMilestone(visionId: Long, milestoneId: Long) {
-        viewModelScope.launch { visionDao.toggleMilestone(milestoneId) }
+        viewModelScope.launch {
+            visionDao.toggleMilestone(milestoneId)
+            redrawWidgets()
+        }
     }
 
     fun deleteMilestone(visionId: Long, milestoneId: Long) {
-        viewModelScope.launch { visionDao.deleteMilestone(milestoneId) }
+        viewModelScope.launch {
+            visionDao.deleteMilestone(milestoneId)
+            redrawWidgets()
+        }
     }
 
     fun setTopThreeText(index: Int, text: String) {
         viewModelScope.launch {
             val checked = topThreeChecked.value.getOrElse(index) { false }
             ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, text, checked))
+            redrawWidgets()
         }
     }
 
@@ -302,12 +320,14 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             val task = topThreeTasks.value.getOrNull(index) ?: return@launch
             val checked = topThreeChecked.value.getOrElse(index) { false }
             ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, task, !checked))
+            redrawWidgets()
         }
     }
 
     fun clearTopThree(index: Int) {
         viewModelScope.launch {
             ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, null, false))
+            redrawWidgets()
         }
     }
 }

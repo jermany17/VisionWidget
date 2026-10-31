@@ -14,6 +14,24 @@ const val MAX_VISIONS = 3
 const val MAX_MILESTONES_PER_VISION = 4
 
 /**
+ * How long a vision's own words can run.
+ *
+ * The widget is where these are really read, and it holds one line for the goal and one
+ * for the why. Past these the card would have to cut them mid-word, so the field stops
+ * taking characters instead — running out of room as it is typed says it plainly enough.
+ */
+const val MAX_VISION_GOAL_LENGTH = 25
+const val MAX_VISION_WHY_LENGTH = 40
+
+/**
+ * How long one step's own words can run.
+ *
+ * The narrowest line any of the cards hold: on the 4x4 a step shares its row with the
+ * date it is due, so what is left for the words is less than a full-width line again.
+ */
+const val MAX_MILESTONE_STEP_LENGTH = 25
+
+/**
  * A vision the user set. The date is kept as the epoch millis the picker handed back
  * rather than a formatted string, so the remaining time can be recomputed each day.
  */

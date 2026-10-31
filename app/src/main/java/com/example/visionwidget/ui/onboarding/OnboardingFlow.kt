@@ -67,6 +67,8 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import com.example.visionwidget.ui.vision.MAX_VISION_GOAL_LENGTH
+import com.example.visionwidget.ui.vision.MAX_VISION_WHY_LENGTH
 import com.example.visionwidget.ui.vision.formatTargetDate
 import java.time.Instant
 import java.time.LocalDate
@@ -167,7 +169,7 @@ fun OnboardingFlow(
                     userFont = userFont,
                     goal = goal,
                     error = goalError,
-                    onGoalChange = { goal = it ; goalError = false },
+                    onGoalChange = { goal = it.take(MAX_VISION_GOAL_LENGTH) ; goalError = false },
                     onNext = {
                         if (goal.isBlank()) goalError = true else { goalError = false ; step = 3 }
                     }
@@ -176,7 +178,7 @@ fun OnboardingFlow(
                     userFont = userFont,
                     why = why,
                     error = whyError,
-                    onWhyChange = { why = it ; whyError = false },
+                    onWhyChange = { why = it.take(MAX_VISION_WHY_LENGTH) ; whyError = false },
                     onNext = {
                         if (why.isBlank()) whyError = true else { whyError = false ; step = 4 }
                     }

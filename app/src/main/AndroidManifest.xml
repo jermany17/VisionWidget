@@ -90,6 +90,78 @@
         </receiver>
 
         <receiver
+            android:name=".widget.VisionCardSmallWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_vision_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/vision_card_small_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TopThreeSmallWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_top_three_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/top_three_small_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WisdomSmallWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_wisdom_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wisdom_small_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.VisionCardLargeWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_vision_large">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/vision_card_large_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TopThreeLargeWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_top_three_large">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/top_three_large_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WisdomLargeWidgetReceiver"
+            android:exported="false"
+            android:label="@string/widget_label_wisdom_large">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wisdom_large_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".widget.ClockTickReceiver"
             android:exported="false" />
 

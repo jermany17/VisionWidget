@@ -76,11 +76,19 @@ fun VisionApp(
     showOnboarding: Boolean = false,
     onFinishOnboarding: () -> Unit = {},
     /** A Gallery widget's own tap asks for this — Studio's Gallery tab, not Today. */
-    openGallery: Boolean = false
+    openGallery: Boolean = false,
+    /** A Vision widget's own tap asks for this — the Vision tab, not Today. */
+    openVision: Boolean = false
 ) {
     val viewModel: VisionAppViewModel = viewModel()
     var selectedTab by rememberSaveable {
-        mutableStateOf(if (openGallery) VisionTab.Studio else VisionTab.Today)
+        mutableStateOf(
+            when {
+                openGallery -> VisionTab.Studio
+                openVision -> VisionTab.Vision
+                else -> VisionTab.Today
+            }
+        )
     }
 
     // Which vision the Vision tab happens to be showing — distinct from mainVisionId,
@@ -93,6 +101,9 @@ fun VisionApp(
     // Which quote is showing. Kept in the store rather than here: Studio previews the
     // same card and the widget draws it, and three copies of one choice would drift.
     val wisdomIndex by viewModel.wisdomIndex.collectAsStateWithLifecycle()
+
+    /** The one line the user wrote themselves, shown when the theme is their own. */
+    val wisdomOwnText by viewModel.wisdomOwnText.collectAsStateWithLifecycle()
 
     val visions by viewModel.visions.collectAsStateWithLifecycle()
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
@@ -163,6 +174,8 @@ fun VisionApp(
                 onToggleTopThree = viewModel::toggleTopThreeChecked,
                 onClearTopThree = viewModel::clearTopThree,
                 wisdomIndex = wisdomIndex,
+                wisdomCategory = wisdomCategory,
+                wisdomOwnText = wisdomOwnText,
                 onShuffleWisdom = viewModel::shuffleWisdom,
                 onOpenVision = { selectedTab = VisionTab.Vision }
             )
@@ -190,7 +203,8 @@ fun VisionApp(
                 onApplyStyle = viewModel::applyWidgetStyle,
                 onPickPhoto = viewModel::setWidgetPhoto,
                 wisdomCategory = wisdomCategory,
-                onSelectWisdomCategory = viewModel::setWisdomCategory,
+                wisdomOwnText = wisdomOwnText,
+                onApplyWisdom = viewModel::applyWisdom,
                 vision = mainVision,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,

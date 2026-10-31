@@ -36,6 +36,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
@@ -46,8 +49,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,9 +65,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -72,6 +80,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -81,13 +90,20 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.example.visionwidget.R
+import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
-import com.example.visionwidget.ui.home.WISDOM
+import com.example.visionwidget.ui.home.MAX_OWN_WISDOM_LENGTH
+import com.example.visionwidget.ui.home.OWN_WISDOM_CATEGORY
+import com.example.visionwidget.ui.home.OWN_WISDOM_LABEL
 import com.example.visionwidget.ui.home.WISDOM_THEMES
 import com.example.visionwidget.ui.home.Wisdom
+import com.example.visionwidget.ui.home.isOwnWisdom
+import com.example.visionwidget.ui.home.nextWisdomIndex
+import com.example.visionwidget.ui.home.randomWisdomIndex
+import com.example.visionwidget.ui.home.wisdomFor
 import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.theme.AlignChoice
 import com.example.visionwidget.ui.theme.Alignments
@@ -95,6 +111,8 @@ import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardTheme
 import com.example.visionwidget.ui.theme.CardThemes
+import com.example.visionwidget.ui.theme.autoOnSurface
+import com.example.visionwidget.ui.theme.hairlineFor
 import com.example.visionwidget.ui.theme.CornerRadii
 import com.example.visionwidget.ui.theme.DMMono
 import com.example.visionwidget.ui.theme.InstrumentSerif
@@ -374,7 +392,10 @@ fun StudioScreen(
     onPickPhoto: (target: WidgetTarget, uri: String?) -> Unit = { _, _ -> },
     /** The theme the daily line is drawn from. */
     wisdomCategory: String = DEFAULT_WISDOM_THEME,
-    onSelectWisdomCategory: (String) -> Unit = {},
+    /** The one line the user wrote themselves, shown under their own theme. */
+    wisdomOwnText: String = "",
+    /** Commits the daily line — theme, the line settled on within it, and their own words. */
+    onApplyWisdom: (category: String, index: Int, ownText: String) -> Unit = { _, _, _ -> },
     /** Opens on Gallery rather than Design — a Gallery widget's own tap asks for this. */
     startOnGallery: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(),
@@ -418,6 +439,11 @@ fun StudioScreen(
     var draftAlignId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.alignId) }
     var draftBackgroundId by rememberSaveable(scope, seed) { mutableIntStateOf(seed.backgroundId) }
     var draftCornerRadius by rememberSaveable(scope, seed) { mutableIntStateOf(seed.cornerRadius) }
+    var draftCustomColour by rememberSaveable(scope, seed) { mutableIntStateOf(seed.customColour) }
+
+    // Open only while the colour is being mixed; the choice lands in the draft above and
+    // waits on the same apply everything else does.
+    var pickingColour by rememberSaveable { mutableStateOf(false) }
 
     /**
      * Whether a control has been used since the scope was picked.
@@ -429,17 +455,25 @@ fun StudioScreen(
      */
     var touched by rememberSaveable(scope, seed) { mutableStateOf(false) }
 
-    // Keyed on the applied theme alone, not on the scope: the daily line belongs to the
-    // app rather than to a widget, so moving between widgets leaves a pending choice
-    // standing instead of quietly dropping it.
+    // Keyed on what's applied alone, not on the scope: the daily line belongs to the app
+    // rather than to a widget, so moving between widgets leaves a pending choice standing
+    // instead of quietly dropping it. All three are drafted together — a theme, the line
+    // settled on inside it, and the user's own words are one choice, committed at once.
     var draftWisdomCategory by rememberSaveable(wisdomCategory) { mutableStateOf(wisdomCategory) }
+    var draftWisdomIndex by rememberSaveable(wisdomIndex) { mutableIntStateOf(wisdomIndex) }
+    var draftWisdomOwnText by rememberSaveable(wisdomOwnText) { mutableStateOf(wisdomOwnText) }
+
+    // Open only while the user's own line is being written; the words land in the draft
+    // above and wait on the same apply everything else does.
+    var writingOwnWisdom by rememberSaveable { mutableStateOf(false) }
 
     val draft = WidgetStyle(
         fontId = draftFontId,
         themeId = draftThemeId,
         alignId = draftAlignId,
         backgroundId = draftBackgroundId,
-        cornerRadius = draftCornerRadius
+        cornerRadius = draftCornerRadius,
+        customColour = draftCustomColour
     )
 
     // Derived, never stored: a set is only a description of the five values below it, so
@@ -462,18 +496,20 @@ fun StudioScreen(
         }
     }
 
-    // The quote the phone shows follows the drafted theme, so picking one shows the line
-    // it would actually put on the card rather than holding the old one until applying.
-    val previewWisdom = remember(draftWisdomCategory, wisdomIndex) {
-        val pool = wisdomIndices(draftWisdomCategory)
-        WISDOM[if (wisdomIndex in pool) wisdomIndex else pool.first()]
-    }
+    // The quote the phone shows follows the draft, so picking a theme or shuffling shows
+    // the line it would actually put on the card rather than holding the old one until
+    // applying.
+    val previewWisdom = wisdomFor(draftWisdomCategory, draftWisdomIndex, draftWisdomOwnText)
 
-    // One control commits all five to every widget in scope, and the daily theme with
+    val wisdomPending = draftWisdomCategory != wisdomCategory ||
+        draftWisdomIndex != wisdomIndex ||
+        draftWisdomOwnText != wisdomOwnText
+
+    // One control commits all five to every widget in scope, and the daily line with
     // them. With nothing chosen there's nothing pending, however far apart the three
     // happen to be.
     val isApplied = (!touched || scope.targets.all { lookOf(it).style == draft }) &&
-        draftWisdomCategory == wisdomCategory
+        !wisdomPending
 
     // The system picker hands back a URI that stays readable across restarts only if
     // the grant is taken persistently.
@@ -507,13 +543,18 @@ fun StudioScreen(
     val applyStyle = {
         if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
             showMissingPhoto = true
+        } else if (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank()) {
+            // Their own theme with nothing written under it would commit a placeholder.
+            // The line is asked for outright rather than refused with a notice — there's
+            // only one thing missing, and only one place to put it.
+            writingOwnWisdom = true
         } else {
             // Only when a control was used: the control can now be live for a theme
             // change alone, and under All an untouched draft stands for nothing — writing
             // it would flatten three different looks onto one nobody picked.
             if (touched) onApplyStyle(scope.targets, draft)
-            if (draftWisdomCategory != wisdomCategory) {
-                onSelectWisdomCategory(draftWisdomCategory)
+            if (wisdomPending) {
+                onApplyWisdom(draftWisdomCategory, draftWisdomIndex, draftWisdomOwnText)
             }
         }
     }
@@ -568,6 +609,7 @@ fun StudioScreen(
                 draftAlignId = draftAlignId,
                 draftBackgroundId = draftBackgroundId,
                 draftCornerRadius = draftCornerRadius,
+                draftCustomColour = draftCustomColour,
                 previewLooks = previewLooks,
                 matchedPresetId = matchedPreset?.id,
                 photoUri = scopePhotoUri,
@@ -583,6 +625,7 @@ fun StudioScreen(
                 },
                 onSelectFont = { draftFontId = it; touched = true },
                 onSelectTheme = { draftThemeId = it; touched = true },
+                onPickCustomColour = { pickingColour = true },
                 onSelectAlign = { draftAlignId = it; touched = true },
                 onSelectBackground = { draftBackgroundId = it; touched = true },
                 onCornerRadiusChange = { draftCornerRadius = it; touched = true },
@@ -596,7 +639,29 @@ fun StudioScreen(
                 wisdomCategory = draftWisdomCategory,
                 // Normalised here so a drafted theme and an applied one are the same
                 // string, and the two can be compared for whether anything is pending.
-                onSelectWisdomCategory = { draftWisdomCategory = it.lowercase() },
+                onSelectWisdomCategory = { theme ->
+                    val picked = theme.lowercase()
+                    draftWisdomCategory = picked
+                    // A line the new theme doesn't hold would leave the card showing one
+                    // from the theme before it. Their own theme has no pool to draw from,
+                    // so the index is left where it was for a return to a real theme.
+                    if (!isOwnWisdom(picked) && draftWisdomIndex !in wisdomIndices(picked)) {
+                        draftWisdomIndex = randomWisdomIndex(picked)
+                    }
+                    // Nothing to show under their own theme until something is written,
+                    // so picking it asks for the line in the same breath.
+                    if (isOwnWisdom(picked) && draftWisdomOwnText.isBlank()) {
+                        writingOwnWisdom = true
+                    }
+                },
+                onShuffleWisdom = {
+                    draftWisdomIndex = nextWisdomIndex(draftWisdomIndex, draftWisdomCategory)
+                },
+                onWriteOwnWisdom = { writingOwnWisdom = true },
+                // Drawn as the Wisdom widget is dressed, whether or not that's the widget
+                // being styled — the card is a preview of the line, not of the scope.
+                wisdomLook = previewLooks[WidgetTarget.Wisdom]
+                    ?: lookOf(WidgetTarget.Wisdom).resolve(),
                 onAddWidget = pin,
                 contentPadding = contentPadding
             )
@@ -607,6 +672,36 @@ fun StudioScreen(
 
     if (showSettings) {
         SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+    }
+
+    if (pickingColour) {
+        ColourPickerDialog(
+            initial = draftCustomColour,
+            onDismiss = { pickingColour = false },
+            onConfirm = { argb ->
+                // Mixing one selects it as well: nobody opens the picker to leave the
+                // colour they chose unused.
+                draftCustomColour = argb
+                draftThemeId = CardThemes.CUSTOM_ID
+                touched = true
+                pickingColour = false
+            }
+        )
+    }
+
+    if (writingOwnWisdom) {
+        OwnWisdomDialog(
+            initial = draftWisdomOwnText,
+            userFont = userFont,
+            onDismiss = { writingOwnWisdom = false },
+            onConfirm = { line ->
+                // Writing one chooses it as well: nobody writes a line to leave the card
+                // showing somebody else's.
+                draftWisdomOwnText = line
+                draftWisdomCategory = OWN_WISDOM_CATEGORY
+                writingOwnWisdom = false
+            }
+        )
     }
 
     if (showMissingPhoto) {
@@ -633,6 +728,7 @@ private fun ColumnScope.DesignTab(
     draftAlignId: Int,
     draftBackgroundId: Int,
     draftCornerRadius: Int,
+    draftCustomColour: Int,
     /** What the phone draws, per widget — the keys are the widgets in scope. */
     previewLooks: Map<WidgetTarget, ResolvedLook>,
     matchedPresetId: Int?,
@@ -642,6 +738,7 @@ private fun ColumnScope.DesignTab(
     onSelectPreset: (ThemePreset) -> Unit,
     onSelectFont: (Int) -> Unit,
     onSelectTheme: (Int) -> Unit,
+    onPickCustomColour: () -> Unit,
     onSelectAlign: (Int) -> Unit,
     onSelectBackground: (Int) -> Unit,
     onCornerRadiusChange: (Int) -> Unit,
@@ -650,6 +747,10 @@ private fun ColumnScope.DesignTab(
     onApplyFont: () -> Unit,
     wisdomCategory: String,
     onSelectWisdomCategory: (String) -> Unit,
+    onShuffleWisdom: () -> Unit,
+    onWriteOwnWisdom: () -> Unit,
+    /** How the Wisdom widget is dressed — what the daily line is previewed on. */
+    wisdomLook: ResolvedLook,
     onAddWidget: (Class<*>) -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -732,12 +833,31 @@ private fun ColumnScope.DesignTab(
         Spacer(Modifier.height(30.dp))
         Text(text = "THEME", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
-        ThemePicker(selectedId = draftThemeId, onSelect = onSelectTheme)
+        ThemePicker(
+            selectedId = draftThemeId,
+            customColour = draftCustomColour,
+            onSelect = onSelectTheme,
+            onPickCustom = onPickCustomColour
+        )
 
         Spacer(Modifier.height(30.dp))
         Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
         WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
+
+        // The line itself, under the themes that choose it. Shuffling here only moves
+        // the draft: like every other control on this screen it takes applying before
+        // Today and the widgets follow.
+        Spacer(Modifier.height(16.dp))
+        WisdomDraftCard(
+            wisdom = wisdom,
+            look = wisdomLook,
+            // Their own theme holds one line, so there is nothing to shuffle to — the
+            // control offers to rewrite it instead.
+            isOwn = isOwnWisdom(wisdomCategory),
+            onShuffle = onShuffleWisdom,
+            onWriteOwn = onWriteOwnWisdom
+        )
 
         // The same action as the one on the preview, repeated at the foot of the
         // list: by the time the pickers have been scrolled through, the control up
@@ -774,25 +894,188 @@ private fun WisdomThemePicker(selected: String, onSelect: (String) -> Unit) {
     ) {
         WISDOM_THEMES.forEach { theme ->
             // Stored lowercase, offered in title case, so the two are compared loosely.
-            val isSelected = theme.equals(selected, ignoreCase = true)
-            Box(
+            WisdomThemeChip(
+                label = theme,
+                isSelected = theme.equals(selected, ignoreCase = true),
+                onClick = { onSelect(theme) }
+            )
+        }
+        // Last and marked, because it's the only one that asks for something back: the
+        // others are lists to draw from, this one is a line to write.
+        WisdomThemeChip(
+            label = OWN_WISDOM_LABEL,
+            isSelected = isOwnWisdom(selected),
+            isPlus = true,
+            onClick = { onSelect(OWN_WISDOM_CATEGORY) }
+        )
+    }
+}
+
+@Composable
+private fun WisdomThemeChip(
+    label: String,
+    isSelected: Boolean,
+    isPlus: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isSelected) NavBar else Canvas)
+            .then(if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                append(label)
+                if (isPlus) {
+                    withStyle(
+                        SpanStyle(
+                            color = if (isSelected) OnNavBar.copy(alpha = 0.8f) else PlusMark
+                        )
+                    ) {
+                        append(" +")
+                    }
+                }
+            },
+            style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
+            color = if (isSelected) OnNavBar else OnCanvas
+        )
+    }
+}
+
+/**
+ * The line as it would read on the card, drawn on the Wisdom widget's own surface.
+ *
+ * Full width rather than inside the mock phone: this is where the line is chosen, and a
+ * quote has to be read at the size it will be read at to be judged.
+ */
+@Composable
+private fun WisdomDraftCard(
+    wisdom: Wisdom,
+    look: ResolvedLook,
+    isOwn: Boolean,
+    onShuffle: () -> Unit,
+    onWriteOwn: () -> Unit
+) {
+    val skin = look.skin
+    val photo = rememberWidgetPhoto(look.photoUri.takeIf { skin.usesPhoto })
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(look.shape)
+            .then(
+                if (photo != null) {
+                    Modifier.croppedPhotoBackground(photo)
+                } else {
+                    Modifier.background(skin.background)
+                }
+            )
+            .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
+            .then(skin.border?.let { Modifier.border(1.dp, it, look.shape) } ?: Modifier)
+            .padding(20.dp)
+    ) {
+        Text(
+            text = look.align.format(wisdom.text),
+            style = VisionType.quote(look.font),
+            color = skin.onSurface,
+            textAlign = look.align.textAlign,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = wisdom.category.uppercase(),
+                style = VisionType.eyebrow,
+                color = skin.onSurfaceMuted
+            )
+            Text(
+                text = if (isOwn) "EDIT ✎" else "SHUFFLE ↻",
+                style = VisionType.eyebrow,
+                color = skin.onSurfaceMuted,
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(if (isSelected) NavBar else Canvas)
-                    .then(
-                        if (isSelected) Modifier else Modifier.border(1.dp, Rule, CircleShape)
-                    )
-                    .clickable { onSelect(theme) }
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    text = theme,
-                    style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
-                    color = if (isSelected) OnNavBar else OnCanvas
-                )
-            }
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = if (isOwn) onWriteOwn else onShuffle)
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            )
         }
     }
+}
+
+/**
+ * Where the user's own line is written. Held to one line and one length — it has to sit
+ * on the widest card there is, which is where [MAX_OWN_WISDOM_LENGTH] comes from.
+ */
+@Composable
+private fun OwnWisdomDialog(
+    initial: String,
+    userFont: UserFontChoice,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var draft by rememberSaveable { mutableStateOf(initial) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    val commit = {
+        val line = draft.trim()
+        // A blank line would leave the card on its placeholder, so it's simply not taken.
+        if (line.isNotEmpty()) onConfirm(line) else onDismiss()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Canvas,
+        title = { Text(text = "YOUR OWN LINE", style = VisionType.eyebrow, color = OnCanvas) },
+        text = {
+            Column {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it.take(MAX_OWN_WISDOM_LENGTH) },
+                    singleLine = true,
+                    textStyle = VisionType.bodyText(userFont).copy(color = OnCanvas),
+                    cursorBrush = SolidColor(OnCanvas),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { commit() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .drawBehind {
+                            val stroke = 1.dp.toPx()
+                            val y = size.height - stroke / 2
+                            drawLine(
+                                color = OnCanvas,
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = stroke
+                            )
+                        }
+                        .padding(bottom = 4.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "${draft.length} / $MAX_OWN_WISDOM_LENGTH",
+                    style = VisionType.eyebrow,
+                    color = OnCanvasMuted
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = commit) {
+                Text(text = "SAVE", style = VisionType.eyebrow, color = OnCanvas)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "CANCEL", style = VisionType.eyebrow, color = OnCanvasMuted)
+            }
+        }
+    )
 }
 
 /**
@@ -1493,11 +1776,18 @@ private fun LayoutPicker(selectedId: Int, onSelect: (Int) -> Unit) {
 }
 
 /**
- * Every colour as its own swatch, free tier first. The name sits under the square
- * rather than inside it — several of the surfaces are too pale to carry text.
+ * Every colour as its own swatch, with a row under them for one the user mixes.
+ *
+ * The name sits under the square rather than inside it — several of the surfaces are
+ * too pale to carry text.
  */
 @Composable
-private fun ThemePicker(selectedId: Int, onSelect: (Int) -> Unit) {
+private fun ThemePicker(
+    selectedId: Int,
+    customColour: Int,
+    onSelect: (Int) -> Unit,
+    onPickCustom: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -1517,6 +1807,216 @@ private fun ThemePicker(selectedId: Int, onSelect: (Int) -> Unit) {
                 }
                 repeat(ThemeColumns - row.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+
+        CustomColourRow(
+            colour = customColour,
+            isSelected = selectedId == CardThemes.CUSTOM_ID,
+            onSelect = { onSelect(CardThemes.CUSTOM_ID) },
+            onPick = onPickCustom
+        )
+    }
+}
+
+/**
+ * The row under the palette for a colour of the user's own.
+ *
+ * Marked with the same plus the paid faces carry: the palette above is given, this is
+ * the one colour choice that isn't. What it says of itself is that the text on it is
+ * worked out rather than chosen — nobody hand-paired an ink to a colour that didn't
+ * exist until it was mixed.
+ */
+@Composable
+private fun CustomColourRow(
+    colour: Int,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onPick: () -> Unit
+) {
+    val shown = if (colour == 0) CardThemes.default.surface else Color(colour)
+    val shape = RoundedCornerShape(16.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(if (isSelected) 2.dp else 1.dp, if (isSelected) OnCanvas else Rule, shape)
+            .clickable(onClick = onSelect)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(SwatchShape)
+                .background(shown)
+                .border(1.dp, hairlineFor(shown), SwatchShape)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "Your own colour +",
+                style = VisionType.bodyText(UserFonts[UserFonts.DEFAULT_ID]),
+                color = OnCanvas
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "${shown.hex()} · TEXT AUTO-CONTRASTS",
+                style = VisionType.eyebrow,
+                color = OnCanvasMuted
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .border(1.dp, Rule, CircleShape)
+                .clickable(onClick = onPick)
+                .padding(horizontal = 18.dp, vertical = 10.dp)
+        ) {
+            Text(
+                text = "PICK +",
+                style = VisionType.eyebrow,
+                color = OnCanvas,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/** The colour as it is written where a colour is named by its digits. */
+private fun Color.hex(): String = String.format(
+    "#%02X%02X%02X",
+    (red * 255).roundToInt(),
+    (green * 255).roundToInt(),
+    (blue * 255).roundToInt()
+)
+
+/**
+ * Mixing a colour by hand: its hue, how much of it there is, and how light it runs.
+ *
+ * Three rails rather than a square and a wheel. A card is read at arm's length on a
+ * home screen and the choice that matters is roughly which colour and roughly how dark
+ * — a rail says that plainly, and says it the same whichever hand is holding the phone.
+ *
+ * The preview underneath is the real thing: the card's own surface with the ink this
+ * colour works out to, so what the text will look like is settled before the choice is.
+ */
+@Composable
+private fun ColourPickerDialog(
+    initial: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    val start = remember(initial) {
+        val base = if (initial == 0) CardThemes.default.surface else Color(initial)
+        FloatArray(3).also {
+            android.graphics.Color.colorToHSV(
+                android.graphics.Color.rgb(
+                    (base.red * 255).roundToInt(),
+                    (base.green * 255).roundToInt(),
+                    (base.blue * 255).roundToInt()
+                ),
+                it
+            )
+        }
+    }
+    var hue by remember(initial) { mutableStateOf(start[0]) }
+    var saturation by remember(initial) { mutableStateOf(start[1]) }
+    var value by remember(initial) { mutableStateOf(start[2]) }
+
+    val argb = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))
+    val surface = Color(argb)
+    val ink = autoOnSurface(surface)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Canvas,
+        title = { Text(text = "Your own colour", style = VisionType.screenPromptTitle(UserFonts[UserFonts.DEFAULT_ID]), color = OnCanvas) },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(surface)
+                        .border(1.dp, hairlineFor(surface), RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column {
+                        Text(text = "VISION", style = VisionType.eyebrow, color = ink.copy(alpha = 0.55f))
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Harvard Law",
+                            style = VisionType.cardTitle(UserFonts[UserFonts.DEFAULT_ID]),
+                            color = ink
+                        )
+                    }
+                    Text(
+                        text = surface.hex(),
+                        style = VisionType.eyebrow,
+                        color = ink.copy(alpha = 0.55f),
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
+                }
+
+                Spacer(Modifier.height(18.dp))
+                ColourRail("HUE", hue / 360f, { hue = it * 360f }, List(7) { i ->
+                    Color(android.graphics.Color.HSVToColor(floatArrayOf(i * 60f, 1f, 1f)))
+                })
+                ColourRail("SATURATION", saturation, { saturation = it }, listOf(
+                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, value))),
+                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, value)))
+                ))
+                ColourRail("LIGHTNESS", value, { value = it }, listOf(
+                    Color.Black,
+                    Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))
+                ))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(argb) }) {
+                Text(text = "USE THIS", style = VisionType.eyebrow, color = OnCanvas)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "CANCEL", style = VisionType.eyebrow, color = OnCanvasMuted)
+            }
+        }
+    )
+}
+
+/** One labelled rail, its track showing the colours the thumb would land on. */
+@Composable
+private fun ColourRail(
+    label: String,
+    fraction: Float,
+    onChange: (Float) -> Unit,
+    track: List<Color>
+) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+        Text(text = label, style = VisionType.eyebrow, color = OnCanvasMuted)
+        Spacer(Modifier.height(6.dp))
+        Box(Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .align(Alignment.Center)
+                    .clip(CircleShape)
+                    .background(Brush.horizontalGradient(track))
+            )
+            Slider(
+                value = fraction.coerceIn(0f, 1f),
+                onValueChange = onChange,
+                colors = SliderDefaults.colors(
+                    thumbColor = OnCanvas,
+                    activeTrackColor = Color.Transparent,
+                    inactiveTrackColor = Color.Transparent
+                )
+            )
         }
     }
 }
@@ -1555,20 +2055,7 @@ private fun ThemeSwatch(
                     // Every swatch is outlined, not just the pale ones: in a grid the
                     // squares need a common edge to read as one set.
                     .border(1.dp, theme.border ?: theme.onSurfaceRule, SwatchShape)
-            ) {
-                if (theme.id > CardThemes.LAST_FREE_ID) {
-                    Text(
-                        text = "+",
-                        style = SwatchPlus,
-                        // Taken from the colour's own text tone, so it stays legible on
-                        // a pale butter and on a near-black cacao alike.
-                        color = theme.onSurface.copy(alpha = 0.75f),
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
-            }
+            )
         }
         Spacer(Modifier.height(5.dp))
         Text(
@@ -1788,23 +2275,13 @@ private fun VisionWidget(
             textAlign = align.textAlign,
             modifier = Modifier.fillMaxWidth()
         )
-        HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
-
-        val milestones = vision?.milestones.orEmpty()
-        if (milestones.isEmpty()) {
-            EmptyWidgetLine(skin = skin, userFont = userFont, align = align)
-        } else {
-            milestones.forEach { milestone ->
-                WidgetTaskRow(
-                    text = milestone.step,
-                    checked = milestone.checked,
-                    skin = skin,
-                    userFont = userFont,
-                    align = align
-                )
-            }
-        }
-
+        Text(
+            text = align.format(vision?.why?.takeIf { it.isNotBlank() } ?: "Nothing set yet."),
+            style = widgetLine(userFont),
+            color = skin.onSurfaceMuted,
+            textAlign = align.textAlign,
+            modifier = Modifier.fillMaxWidth()
+        )
         HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
         // Each side takes half the row and wraps within it. Left to SpaceBetween the
         // two run together once the date and the countdown are both long enough to
@@ -1840,6 +2317,10 @@ private fun TopThreeWidget(
 ) {
     val set = tasks.indices.filter { tasks[it] != null }
     val done = set.count { checked[it] }
+    // The widget has no more room for a sixth row than a fourth, so the preview caps
+    // at the same base three and names whatever is past it the same way the card does.
+    val shown = set.take(BASE_TOP_THREE_TASKS)
+    val overflow = set.size - shown.size
 
     WidgetCard(skin, photoUri, align, shape) {
         Text(
@@ -1851,16 +2332,25 @@ private fun TopThreeWidget(
             textAlign = align.textAlign,
             modifier = Modifier.fillMaxWidth()
         )
-        if (set.isEmpty()) {
+        if (shown.isEmpty()) {
             EmptyWidgetLine(skin = skin, userFont = userFont, align = align)
         } else {
-            set.forEach { index ->
+            shown.forEach { index ->
                 WidgetTaskRow(
                     text = tasks[index].orEmpty(),
                     checked = checked[index],
                     skin = skin,
                     userFont = userFont,
                     align = align
+                )
+            }
+            if (overflow > 0) {
+                Text(
+                    text = "+ $overflow more",
+                    style = WidgetMeta,
+                    color = skin.onSurfaceMuted,
+                    textAlign = align.textAlign,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

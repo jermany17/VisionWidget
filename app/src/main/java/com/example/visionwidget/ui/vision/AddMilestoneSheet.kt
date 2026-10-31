@@ -142,7 +142,9 @@ fun AddMilestoneSheet(
                 Spacer(Modifier.height(10.dp))
                 StepField(
                     value = step,
-                    onValueChange = { step = it },
+                    // Clamped rather than called out, the way the goal and the task
+                    // fields are: running out of room at the last character says itself.
+                    onValueChange = { value -> step = value.take(MAX_MILESTONE_STEP_LENGTH) },
                     textStyle = VisionType.cardTitle(userFont)
                 )
                 Spacer(Modifier.height(12.dp))

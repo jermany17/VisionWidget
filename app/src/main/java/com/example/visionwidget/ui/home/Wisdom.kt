@@ -45,12 +45,48 @@ val WISDOM_THEMES = listOf(
 val DEFAULT_WISDOM_THEME = WISDOM_THEMES.first().lowercase()
 
 /**
+ * The line the user wrote themselves, which belongs to no theme in the list above.
+ *
+ * Held as a category rather than as a flag beside one: everywhere a theme is read, this
+ * is the same kind of answer, and the card asks the same question of both.
+ */
+const val OWN_WISDOM_CATEGORY = "your own"
+
+/** What that choice is called where the themes are offered. */
+const val OWN_WISDOM_LABEL = "Your own"
+
+/** Stands in until a line is written, so the card is never left blank. */
+const val OWN_WISDOM_PLACEHOLDER = "Write a line of your own."
+
+/**
+ * How long the user's own line can run. The widest the quote is ever set is the 4x4
+ * card, which holds about this much before it has to start cutting.
+ */
+const val MAX_OWN_WISDOM_LENGTH = 70
+
+fun isOwnWisdom(category: String) = category.equals(OWN_WISDOM_CATEGORY, ignoreCase = true)
+
+/**
+ * The line a category is showing — the user's own, or the one at [index].
+ *
+ * Every card goes through here rather than reaching into [WISDOM] by index, since under
+ * the user's own theme there is no index to reach by.
+ */
+fun wisdomFor(category: String, index: Int, ownText: String): Wisdom =
+    if (isOwnWisdom(category)) {
+        Wisdom(OWN_WISDOM_CATEGORY, ownText.ifBlank { OWN_WISDOM_PLACEHOLDER })
+    } else {
+        WISDOM[index.coerceIn(WISDOM.indices)]
+    }
+
+/**
  * The lines belonging to [category].
  *
  * A name with nothing under it falls back to the whole list rather than to nothing: an
  * empty theme would leave the card with no quote to draw at all.
  */
 fun wisdomIndices(category: String): List<Int> {
+    if (isOwnWisdom(category)) return emptyList()
     val matching = WISDOM.indices.filter { WISDOM[it].category.equals(category, ignoreCase = true) }
     return matching.ifEmpty { WISDOM.indices.toList() }
 }

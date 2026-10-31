@@ -37,6 +37,17 @@ import kotlin.math.sin
  */
 private const val DESIGN_SIZE = 320f
 
+/**
+ * What everything on a widget is painted with: edges smoothed, and glyphs placed at
+ * subpixel positions rather than snapped to whole ones.
+ *
+ * Subpixel placement earns its keep here because a card is drawn at whatever size the
+ * cell turns out to be rather than at a size the type was fitted to. Rounding every
+ * glyph to the nearest whole pixel at those sizes is what leaves a line looking unevenly
+ * spaced, and it shows most on the small type the eyebrows and dates are set in.
+ */
+internal const val CardPaintFlags = Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG
+
 private val WeekdayFormat = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)
 private val DateFormat = DateTimeFormatter.ofPattern("MMM dd", Locale.ENGLISH)
 
@@ -57,7 +68,7 @@ fun renderClockFace(context: Context, sizePx: Int, now: LocalDateTime = LocalDat
     val ink = Color.argb(240, 255, 255, 255)
 
     return roundedCanvas(sizePx, sizePx, p(32f)) { canvas ->
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        val fill = Paint(CardPaintFlags)
 
         // The three layers the design states: the wallpaper, the panel's own
         // translucent fill over it, and a sheen falling across both.
@@ -110,7 +121,7 @@ private fun drawDial(
     val cy = p(165.7f)
     val radius = p(95f)
 
-    val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val stroke = Paint(CardPaintFlags).apply {
         style = Paint.Style.STROKE
         strokeWidth = p(1f)
         color = Color.argb(31, 255, 255, 255)
@@ -141,7 +152,7 @@ private fun drawDial(
 
     // Both hands run clockwise from twelve. The hour hand carries the minutes and the
     // minute hand the seconds, so neither ever jumps.
-    val hand = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val hand = Paint(CardPaintFlags).apply {
         color = ink
         strokeCap = Paint.Cap.ROUND
     }
@@ -174,7 +185,7 @@ fun renderQuoteFace(context: Context, sizePx: Int, now: LocalDateTime = LocalDat
     val ink = 0xFF433A37.toInt()
 
     return roundedCanvas(sizePx, sizePx, p(31f)) { canvas ->
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        val fill = Paint(CardPaintFlags)
         fill.color = 0xFFF5F0E9.toInt()
         canvas.drawRect(0f, 0f, sizePx.toFloat(), sizePx.toFloat(), fill)
 
@@ -222,7 +233,7 @@ fun renderQuoteFace(context: Context, sizePx: Int, now: LocalDateTime = LocalDat
 
         // The block is set from its foot: the rule sits a fixed distance off the bottom
         // and the three lines stack upward from it.
-        val rulePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink; alpha = 191 }
+        val rulePaint = Paint(CardPaintFlags).apply { color = ink; alpha = 191 }
         val ruleTop = sizePx - p(31f) - p(2f)
         canvas.drawRect(p(29f), ruleTop, p(29f) + p(31f), ruleTop + p(2f), rulePaint)
 
@@ -270,7 +281,7 @@ internal fun roundedCanvas(
     content(Canvas(square))
 
     val rounded = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val paint = Paint(CardPaintFlags).apply {
         shader = BitmapShader(square, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
     }
     Canvas(rounded).drawRoundRect(
@@ -288,7 +299,7 @@ private fun textPaint(
     sizePx: Float,
     colour: Int,
     letterSpacing: Float = 0f
-) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+) = Paint(CardPaintFlags).apply {
     typeface = face
     textSize = sizePx
     color = colour
@@ -345,7 +356,7 @@ fun renderBlushCalendar(
     return roundedCanvas(widthPx, heightPx, p(29f)) { canvas ->
         val w = widthPx.toFloat()
         val h = heightPx.toFloat()
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        val fill = Paint(CardPaintFlags)
 
         // The blush itself: one wash across the whole card, then three soft lights
         // pooled on top of it.
@@ -433,7 +444,7 @@ private fun drawMonthGrid(
     val column = gridWidth / 7f
     val ink = Color.argb(214, 111, 66, 76)
 
-    val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val headingPaint = Paint(CardPaintFlags).apply {
         typeface = sans
         textSize = p(9f)
         color = ink
@@ -450,13 +461,13 @@ private fun drawMonthGrid(
         )
     }
 
-    val dayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val dayPaint = Paint(CardPaintFlags).apply {
         typeface = serif
         textSize = p(10f)
         color = ink
         textAlign = Paint.Align.CENTER
     }
-    val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(102, 255, 255, 255) }
+    val markPaint = Paint(CardPaintFlags).apply { color = Color.argb(102, 255, 255, 255) }
 
     // Weeks run Sunday first, as the heading row does, so the first of the month is
     // pushed along by however many days precede it.
@@ -478,7 +489,7 @@ private fun drawMonthGrid(
 
 /** Georgia sets this face in italic, and none of the app's own faces carry one. */
 private fun italicPaint(face: android.graphics.Typeface?, sizePx: Float, colour: Int) =
-    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    Paint(CardPaintFlags).apply {
         typeface = face
         textSize = sizePx
         color = colour

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Daily Wisdom at 2x2 rather than 4x2 — its own separate widget, not a resize of the
+  other one. Not resizable, for the same reason neither of the others are: the card is a
+  drawing with a proportion of its own, and dragging it about can only take it further
+  from what Studio shows.
+
+  The preview is what the picker shows before the widget is placed. A Glance widget has
+  no static layout to draw one from, and without it the picker says it cannot add the
+  widget at all.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:previewImage="@drawable/preview_wisdom_small"
+    android:initialLayout="@layout/vision_widget_loading" />

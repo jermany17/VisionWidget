@@ -26,8 +26,27 @@ data class WidgetStyle(
     val themeId: Int = CardThemes.DEFAULT_ID,
     val alignId: Int = Alignments.DEFAULT_ID,
     val backgroundId: Int = BackgroundStyles.DEFAULT_ID,
-    val cornerRadius: Int = CornerRadii.DEFAULT
+    val cornerRadius: Int = CornerRadii.DEFAULT,
+    /**
+     * The colour mixed by hand, carried alongside the id rather than looked up by it.
+     * A palette colour can be named by number because the list is the same for
+     * everyone; this one exists nowhere but here, so it travels with the style.
+     * Only read when [themeId] is [CardThemes.CUSTOM_ID].
+     */
+    val customColour: Int = 0
 )
+
+/**
+ * The colours a style is dressed in — the palette entry it names, or the one it
+ * carries. Every card goes through here rather than reaching for the palette directly,
+ * so a mixed colour is drawn by the widget exactly as Studio previews it.
+ */
+fun themeOf(style: WidgetStyle): CardTheme =
+    if (style.themeId == CardThemes.CUSTOM_ID) {
+        CardThemes.custom(style.customColour)
+    } else {
+        CardThemes[style.themeId]
+    }
 
 /**
  * One widget's whole appearance — the committed style and the picture behind it. Photos
@@ -51,7 +70,7 @@ data class ResolvedLook(
 )
 
 fun WidgetLook.resolve(): ResolvedLook = ResolvedLook(
-    skin = widgetSkin(CardThemes[style.themeId], BackgroundStyles[style.backgroundId]),
+    skin = widgetSkin(themeOf(style), BackgroundStyles[style.backgroundId]),
     photoUri = photoUri,
     font = UserFonts[style.fontId],
     align = Alignments[style.alignId],

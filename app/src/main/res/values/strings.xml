@@ -9,6 +9,12 @@
     <string name="widget_label_vision">Vision</string>
     <string name="widget_label_top_three">Today\'s Top 3</string>
     <string name="widget_label_wisdom">Daily Wisdom</string>
+    <string name="widget_label_vision_small">Vision · Small</string>
+    <string name="widget_label_top_three_small">Today\'s Top 3 · Small</string>
+    <string name="widget_label_wisdom_small">Daily Wisdom · Small</string>
+    <string name="widget_label_vision_large">Vision · Large</string>
+    <string name="widget_label_top_three_large">Today\'s Top 3 · Large</string>
+    <string name="widget_label_wisdom_large">Daily Wisdom · Large</string>
     <string name="widget_label_clock">Clock</string>
     <string name="widget_label_quote">Quote</string>
     <string name="widget_label_calendar">Calendar</string>

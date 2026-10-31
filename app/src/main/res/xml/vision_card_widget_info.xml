@@ -15,11 +15,11 @@
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="130dp"
+    android:minHeight="110dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="3"
+    android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
     android:resizeMode="none"
     android:widgetCategory="home_screen"
-    android:previewImage="@drawable/preview_card"
+    android:previewImage="@drawable/preview_vision_medium"
     android:initialLayout="@layout/vision_widget_loading" />

@@ -125,6 +125,8 @@ fun TodayScreen(
     onToggleTopThree: (index: Int) -> Unit = {},
     onClearTopThree: (index: Int) -> Unit = {},
     wisdomIndex: Int = 0,
+    wisdomCategory: String = DEFAULT_WISDOM_THEME,
+    wisdomOwnText: String = "",
     onShuffleWisdom: () -> Unit = {},
     onOpenVision: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -260,8 +262,10 @@ fun TodayScreen(
                 shape = wisdomCard.shape,
                 userFont = wisdomCard.font,
                 align = wisdomCard.align,
-                wisdom = WISDOM[wisdomIndex.coerceIn(WISDOM.indices)],
-                onShuffle = onShuffleWisdom
+                wisdom = wisdomFor(wisdomCategory, wisdomIndex, wisdomOwnText),
+                // Nothing to shuffle to when the line is the user's own — there is
+                // one of it, and the control would do nothing but sit there.
+                onShuffle = onShuffleWisdom.takeUnless { isOwnWisdom(wisdomCategory) }
             )
 
             Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
@@ -846,7 +850,8 @@ private fun WisdomCard(
     userFont: UserFontChoice,
     align: AlignChoice,
     wisdom: Wisdom,
-    onShuffle: () -> Unit
+    /** Null when there is nothing to shuffle to, which leaves the control off. */
+    onShuffle: (() -> Unit)?
 ) {
     // No minimum height: a floor would leave slack under the footer on short quotes,
     // so the gap below the meta row would grow as the quote got shorter.
@@ -870,15 +875,17 @@ private fun WisdomCard(
                     style = VisionType.eyebrow,
                     color = skin.onSurfaceMuted
                 )
-                Text(
-                    text = "SHUFFLE ↻",
-                    style = VisionType.eyebrow,
-                    color = skin.onSurfaceMuted,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onShuffle)
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
-                )
+                if (onShuffle != null) {
+                    Text(
+                        text = "SHUFFLE ↻",
+                        style = VisionType.eyebrow,
+                        color = skin.onSurfaceMuted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(onClick = onShuffle)
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }
