@@ -14,6 +14,7 @@ import com.example.visionwidget.ui.home.wisdomIndices
 import com.example.visionwidget.ui.vision.Milestone
 import com.example.visionwidget.widget.updateDesignWidgets
 import com.example.visionwidget.ui.vision.Vision
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -165,18 +166,34 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
      * make.
      */
     private fun redrawWidgets() {
-        // A failure to redraw must not take the caller with it, and must not cancel the
-        // watcher below — one unlucky update would otherwise leave every later change
-        // unannounced for the rest of the session. Said out loud all the same: a card
-        // that quietly keeps the picture it had looks exactly like one nobody asked to
-        // redraw, and the two want telling apart.
-        viewModelScope.launch {
-            runCatching { updateDesignWidgets(getApplication()) }
-                .onFailure { Log.w(WidgetLogTag, "Widget redraw failed", it) }
-        }
+        requests.trySend(Unit)
     }
 
+    /**
+     * Asks for a redraw without queuing one per request.
+     *
+     * A single edit sets off more than one of these — the write asks directly, and the
+     * watcher below sees the same write land and asks again — and typing a task sets off
+     * one per keystroke. Run in turn, those stack up behind each other and the last one,
+     * which is the only one carrying what the user actually ended up with, arrives last
+     * of all. Conflated, a request that comes in while one is running replaces anything
+     * else waiting, so a burst costs one redraw and then one more with the final state.
+     */
+    private val requests = Channel<Unit>(Channel.CONFLATED)
+
     init {
+        // The one place a redraw actually happens. A failure must not take the caller
+        // with it, and must not end this loop — one unlucky update would otherwise
+        // leave every later change unannounced for the rest of the session. Said out
+        // loud all the same: a card that quietly keeps the picture it had looks exactly
+        // like one nobody asked to redraw, and the two want telling apart.
+        viewModelScope.launch {
+            for (request in requests) {
+                runCatching { updateDesignWidgets(getApplication()) }
+                    .onFailure { Log.w(WidgetLogTag, "Widget redraw failed", it) }
+            }
+        }
+
         // Once per process start: if the live slots still belong to a day that's
         // passed, archive them and clear the board for today. The cards are showing
         // yesterday's three until they're told, so they're told.
@@ -198,10 +215,10 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
                 .distinctUntilChanged()
                 // The first is only what the widgets are already showing.
                 .drop(1)
-                .collect {
-                    runCatching { updateDesignWidgets(getApplication()) }
-                        .onFailure { failure -> Log.w(WidgetLogTag, "Widget redraw failed", failure) }
-                }
+                // Through the same gate as every other request, so a write that asks
+                // directly and then lands in the database counts as one redraw rather
+                // than two.
+                .collect { redrawWidgets() }
         }
     }
 

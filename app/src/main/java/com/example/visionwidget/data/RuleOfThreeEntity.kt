@@ -48,6 +48,10 @@ interface RuleOfThreeDao {
     @Query("SELECT * FROM rule_of_three_slots ORDER BY slotIndex")
     fun observeSlots(): Flow<List<RuleOfThreeSlotEntity>>
 
+    /** The same rows, asked for once — see [VisionDao.visionsWithMilestones]. */
+    @Query("SELECT * FROM rule_of_three_slots ORDER BY slotIndex")
+    suspend fun slots(): List<RuleOfThreeSlotEntity>
+
     /** A slot with no row yet reads the same as an empty, unchecked one. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(slot: RuleOfThreeSlotEntity)

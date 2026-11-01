@@ -13,6 +13,18 @@ interface VisionDao {
     @Query("SELECT * FROM visions ORDER BY id")
     fun observeVisionsWithMilestones(): Flow<List<VisionWithMilestones>>
 
+    /**
+     * The same rows, asked for once.
+     *
+     * A widget wants what is there now, not to be told when it changes. Taking the first
+     * value off the flow instead registers a watcher against the tables, runs the query,
+     * and tears the watcher down again — for every widget, every time one redraws, which
+     * is the sort of cost that turns a change the user just made into a visible wait.
+     */
+    @Transaction
+    @Query("SELECT * FROM visions ORDER BY id")
+    suspend fun visionsWithMilestones(): List<VisionWithMilestones>
+
     /** Null once no vision is main — the fallback to the oldest one lives in the caller. */
     @Query("SELECT id FROM visions WHERE isMain = 1 LIMIT 1")
     fun observeMainVisionId(): Flow<Long?>

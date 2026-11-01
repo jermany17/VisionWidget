@@ -1,6 +1,7 @@
 package com.example.visionwidget.widget
 
 import android.content.Context
+import android.util.Log
 import android.util.DisplayMetrics
 import androidx.compose.runtime.Composable
 import androidx.glance.GlanceId
@@ -150,7 +151,7 @@ class VisionAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.Vision)
         val visions = AppDatabase.getInstance(context).visionDao()
-            .observeVisionsWithMilestones().first()
+            .visionsWithMilestones()
         // The main one, the same one Today follows — it's what the widgets are bound to.
         val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
 
@@ -208,7 +209,7 @@ class TopThreeAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
-        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().observeSlots().first()
+        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
         val slotCount = visibleSlotCount(slots)
         val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
         val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
@@ -242,7 +243,7 @@ class VisionCardLargeAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.Vision)
         val visions = AppDatabase.getInstance(context).visionDao()
-            .observeVisionsWithMilestones().first()
+            .visionsWithMilestones()
         val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
         val milestones = main?.milestones.orEmpty().map {
             MilestoneLine(
@@ -304,7 +305,7 @@ class TopThreeLargeAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val dao = AppDatabase.getInstance(context).ruleOfThreeDao()
-        val slots = dao.observeSlots().first()
+        val slots = dao.slots()
         val slotCount = visibleSlotCount(slots)
         val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
         val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
@@ -349,7 +350,7 @@ class VisionCardSmallAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.Vision)
         val visions = AppDatabase.getInstance(context).visionDao()
-            .observeVisionsWithMilestones().first()
+            .visionsWithMilestones()
         val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
 
         provideContent {
@@ -396,7 +397,7 @@ class TopThreeSmallAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
-        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().observeSlots().first()
+        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
         val slotCount = visibleSlotCount(slots)
         val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
         val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
@@ -460,13 +461,28 @@ class WisdomSmallWidgetReceiver : GlanceAppWidgetReceiver() {
  * half an hour away at best.
  */
 suspend fun updateDesignWidgets(context: Context) {
-    VisionAppWidget().updateAll(context)
-    TopThreeAppWidget().updateAll(context)
-    WisdomAppWidget().updateAll(context)
-    VisionCardSmallAppWidget().updateAll(context)
-    TopThreeSmallAppWidget().updateAll(context)
-    WisdomSmallAppWidget().updateAll(context)
-    VisionCardLargeAppWidget().updateAll(context)
-    TopThreeLargeAppWidget().updateAll(context)
-    WisdomLargeAppWidget().updateAll(context)
+    // One after another, not all at once. Running them together was quicker on paper
+    // and is not worth it: they all reach for the same store Glance keeps its widget
+    // state in, and a card that loses that race is a card left showing the old thing
+    // with nothing said about it. The pause they were meant to cut is gone anyway —
+    // each of these now asks the database once instead of subscribing to it.
+    listOf(
+        VisionAppWidget(),
+        TopThreeAppWidget(),
+        WisdomAppWidget(),
+        VisionCardSmallAppWidget(),
+        TopThreeSmallAppWidget(),
+        WisdomSmallAppWidget(),
+        VisionCardLargeAppWidget(),
+        TopThreeLargeAppWidget(),
+        WisdomLargeAppWidget()
+    ).forEach { widget ->
+        // One that fails is one card left as it was, not eight others abandoned — but
+        // it is said out loud, because a card that quietly keeps the picture it had
+        // looks exactly like one nobody asked to redraw.
+        runCatching { widget.updateAll(context) }
+            .onFailure {
+                Log.w("VisionWidget", "${widget.javaClass.simpleName} redraw failed", it)
+            }
+    }
 }

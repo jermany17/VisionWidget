@@ -77,6 +77,16 @@ data class GalleryWidget(
      */
     val previewUrl: String get() = "$url?date=$PREVIEW_DATE&time=$PREVIEW_TIME"
 
+    /**
+     * The design drawn as it will read at a given moment.
+     *
+     * The same query string the preview uses, pointed at a moment that has not arrived
+     * yet. A clock is painted for the minute ahead while the current one is still
+     * showing, so when that minute turns there is nothing left to do but hand the
+     * picture over.
+     */
+    fun urlAt(date: String, time: String): String = "$url?date=$date&time=$time"
+
     /** "SMALL · 2 × 2" — what the design is, under its name. */
     val meta: String get() = "${size.uppercase()} · ${cells.replace("x", " × ")}"
 
@@ -127,9 +137,16 @@ object GalleryCatalog {
     @Volatile
     private var loaded: List<GalleryWidget>? = null
 
-    /** Every design, in the order the file lists them. */
+    /**
+     * Every design, in the order the file lists them.
+     *
+     * A read that came back with nothing is not kept. The catalogue is what every widget
+     * finds its own design by, and a single failed read — which a widget update, running
+     * where it does, is in a position to have — would otherwise be remembered for the
+     * life of the process and leave every widget in the app unable to name itself.
+     */
     fun load(context: Context): List<GalleryWidget> =
-        loaded ?: read(context).also { loaded = it }
+        loaded ?: read(context).also { if (it.isNotEmpty()) loaded = it }
 
     private fun read(context: Context): List<GalleryWidget> = runCatching {
         val text = context.assets.open(ASSET).bufferedReader().use { it.readText() }

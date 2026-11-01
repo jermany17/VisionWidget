@@ -44,11 +44,33 @@ object DesignRenderer {
      * Everything is local — no network — so a page that has not settled by now is not
      * going to. A tile with nothing in it is better than a shelf that never scrolls.
      */
-    private const val TIMEOUT_MS = 8_000L
+    private const val LOAD_MS = 5_000L
+
+    /**
+     * How long to let the type and the photographs arrive after the page has.
+     *
+     * Running out here is not a failure — whatever the design has by then is drawn.
+     */
+    private const val READY_MS = 2_500L
 
     /** How often to ask the page whether it is ready, and how long to let it paint after. */
     private const val READY_POLL_MS = 50L
     private const val SETTLE_MS = 120L
+
+    /**
+     * Where the widget pictures are kept, and which generation of them.
+     *
+     * The generation is in the name so that a build which fixes how the pictures are
+     * drawn does not go on showing the ones drawn wrongly. A picture is kept on the
+     * disk and read back without question, and reinstalling does not clear the cache —
+     * so a design that was once written with another design's face would keep that face
+     * for good. Bumping this starts everyone clean.
+     */
+    private const val CACHE_DIR = "gallery-widgets-v3"
+
+    /** Whether the older generations have been cleared out this run. */
+    @Volatile
+    private var sweptOldCaches = false
 
     /** A quarter of what the app is allowed, which is the usual share for a picture cache. */
     private val cache = object : LruCache<String, Bitmap>(
@@ -57,9 +79,28 @@ object DesignRenderer {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    /** One at a time: the view is shared, and a second page would land in the first. */
+    /** One at a time, so there is never more than one web view alive at once. */
     private val lock = Mutex()
-    private var painter: WebView? = null
+
+    /** How many painters are drawing something a person is looking at right now. */
+    private val onScreen = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /**
+     * Whether the shelf is waiting on a picture.
+     *
+     * There is one view that paints, so anything drawn in the background is drawn in
+     * front of the tile under the user's finger. A sweep asks this and stands aside.
+     */
+    fun isBusyOnScreen(): Boolean = onScreen.get() > 0
+
+    private suspend fun <T> forScreen(block: suspend () -> T): T {
+        onScreen.incrementAndGet()
+        try {
+            return block()
+        } finally {
+            onScreen.decrementAndGet()
+        }
+    }
 
     private fun keyOf(widget: GalleryWidget, widthPx: Int) = "${widget.id}@$widthPx"
 
@@ -83,17 +124,21 @@ object DesignRenderer {
     ): Bitmap? {
         if (widthPx <= 0 || heightPx <= 0) return null
         if (!frozen) {
-            return lock.withLock { paint(context, widget, widthPx, heightPx, frozen = false) }
+            return forScreen {
+                lock.withLock { paint(context, widget, widthPx, heightPx, frozen = false) }
+            }
         }
 
         val key = keyOf(widget, widthPx)
         cache.get(key)?.let { return it }
 
-        return lock.withLock {
-            // Checked again inside the lock: several tiles can ask for the same design
-            // at once, and only the first should have to paint it.
-            cache.get(key) ?: paint(context, widget, widthPx, heightPx, frozen = true)?.also {
-                cache.put(key, it)
+        return forScreen {
+            lock.withLock {
+                // Checked again inside the lock: several tiles can ask for the same
+                // design at once, and only the first should have to paint it.
+                cache.get(key) ?: paint(context, widget, widthPx, heightPx, frozen = true)?.also {
+                    cache.put(key, it)
+                }
             }
         }
     }
@@ -109,8 +154,30 @@ object DesignRenderer {
      * update that needed it.
      */
     fun fileFor(context: Context, widget: GalleryWidget): File =
-        File(context.cacheDir, "gallery-widgets").apply { mkdirs() }
-            .let { File(it, "${widget.resourceName}.png") }
+        File(cacheDir(context), "${widget.resourceName}.png")
+
+    /**
+     * The picture directory for this generation, with the older ones cleared out.
+     *
+     * Done once per run rather than per picture: there is one widget per design, and a
+     * round of updates would otherwise walk the cache forty-odd times over.
+     */
+    private fun cacheDir(context: Context): File {
+        val dir = File(context.cacheDir, CACHE_DIR).apply { mkdirs() }
+        if (!sweptOldCaches) {
+            sweptOldCaches = true
+            runCatching {
+                context.cacheDir.listFiles()
+                    ?.filter {
+                        it.isDirectory &&
+                            it.name.startsWith("gallery-widgets") &&
+                            it.name != CACHE_DIR
+                    }
+                    ?.forEach { it.deleteRecursively() }
+            }
+        }
+        return dir
+    }
 
     /** The picture last painted for [widget], or null if there has never been one. */
     fun cached(context: Context, widget: GalleryWidget): Bitmap? {
@@ -118,6 +185,15 @@ object DesignRenderer {
         if (!file.exists()) return null
         return runCatching { BitmapFactory.decodeFile(file.path) }.getOrNull()
     }
+
+    /**
+     * Whether there is a picture for [widget] at all.
+     *
+     * Asked before a sweep decides to draw one, so the answer must not cost what
+     * reading the picture back would.
+     */
+    fun hasPicture(context: Context, widget: GalleryWidget): Boolean =
+        fileFor(context, widget).exists()
 
     /** How old a widget's picture may be before it is worth painting again. */
     fun isStale(context: Context, widget: GalleryWidget, maxAgeMs: Long): Boolean {
@@ -135,26 +211,108 @@ object DesignRenderer {
         context: Context,
         widget: GalleryWidget,
         widthPx: Int,
-        heightPx: Int
+        heightPx: Int,
+        /**
+         * The moment to draw, as `yyyy-MM-dd` and `HH:mm`, or null for now.
+         *
+         * A clock is painted for the minute that is coming rather than the one showing,
+         * so that when it arrives the picture is already waiting. Painting on the stroke
+         * of the minute instead puts the whole cost of drawing — a web view, a photo, a
+         * typeface — between the minute turning and the widget saying so.
+         */
+        at: Pair<String, String>? = null,
+        /** Where to leave it. The live picture unless it is being painted ahead. */
+        into: File = fileFor(context, widget)
     ): Boolean {
-        val bitmap = render(context, widget, widthPx, heightPx, frozen = false) ?: return false
-        return runCatching {
-            fileFor(context, widget).outputStream().use {
+        val url = at?.let { (date, time) -> widget.urlAt(date, time) } ?: widget.url
+        // Under the same lock as every other painter: the view is shared, and a tick
+        // landing while the shelf is painting its own tile would otherwise land in it.
+        val bitmap = lock.withLock { paintAt(context, widget, widthPx, heightPx, url) }
+            ?: return false
+        val kept = runCatching {
+            into.outputStream().use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
             true
         }.getOrDefault(false)
+        android.util.Log.i(
+            "VisionGallery",
+            "paint ${widget.id} ${widthPx}x${heightPx} -> ${into.name} kept=$kept url=$url"
+        )
+        return kept
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    /**
+     * Where a picture painted before its minute waits for it.
+     *
+     * [stamp] is the minute it was drawn for, so a picture can only ever be put up for
+     * the moment it actually shows — one left behind by a tick that was interrupted is
+     * not mistaken for the one due now.
+     */
+    fun pendingFile(context: Context, widget: GalleryWidget, stamp: String): File =
+        File(cacheDir(context), "${widget.resourceName}.next.$stamp.png")
+
+    /**
+     * Puts the picture painted for [stamp] in place, if it got there in time.
+     *
+     * This is the whole of what happens when the minute turns: a rename, which is as
+     * near to instant as the disk gets. The drawing — a web view, a photograph, a
+     * typeface, a second or two of it — was done while the minute before was still
+     * showing, so nothing stands between the clock changing and the widget saying so.
+     */
+    fun promote(context: Context, widget: GalleryWidget, stamp: String): Boolean {
+        val pending = pendingFile(context, widget, stamp)
+        if (!pending.exists()) return false
+        val live = fileFor(context, widget)
+        val moved = runCatching {
+            if (live.exists()) live.delete()
+            pending.renameTo(live)
+        }.getOrDefault(false)
+        if (moved) clearPending(context, widget, keep = null)
+        return moved
+    }
+
+    /** Throws away anything painted ahead for [widget] other than [keep]. */
+    fun clearPending(context: Context, widget: GalleryWidget, keep: String?) {
+        val prefix = "${widget.resourceName}.next."
+        val kept = keep?.let { "$prefix$it.png" }
+        runCatching {
+            cacheDir(context).listFiles()?.forEach { file ->
+                if (file.name.startsWith(prefix) && file.name != kept) file.delete()
+            }
+        }
+    }
+
     private suspend fun paint(
         context: Context,
         widget: GalleryWidget,
         widthPx: Int,
         heightPx: Int,
         frozen: Boolean
+    ): Bitmap? = paintAt(
+        context, widget, widthPx, heightPx,
+        if (frozen) widget.previewUrl else widget.url
+    )
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun paintAt(
+        context: Context,
+        widget: GalleryWidget,
+        widthPx: Int,
+        heightPx: Int,
+        url: String
     ): Bitmap? = withContext(Dispatchers.Main) {
-        val view = painter ?: WebView(context.applicationContext).apply {
+        // A view of its own for every painting, thrown away at the end of it.
+        //
+        // Sharing one view is what put another design's face on a widget, and no
+        // arrangement of checks around it was ever going to be enough: a page reports
+        // itself finished more than once, so the design painted before this one could
+        // answer this one's wait while still being the page on screen — and then be
+        // drawn into this design's picture. Checking which page was loaded guarded the
+        // common way that happened and cost us every design that would not answer.
+        //
+        // A view built for one page cannot be showing another. That ends it.
+        val view = WebView(context.applicationContext).apply {
             settings.javaScriptEnabled = true
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = false
@@ -163,46 +321,46 @@ object DesignRenderer {
             // Drawn into a bitmap rather than onto the screen, which a hardware layer
             // cannot be read back from.
             setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-        }.also { painter = it }
-
-        // Sized before the page is asked for, not after it has arrived. A view that is
-        // still nothing across while a page loads gives that page nothing to lay itself
-        // out in, and what comes back is an empty frame — which is how the first design
-        // of a run came out blank while every one after it, inheriting the size of the
-        // one before, was fine.
-        view.measure(
-            View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY)
-        )
-        view.layout(0, 0, widthPx, heightPx)
-
-        // The page is laid out at the width the design was drawn for, and this is what
-        // that width has to come out as. The two are set apart so a design keeps its own
-        // proportions whatever size it is being shown at.
-        view.setInitialScale(
-            (widthPx.toFloat() / widget.viewportWidth * 100f).roundToInt().coerceAtLeast(1)
-        )
-
-        val loaded = CompletableDeferred<Unit>()
-        view.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(page: WebView, url: String) {
-                loaded.complete(Unit)
-            }
         }
-        view.loadUrl(if (frozen) widget.previewUrl else widget.url)
 
-        val settled = withTimeoutOrNull(TIMEOUT_MS) {
-            loaded.await()
-            // The page is laid out before it is painted, and the fonts and photographs
-            // it draws with arrive later still. Asking it when it is ready is more
-            // honest than guessing at a delay.
-            awaitPainted(view)
-        } != null
-        if (!settled) return@withContext null
+        try {
+            // Sized before the page is asked for, not after it has arrived. A view that
+            // is still nothing across while a page loads gives that page nothing to lay
+            // itself out in, and what comes back is an empty frame.
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY)
+            )
+            view.layout(0, 0, widthPx, heightPx)
 
-        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
-        view.draw(Canvas(bitmap))
-        bitmap
+            // The page is laid out at the width the design was drawn for, and this is
+            // what that width has to come out as. The two are set apart so a design
+            // keeps its own proportions whatever size it is being shown at.
+            view.setInitialScale(
+                (widthPx.toFloat() / widget.viewportWidth * 100f).roundToInt().coerceAtLeast(1)
+            )
+
+            val loaded = CompletableDeferred<Unit>()
+            view.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(page: WebView, url: String) {
+                    loaded.complete(Unit)
+                }
+            }
+            view.loadUrl(url)
+
+            // Neither wait is worth failing over now. Whatever is in this view is this
+            // design and nothing else, so running out of patience costs a little of the
+            // drawing at worst — where before it cost the whole cell. The designs that
+            // came up empty were the ones that never answered one of these.
+            withTimeoutOrNull(LOAD_MS) { loaded.await() }
+            withTimeoutOrNull(READY_MS) { awaitPainted(view) }
+
+            val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            bitmap
+        } finally {
+            runCatching { view.destroy() }
+        }
     }
 
     /**
@@ -229,8 +387,12 @@ object DesignRenderer {
             (function(){
               if (document.readyState !== 'complete') return 'false';
               if (document.fonts && document.fonts.status !== 'loaded') return 'false';
+              // Finished, not necessarily arrived. A photograph that failed to load is
+              // complete with no width of its own and never will have one, so asking
+              // for a width here is asking for something that cannot come — and the
+              // whole design goes undrawn waiting on it.
               var images = Array.prototype.slice.call(document.images);
-              return String(images.every(function(i){ return i.complete && i.naturalWidth > 0; }));
+              return String(images.every(function(i){ return i.complete; }));
             })()
             """.trimIndent()
         ) { answer.complete(it) }
