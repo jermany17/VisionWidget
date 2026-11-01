@@ -34,14 +34,15 @@ object PreviewExport {
     /**
      * How wide a preview is drawn, and how hard it is squeezed.
      *
-     * There is one of these per design rather than one per size, so forty-odd of them
-     * ride in the APK and the launcher loads the lot at once to fill its picker. The
-     * picker draws them at a thumbnail's size, so they are kept small and written as
-     * WebP — most of these are photographs, which PNG stores very badly.
+     * Wide enough for the picker, which is not the thumbnail it sounds like: on a dense
+     * screen it draws a 2x2 at some eight hundred pixels across, and a picture half that
+     * is visibly soft against the widget it is offering. These are written as WebP
+     * instead of PNG, which is what makes the resolution affordable — most of them are
+     * photographs, and PNG stores those very badly.
      */
-    private const val SMALL_WIDTH = 220
-    private const val MEDIUM_WIDTH = 300
-    private const val QUALITY = 85
+    private const val SMALL_WIDTH = 640
+    private const val MEDIUM_WIDTH = 840
+    private const val QUALITY = 88
 
     suspend fun run(context: Context) {
         val debuggable =

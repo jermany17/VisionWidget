@@ -3,6 +3,7 @@ package com.example.visionwidget.ui.gallery
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.util.LruCache
@@ -16,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
+import java.io.File
 
 /**
  * Paints a design once and keeps the picture.
@@ -59,8 +61,7 @@ object DesignRenderer {
     private val lock = Mutex()
     private var painter: WebView? = null
 
-    private fun keyOf(widget: GalleryWidget, widthPx: Int, frozen: Boolean) =
-        "${widget.id}@$widthPx${if (frozen) "" else "@live"}"
+    private fun keyOf(widget: GalleryWidget, widthPx: Int) = "${widget.id}@$widthPx"
 
     /**
      * The picture for [widget] at [widthPx] across, drawn if it hasn't been already.
@@ -68,6 +69,10 @@ object DesignRenderer {
      * [frozen] holds the clock and the calendar at the moment every preview is shown at
      * — which is what a shelf wants, where a set of designs each saying a different time
      * reads as a fault. A widget on the home screen asks for the live one.
+     *
+     * Only a frozen picture is kept. A live one is a clock, and a cached clock is a
+     * stopped one: keeping those is what left a widget showing the minute it was first
+     * drawn at however often it was asked to redraw.
      */
     suspend fun render(
         context: Context,
@@ -77,16 +82,68 @@ object DesignRenderer {
         frozen: Boolean = true
     ): Bitmap? {
         if (widthPx <= 0 || heightPx <= 0) return null
-        val key = keyOf(widget, widthPx, frozen)
+        if (!frozen) {
+            return lock.withLock { paint(context, widget, widthPx, heightPx, frozen = false) }
+        }
+
+        val key = keyOf(widget, widthPx)
         cache.get(key)?.let { return it }
 
         return lock.withLock {
             // Checked again inside the lock: several tiles can ask for the same design
             // at once, and only the first should have to paint it.
-            cache.get(key) ?: paint(context, widget, widthPx, heightPx, frozen)?.also {
+            cache.get(key) ?: paint(context, widget, widthPx, heightPx, frozen = true)?.also {
                 cache.put(key, it)
             }
         }
+    }
+
+    /**
+     * Where a widget's picture is kept between updates.
+     *
+     * A widget update is a broadcast with a deadline, and painting a design takes a
+     * second or two. One at a time that is fine; when the system asks every widget to
+     * redraw at once — after an install, or a restart — they queue behind the one view
+     * that does the painting and the later ones run out of time. So a widget reads a
+     * picture off the disk, which is immediate, and the painting is done away from the
+     * update that needed it.
+     */
+    fun fileFor(context: Context, widget: GalleryWidget): File =
+        File(context.cacheDir, "gallery-widgets").apply { mkdirs() }
+            .let { File(it, "${widget.resourceName}.png") }
+
+    /** The picture last painted for [widget], or null if there has never been one. */
+    fun cached(context: Context, widget: GalleryWidget): Bitmap? {
+        val file = fileFor(context, widget)
+        if (!file.exists()) return null
+        return runCatching { BitmapFactory.decodeFile(file.path) }.getOrNull()
+    }
+
+    /** How old a widget's picture may be before it is worth painting again. */
+    fun isStale(context: Context, widget: GalleryWidget, maxAgeMs: Long): Boolean {
+        val file = fileFor(context, widget)
+        return !file.exists() || System.currentTimeMillis() - file.lastModified() > maxAgeMs
+    }
+
+    /**
+     * Paints [widget] as it is now and keeps the picture for the widget to pick up.
+     *
+     * Returns whether anything was painted — a design that would not settle leaves the
+     * last picture where it is rather than blanking the widget.
+     */
+    suspend fun refresh(
+        context: Context,
+        widget: GalleryWidget,
+        widthPx: Int,
+        heightPx: Int
+    ): Boolean {
+        val bitmap = render(context, widget, widthPx, heightPx, frozen = false) ?: return false
+        return runCatching {
+            fileFor(context, widget).outputStream().use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+            true
+        }.getOrDefault(false)
     }
 
     @SuppressLint("SetJavaScriptEnabled")

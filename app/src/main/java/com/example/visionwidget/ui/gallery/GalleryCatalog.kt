@@ -117,8 +117,21 @@ object GalleryCatalog {
 
     private const val ASSET = "gallery/catalog.json"
 
+    /**
+     * Parsed once per process.
+     *
+     * The catalogue is read on every widget update, and there is one widget per design —
+     * so without this, a round of updates reads and parses the same file forty-odd
+     * times over, on the thread a broadcast is given to answer in.
+     */
+    @Volatile
+    private var loaded: List<GalleryWidget>? = null
+
     /** Every design, in the order the file lists them. */
-    fun load(context: Context): List<GalleryWidget> = runCatching {
+    fun load(context: Context): List<GalleryWidget> =
+        loaded ?: read(context).also { loaded = it }
+
+    private fun read(context: Context): List<GalleryWidget> = runCatching {
         val text = context.assets.open(ASSET).bufferedReader().use { it.readText() }
         val widgets = JSONObject(text).getJSONArray("widgets")
         (0 until widgets.length()).map { index ->
