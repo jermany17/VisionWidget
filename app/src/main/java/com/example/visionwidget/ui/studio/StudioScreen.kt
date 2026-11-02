@@ -47,6 +47,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,6 +70,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -438,6 +444,20 @@ fun StudioScreen(
     onApplyWisdom: (category: String, index: Int, ownText: String) -> Unit = { _, _, _ -> },
     /** Opens on Gallery rather than Design — a Gallery widget's own tap asks for this. */
     startOnGallery: Boolean = false,
+    /**
+     * Somewhere else in the app has been asked for and is waiting on an answer.
+     *
+     * Studio is the only screen that can lose anything by being left: a design is chosen
+     * here and applied here, and until it is applied the widgets are still wearing the
+     * one before. So the move is held outside and asked of this screen, which knows
+     * whether there is anything to lose.
+     *
+     * Only a move within the app. Leaving for another app and coming back loses nothing
+     * — the draft and the screen are both still here — so that passes without a word.
+     */
+    leaveRequested: Boolean = false,
+    /** Whether to go: true once there was nothing pending, or once it has been settled. */
+    onLeaveResolved: (allowed: Boolean) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
 ) {
@@ -577,17 +597,26 @@ fun StudioScreen(
     }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
+    var showMissingWisdom by rememberSaveable { mutableStateOf(false) }
 
     // Photo has nothing to show without a picture, so applying it would blank the
     // widget. The choice is kept as it is and the alert says what's missing.
+    // Answers whether anything was actually committed, so the guard below knows whether
+    // Save got as far as saving — the two ways out of here settle nothing and ask for
+    // something instead, and leaving on the back of one of those would lose the change
+    // the user had just been asked to complete.
     val applyStyle = {
         if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
             showMissingPhoto = true
+            false
         } else if (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank()) {
             // Their own theme with nothing written under it would commit a placeholder.
-            // The line is asked for outright rather than refused with a notice — there's
-            // only one thing missing, and only one place to put it.
-            writingOwnWisdom = true
+            // Said rather than asked for, as the missing photo is: opening the writing
+            // box here would land a second dialog on top of whichever one just sent us,
+            // and its own Save means something different again — it puts the line in the
+            // draft, which still leaves the widgets unchanged.
+            showMissingWisdom = true
+            false
         } else {
             // Only when a control was used: the control can now be live for a theme
             // change alone, and under All an untouched draft stands for nothing — writing
@@ -596,6 +625,57 @@ fun StudioScreen(
             if (wisdomPending) {
                 onApplyWisdom(draftWisdomCategory, draftWisdomIndex, draftWisdomOwnText)
             }
+            true
+        }
+    }
+
+    // Puts every control back on what the widgets are actually wearing. The drafts fall
+    // back onto the seed on their own once something is applied; this is the other way
+    // out, for a change the user has decided against.
+    val discardDraft = {
+        draftFontId = seed.fontId
+        draftThemeId = seed.themeId
+        draftAlignId = seed.alignId
+        draftBackgroundId = seed.backgroundId
+        draftCornerRadius = seed.cornerRadius
+        draftCustomColour = seed.customColour
+        draftWisdomCategory = wisdomCategory
+        draftWisdomIndex = wisdomIndex
+        draftWisdomOwnText = wisdomOwnText
+        touched = false
+    }
+
+    /**
+     * Whether the draft is short of something [applyStyle] would refuse on.
+     *
+     * A photo background with no photo behind it, or their own theme with nothing
+     * written under it. Neither is a design the widgets could be made to wear.
+     */
+    val unfinished = (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) ||
+        (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank())
+
+    // Whether the question is on screen.
+    //
+    // Only ever asked of a move within the app. Leaving for another app and coming back
+    // is not a decision about the draft — the draft is still here, the screen is still
+    // here, and nothing has been lost that needs answering for. Asking then would be an
+    // interruption on the way in rather than a check on the way out.
+    var guard by remember { mutableStateOf(false) }
+
+    // Asking only earns its interruption when there is an answer to it.
+    LaunchedEffect(leaveRequested) {
+        when {
+            !leaveRequested -> guard = false
+            isApplied -> onLeaveResolved(true)
+            // A draft that cannot be applied has no saving to offer — there is no
+            // version of it the widgets could wear — so it counts for nothing and is
+            // dropped on the way out. Stopping the user over a choice with one real
+            // answer is worse than making it for them.
+            unfinished -> {
+                discardDraft()
+                onLeaveResolved(true)
+            }
+            else -> guard = true
         }
     }
 
@@ -684,7 +764,7 @@ fun StudioScreen(
                     )
                 },
                 onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
-                onApplyFont = applyStyle,
+                onApplyFont = { applyStyle() },
                 wisdomCategory = draftWisdomCategory,
                 // Normalised here so a drafted theme and an applied one are the same
                 // string, and the two can be compared for whether anything is pending.
@@ -757,8 +837,105 @@ fun StudioScreen(
         MissingPhotoAlert(userFont = userFont, onDismiss = { showMissingPhoto = false })
     }
 
+    if (showMissingWisdom) {
+        MissingWisdomAlert(userFont = userFont, onDismiss = { showMissingWisdom = false })
+    }
+
     if (showPinUnsupported) {
         PinUnsupportedAlert(onDismiss = { showPinUnsupported = false })
+    }
+
+    if (guard) {
+        UnsavedChangesDialog(
+            userFont = userFont,
+            onDiscard = {
+                discardDraft()
+                guard = false
+                onLeaveResolved(true)
+            },
+            onSave = {
+                // The draft was checked for what it was short of before this question
+                // was put, so there is nothing left for Save to refuse on — but it is
+                // still asked, rather than assumed, whether the change went in.
+                val saved = applyStyle()
+                guard = false
+                onLeaveResolved(saved)
+            }
+        )
+    }
+}
+
+/**
+ * The question asked when Studio is left with a design chosen but not applied.
+ *
+ * Two ways out and no third: the draft is either worth keeping or it isn't, and a way to
+ * close this without saying which would leave the same question to be asked again on the
+ * next move. There is no dismissing it from outside for the same reason.
+ */
+@Composable
+private fun UnsavedChangesDialog(
+    userFont: UserFontChoice,
+    onDiscard: () -> Unit,
+    onSave: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Canvas
+        ) {
+            Column(Modifier.padding(horizontal = 28.dp, vertical = 30.dp)) {
+                Text(text = "STUDIO", style = VisionType.eyebrow, color = OnCanvasMuted)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Save your changes?",
+                    style = VisionType.screenPromptTitle(userFont),
+                    color = OnCanvas
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = "Your widgets still show the previous design. " +
+                        "Save to apply it before you go.",
+                    style = VisionType.bodyText(userFont),
+                    color = OnCanvasMuted
+                )
+                Spacer(Modifier.height(26.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    OutlinedButton(
+                        onClick = onDiscard,
+                        shape = RoundedCornerShape(percent = 50),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text(
+                            text = "Discard",
+                            style = VisionType.buttonLabel(userFont),
+                            color = OnCanvas
+                        )
+                    }
+                    Button(
+                        onClick = onSave,
+                        shape = RoundedCornerShape(percent = 50),
+                        colors = ButtonDefaults.buttonColors(containerColor = OnCanvas),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text(
+                            text = "Save",
+                            style = VisionType.buttonLabel(userFont),
+                            color = Canvas
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1482,6 +1659,28 @@ private fun MissingPhotoAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
         text = {
             Text(
                 text = "Add a photo before applying this background.",
+                style = VisionType.bodyText(userFont),
+                color = OnCanvasMuted
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "OK", style = VisionType.eyebrow, color = OnCanvas)
+            }
+        }
+    )
+}
+
+/** Says what's missing when their own theme is applied with nothing written under it. */
+@Composable
+private fun MissingWisdomAlert(userFont: UserFontChoice, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Canvas,
+        title = { Text(text = "NO LINE WRITTEN", style = VisionType.eyebrow, color = OnCanvas) },
+        text = {
+            Text(
+                text = "Write your own line before applying this theme.",
                 style = VisionType.bodyText(userFont),
                 color = OnCanvasMuted
             )

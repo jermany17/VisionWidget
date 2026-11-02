@@ -91,6 +91,15 @@ fun VisionApp(
         )
     }
 
+    // Where the user has asked to go while Studio still has something unapplied.
+    //
+    // Studio's drafts live inside Studio, so it is the one that can say whether leaving
+    // would lose anything and the one that asks. The tab is held here until it answers:
+    // a design chosen and not applied still has the widgets showing the one before it,
+    // and walking away from that silently is the one thing that cannot be undone from
+    // the screen you land on.
+    var pendingTab by remember { mutableStateOf<VisionTab?>(null) }
+
     // Which vision the Vision tab happens to be showing — distinct from mainVisionId,
     // which is the one the widgets and Today read from. Navigation state, not data, so
     // it stays here rather than in the database.
@@ -209,7 +218,12 @@ fun VisionApp(
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
                 wisdomIndex = wisdomIndex,
-                startOnGallery = openGallery
+                startOnGallery = openGallery,
+                leaveRequested = pendingTab != null,
+                onLeaveResolved = { allowed ->
+                    if (allowed) pendingTab?.let { selectedTab = it }
+                    pendingTab = null
+                }
             )
             VisionTab.Insights -> InsightsScreen(
                 contentPadding = screenPadding,
@@ -220,7 +234,15 @@ fun VisionApp(
 
         BottomNav(
             selected = selectedTab,
-            onSelect = { selectedTab = it },
+            // Leaving Studio is asked of Studio rather than done to it. Every other move
+            // is immediate — there is nothing anywhere else that a tab change would lose.
+            onSelect = { tab ->
+                if (selectedTab == VisionTab.Studio && tab != VisionTab.Studio) {
+                    pendingTab = tab
+                } else {
+                    selectedTab = tab
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
