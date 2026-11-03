@@ -681,20 +681,41 @@ fun StudioScreen(
     // interruption on the way in rather than a check on the way out.
     var guard by remember { mutableStateOf(false) }
 
+    /**
+     * Which widget the scope bar has been asked to move to, while that is being settled.
+     *
+     * Moving between the widgets loses a draft exactly as leaving the screen does: the
+     * drafts are keyed on the scope, so the arrangement being worked on is dropped the
+     * moment another widget is picked. Same question, same two answers; the only
+     * difference is where the user ends up afterwards.
+     */
+    var pendingScope by remember { mutableStateOf<StyleScope?>(null) }
+
     // Asking only earns its interruption when there is an answer to it.
-    LaunchedEffect(leaveRequested) {
+    //
+    // A draft that cannot be applied has no saving to offer — there is no version of it
+    // the widgets could wear — so it counts for nothing and is dropped on the way out.
+    // Stopping the user over a choice with one real answer is worse than making it.
+    val askBeforeLosingDraft = { onSettled: (Boolean) -> Unit ->
         when {
-            !leaveRequested -> guard = false
-            isApplied -> onLeaveResolved(true)
-            // A draft that cannot be applied has no saving to offer — there is no
-            // version of it the widgets could wear — so it counts for nothing and is
-            // dropped on the way out. Stopping the user over a choice with one real
-            // answer is worse than making it for them.
+            isApplied -> onSettled(true)
             unfinished -> {
                 discardDraft()
-                onLeaveResolved(true)
+                onSettled(true)
             }
             else -> guard = true
+        }
+    }
+
+    LaunchedEffect(leaveRequested) {
+        if (!leaveRequested) {
+            // Nothing is waiting on the way out, so anything on screen belongs to the
+            // scope bar and is left where it is.
+            if (pendingScope == null) guard = false
+        } else {
+            // Somewhere else in the app takes precedence over a move within the screen.
+            pendingScope = null
+            askBeforeLosingDraft(onLeaveResolved)
         }
     }
 
@@ -750,7 +771,15 @@ fun StudioScreen(
                 topThreeChecked = topThreeChecked,
                 wisdom = previewWisdom,
                 scope = scope,
-                onSelectScope = { scope = it },
+                onSelectScope = { next ->
+                    if (next != scope) {
+                        pendingScope = next
+                        askBeforeLosingDraft { allowed ->
+                            if (allowed) scope = next
+                            pendingScope = null
+                        }
+                    }
+                },
                 allowsPhoto = allowsPhoto,
                 draftFontId = draftFontId,
                 draftThemeId = draftThemeId,
@@ -871,20 +900,30 @@ fun StudioScreen(
     }
 
     if (guard) {
+        // Whichever move is waiting on the answer — another widget on this screen, or
+        // another screen entirely.
+        val settle = { allowed: Boolean ->
+            guard = false
+            val next = pendingScope
+            if (next != null) {
+                if (allowed) scope = next
+                pendingScope = null
+            } else {
+                onLeaveResolved(allowed)
+            }
+        }
+
         UnsavedChangesDialog(
             userFont = userFont,
             onDiscard = {
                 discardDraft()
-                guard = false
-                onLeaveResolved(true)
+                settle(true)
             },
             onSave = {
                 // The draft was checked for what it was short of before this question
                 // was put, so there is nothing left for Save to refuse on — but it is
                 // still asked, rather than assumed, whether the change went in.
-                val saved = applyStyle()
-                guard = false
-                onLeaveResolved(saved)
+                settle(applyStyle())
             }
         )
     }
@@ -1091,24 +1130,30 @@ private fun ColumnScope.DesignTab(
             onPickCustom = onPickCustomColour
         )
 
-        Spacer(Modifier.height(30.dp))
-        Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
-        Spacer(Modifier.height(14.dp))
-        WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
+        // Only where it means anything. The line is what the Wisdom widget says, and
+        // nothing else on the home screen reads it — so under Vision or Top 3 it was a
+        // control for a widget the user is not looking at, sitting among controls for
+        // one they are. It stays under All, which is every widget including this one.
+        if (scope == StyleScope.All || scope == StyleScope.Wisdom) {
+            Spacer(Modifier.height(30.dp))
+            Text(text = "DAILY WISDOM", style = VisionType.eyebrow, color = OnCanvas)
+            Spacer(Modifier.height(14.dp))
+            WisdomThemePicker(selected = wisdomCategory, onSelect = onSelectWisdomCategory)
 
-        // The line itself, under the themes that choose it. Shuffling here only moves
-        // the draft: like every other control on this screen it takes applying before
-        // Today and the widgets follow.
-        Spacer(Modifier.height(16.dp))
-        WisdomDraftCard(
-            wisdom = wisdom,
-            look = wisdomLook,
-            // Their own theme holds one line, so there is nothing to shuffle to — the
-            // control offers to rewrite it instead.
-            isOwn = isOwnWisdom(wisdomCategory),
-            onShuffle = onShuffleWisdom,
-            onWriteOwn = onWriteOwnWisdom
-        )
+            // The line itself, under the themes that choose it. Shuffling here only
+            // moves the draft: like every other control on this screen it takes applying
+            // before Today and the widgets follow.
+            Spacer(Modifier.height(16.dp))
+            WisdomDraftCard(
+                wisdom = wisdom,
+                look = wisdomLook,
+                // Their own theme holds one line, so there is nothing to shuffle to —
+                // the control offers to rewrite it instead.
+                isOwn = isOwnWisdom(wisdomCategory),
+                onShuffle = onShuffleWisdom,
+                onWriteOwn = onWriteOwnWisdom
+            )
+        }
 
         // The same action as the one on the preview, repeated at the foot of the
         // list: by the time the pickers have been scrolled through, the control up
