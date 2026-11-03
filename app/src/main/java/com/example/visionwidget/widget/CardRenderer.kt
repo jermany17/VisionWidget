@@ -151,6 +151,21 @@ private fun androidx.compose.ui.graphics.Color.toArgb(): Int = android.graphics.
     (blue * 255).toInt()
 )
 
+/**
+ * The background a style is actually drawn with.
+ *
+ * PHOTO WITHDRAWN — a widget already set to a photo when the controls came out would go
+ * on showing one nobody could change or remove, since Studio no longer offers the style
+ * it was set from. It is drawn as the plain surface instead. The picture itself is still
+ * stored and comes back with the controls: return this to `style.backgroundId`.
+ */
+private fun drawnBackground(style: WidgetStyle): Int =
+    if (style.backgroundId == BackgroundStyles.PHOTO) {
+        BackgroundStyles.DEFAULT_ID
+    } else {
+        style.backgroundId
+    }
+
 private fun cardInk(context: Context, style: WidgetStyle): CardInk {
     val theme = themeOf(style)
     val font = UserFonts[style.fontId]
@@ -158,7 +173,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
 
     // Photo hands back its own ink: what the picture underneath looks like is unknown,
     // so the scrim is what guarantees contrast and the text colour has to match it.
-    if (style.backgroundId == BackgroundStyles.PHOTO) {
+    if (drawnBackground(style) == BackgroundStyles.PHOTO) {
         val photoInk = 0xFFF7F4EE.toInt()
         return CardInk(
             face = face,
@@ -175,7 +190,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
         onSurfaceMuted = theme.onSurfaceMuted.toArgb(),
         onSurfaceRule = theme.onSurfaceRule.toArgb(),
         onInk = theme.surface.toArgb(),
-        border = if (style.backgroundId == BackgroundStyles.GLASS) {
+        border = if (drawnBackground(style) == BackgroundStyles.GLASS) {
             withAlpha(theme.onSurface.toArgb(), 0.22f)
         } else {
             theme.border?.toArgb()
@@ -198,7 +213,7 @@ private fun drawCardSurface(
     val theme = themeOf(style)
     val fill = Paint(CardPaintFlags)
 
-    when (style.backgroundId) {
+    when (drawnBackground(style)) {
         BackgroundStyles.GRADIENT -> {
             // The design's fixed angle, measured with zero pointing up and increasing
             // clockwise, so the line reaches both corners it points at.

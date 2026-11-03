@@ -473,9 +473,18 @@ fun StudioScreen(
     var scope by rememberSaveable { mutableStateOf(StyleScope.All) }
     val lookOf = { target: WidgetTarget -> looks[target] ?: WidgetLook() }
 
-    // Only a single widget can carry a picture: under All the same photo behind all
-    // three isn't a look anyone asked for, so the style is offered without it.
-    val allowsPhoto = scope.single != null
+    // PHOTO WITHDRAWN — to be built again. Everything it took to offer a picture is
+    // still here and still wired; this is the one switch that decides whether it is
+    // offered at all. Held off, the background picker drops Photo, the preset row drops
+    // the sets built on it, the row of photo controls never appears, and [seed] below
+    // puts any widget already wearing one back onto the default. Put the line under it
+    // back to have it all return.
+    //
+    //   Only a single widget can carry a picture: under All the same photo behind all
+    //   three isn't a look anyone asked for, so the style is offered without it.
+    //
+    // val allowsPhoto = scope.single != null
+    val allowsPhoto = false
     val scopePhotoUri = scope.single?.let { lookOf(it).photoUri }
 
     // What the controls settle onto. Keyed on the applied look so committing a choice
@@ -571,22 +580,27 @@ fun StudioScreen(
     val isApplied = (!touched || scope.targets.all { lookOf(it).style == draft }) &&
         !wisdomPending
 
-    // The system picker hands back a URI that stays readable across restarts only if
-    // the grant is taken persistently.
-    val photoLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        val target = scope.single
-        if (uri != null && target != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            onPickPhoto(target, uri.toString())
-        }
-    }
+    // PHOTO WITHDRAWN — the way into the system's picker. Nothing reaches it while the
+    // controls are held off, but it is kept out of the composition rather than left
+    // registered and unused.
+    //
+    //   The system picker hands back a URI that stays readable across restarts only if
+    //   the grant is taken persistently.
+    //
+    // val photoLauncher = rememberLauncherForActivityResult(
+    //     ActivityResultContracts.PickVisualMedia()
+    // ) { uri ->
+    //     val target = scope.single
+    //     if (uri != null && target != null) {
+    //         runCatching {
+    //             context.contentResolver.takePersistableUriPermission(
+    //                 uri,
+    //                 Intent.FLAG_GRANT_READ_URI_PERMISSION
+    //             )
+    //         }
+    //         onPickPhoto(target, uri.toString())
+    //     }
+    // }
 
     // The screen's own text is not a widget, so it keeps the default face however the
     // widgets are set — only the phone preview follows the draft.
@@ -596,25 +610,29 @@ fun StudioScreen(
         mutableStateOf(if (startOnGallery) StudioTab.Gallery else StudioTab.Design)
     }
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
+    // PHOTO WITHDRAWN — nothing can draft a photo background, so nothing can be short
+    // of a picture for it.
+    // var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
     var showMissingWisdom by rememberSaveable { mutableStateOf(false) }
 
-    // Photo has nothing to show without a picture, so applying it would blank the
-    // widget. The choice is kept as it is and the alert says what's missing.
     // Answers whether anything was actually committed, so the guard below knows whether
-    // Save got as far as saving — the two ways out of here settle nothing and ask for
-    // something instead, and leaving on the back of one of those would lose the change
-    // the user had just been asked to complete.
+    // Save got as far as saving — the way out of here settles nothing and asks for
+    // something instead, and leaving on the back of that would lose the change the user
+    // had just been asked to complete.
     val applyStyle = {
-        if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
-            showMissingPhoto = true
-            false
-        } else if (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank()) {
+        // PHOTO WITHDRAWN — the refusal that went first, for a photo background with no
+        // picture behind it.
+        //
+        // if (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) {
+        //     showMissingPhoto = true
+        //     false
+        // } else
+        if (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank()) {
             // Their own theme with nothing written under it would commit a placeholder.
-            // Said rather than asked for, as the missing photo is: opening the writing
-            // box here would land a second dialog on top of whichever one just sent us,
-            // and its own Save means something different again — it puts the line in the
-            // draft, which still leaves the widgets unchanged.
+            // Said rather than asked for: opening the writing box here would land a
+            // second dialog on top of whichever one just sent us, and its own Save means
+            // something different again — it puts the line in the draft, which still
+            // leaves the widgets unchanged.
             showMissingWisdom = true
             false
         } else {
@@ -648,11 +666,12 @@ fun StudioScreen(
     /**
      * Whether the draft is short of something [applyStyle] would refuse on.
      *
-     * A photo background with no photo behind it, or their own theme with nothing
-     * written under it. Neither is a design the widgets could be made to wear.
+     * Their own theme with nothing written under it — not a design the widgets could be
+     * made to wear. PHOTO WITHDRAWN: a photo background with no picture behind it was
+     * the other, and goes back here when the controls return.
      */
-    val unfinished = (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) ||
-        (isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank())
+    val unfinished = /* (draftBackgroundId == BackgroundStyles.PHOTO && scopePhotoUri == null) || */
+        isOwnWisdom(draftWisdomCategory) && draftWisdomOwnText.isBlank()
 
     // Whether the question is on screen.
     //
@@ -758,12 +777,17 @@ fun StudioScreen(
                 onSelectAlign = { draftAlignId = it; touched = true },
                 onSelectBackground = { draftBackgroundId = it; touched = true },
                 onCornerRadiusChange = { draftCornerRadius = it; touched = true },
-                onPickPhoto = {
-                    photoLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
+                // PHOTO WITHDRAWN — the controls these belong to are not shown, so
+                // neither is ever called.
+                //
+                // onPickPhoto = {
+                //     photoLauncher.launch(
+                //         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                //     )
+                // },
+                // onClearPhoto = { scope.single?.let { onPickPhoto(it, null) } },
+                onPickPhoto = {},
+                onClearPhoto = {},
                 onApplyFont = { applyStyle() },
                 wisdomCategory = draftWisdomCategory,
                 // Normalised here so a drafted theme and an applied one are the same
@@ -833,9 +857,10 @@ fun StudioScreen(
         )
     }
 
-    if (showMissingPhoto) {
-        MissingPhotoAlert(userFont = userFont, onDismiss = { showMissingPhoto = false })
-    }
+    // PHOTO WITHDRAWN — see [MissingPhotoAlert].
+    // if (showMissingPhoto) {
+    //     MissingPhotoAlert(userFont = userFont, onDismiss = { showMissingPhoto = false })
+    // }
 
     if (showMissingWisdom) {
         MissingWisdomAlert(userFont = userFont, onDismiss = { showMissingWisdom = false })

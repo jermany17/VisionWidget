@@ -86,6 +86,13 @@ private const val PHOTO_SCRIM_BOTTOM = 0.62f
 private const val GLASS_ALPHA = 0.74f
 
 fun widgetSkin(theme: CardTheme, style: BackgroundStyle): WidgetSkin = when (style.id) {
+    // PHOTO WITHDRAWN — a widget that was already wearing a picture when the controls
+    // came out would otherwise go on wearing one nobody could change or remove, since
+    // Studio no longer offers the style it was set from. Sent to the plain surface
+    // instead; the picture itself is still stored and comes back with the controls.
+    // Delete this line to have them return.
+    BackgroundStyles.PHOTO -> widgetSkin(theme, BackgroundStyles[BackgroundStyles.DEFAULT_ID])
+
     BackgroundStyles.GRADIENT -> WidgetSkin(
         background = angledGradient(GRADIENT_ANGLE, listOf(theme.surface, theme.surfaceStep)),
         overlay = null,
