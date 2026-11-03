@@ -19,8 +19,12 @@ const val MAX_MILESTONES_PER_VISION = 4
  * The widget is where these are really read, and it holds one line for the goal and one
  * for the why. Past these the card would have to cut them mid-word, so the field stops
  * taking characters instead — running out of room as it is typed says it plainly enough.
+ *
+ * The goal was held to twenty-five to begin with and that proved too short in use: a
+ * goal worth keeping on the home screen rarely fits in a handful of words. It is the
+ * same forty the why has always had.
  */
-const val MAX_VISION_GOAL_LENGTH = 25
+const val MAX_VISION_GOAL_LENGTH = 40
 const val MAX_VISION_WHY_LENGTH = 40
 
 /**
@@ -28,8 +32,10 @@ const val MAX_VISION_WHY_LENGTH = 40
  *
  * The narrowest line any of the cards hold: on the 4x4 a step shares its row with the
  * date it is due, so what is left for the words is less than a full-width line again.
+ * Held to the same forty as the rest all the same — a step too long for its row is cut
+ * where it is drawn, which is better than a step that could not be written down.
  */
-const val MAX_MILESTONE_STEP_LENGTH = 25
+const val MAX_MILESTONE_STEP_LENGTH = 40
 
 /**
  * A vision the user set. The date is kept as the epoch millis the picker handed back

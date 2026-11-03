@@ -82,8 +82,20 @@ private const val SMALL_BODY = 10f
 private const val SMALL_BODY_LINE = 13f
 private const val SMALL_META = 9f
 private const val SMALL_META_LINE = 12f
-private const val SMALL_QUOTE = 14f
-private const val SMALL_QUOTE_LINE = 19f
+/**
+ * The wisdom line on the square card.
+ *
+ * Every card is measured against the same design width, so a figure here is read at the
+ * card's own width — and the wide cards are twice as wide. The 4x2's eleven and the 4x4's
+ * fifteen therefore land at twenty-two and thirty beside this one, which is why the
+ * square's line was the hardest of the three to read despite carrying the largest number.
+ *
+ * Raised to close some of that gap rather than all of it: the line still has to fit. Six
+ * lines of about nineteen characters leaves room for a hundred and fourteen, against a
+ * longest line in the book of seventy-odd, so there is margin for one of the user's own.
+ */
+private const val SMALL_QUOTE = 17f
+private const val SMALL_QUOTE_LINE = 22f
 
 /**
  * The 4x4 card's measurements.

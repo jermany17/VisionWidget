@@ -6,8 +6,13 @@ const val BASE_TOP_THREE_TASKS = 3
 /** How many a day can hold in total, the three base slots plus however many are added. */
 const val MAX_TOP_THREE_TASKS = 6
 
-/** How long a single task's own words can run. */
-const val MAX_TOP_THREE_TASK_LENGTH = 30
+/**
+ * How long a single task's own words can run.
+ *
+ * The same forty every other field the user writes into is held to, so that what can be
+ * said in one place can be said in all of them.
+ */
+const val MAX_TOP_THREE_TASK_LENGTH = 40
 
 /**
  * How many of today's slots are in play — the base three, or one past whichever extra
