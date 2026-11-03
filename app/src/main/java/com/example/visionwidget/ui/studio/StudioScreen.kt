@@ -112,6 +112,7 @@ import com.example.visionwidget.ui.gallery.GallerySort
 import com.example.visionwidget.ui.gallery.GalleryWidget
 import com.example.visionwidget.ui.gallery.arrange
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
+import com.example.visionwidget.ui.components.PromptDialog
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.MAX_OWN_WISDOM_LENGTH
@@ -942,65 +943,16 @@ private fun UnsavedChangesDialog(
     onDiscard: () -> Unit,
     onSave: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = {},
-        properties = DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
-    ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = Canvas
-        ) {
-            Column(Modifier.padding(horizontal = 28.dp, vertical = 30.dp)) {
-                Text(text = "STUDIO", style = VisionType.eyebrow, color = OnCanvasMuted)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Save your changes?",
-                    style = VisionType.screenPromptTitle(userFont),
-                    color = OnCanvas
-                )
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    text = "Your widgets still show the previous design. " +
-                        "Save to apply it before you go.",
-                    style = VisionType.bodyText(userFont),
-                    color = OnCanvasMuted
-                )
-                Spacer(Modifier.height(26.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    OutlinedButton(
-                        onClick = onDiscard,
-                        shape = RoundedCornerShape(percent = 50),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Text(
-                            text = "Discard",
-                            style = VisionType.buttonLabel(userFont),
-                            color = OnCanvas
-                        )
-                    }
-                    Button(
-                        onClick = onSave,
-                        shape = RoundedCornerShape(percent = 50),
-                        colors = ButtonDefaults.buttonColors(containerColor = OnCanvas),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Text(
-                            text = "Save",
-                            style = VisionType.buttonLabel(userFont),
-                            color = Canvas
-                        )
-                    }
-                }
-            }
-        }
-    }
+    PromptDialog(
+        eyebrow = "STUDIO",
+        title = "Save your changes?",
+        body = "Your widgets still show the previous design. Save to apply it before you go.",
+        userFont = userFont,
+        quietLabel = "Discard",
+        onQuiet = onDiscard,
+        loudLabel = "Save",
+        onLoud = onSave
+    )
 }
 
 /** The preview and the face picker — everything Studio can change today. */

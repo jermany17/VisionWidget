@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,36 +31,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.example.visionwidget.ui.components.PromptDialog
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
 import com.example.visionwidget.ui.theme.OnCanvasMuted
 import com.example.visionwidget.ui.theme.OnNavBar
+import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-
-/** The "adding" card's fill — a warm off-white so the sheet's own fields stand apart. */
-private val AddingFill = Color(0xFFF4F1E8)
-
-/** The rule between STEP and BY — darker than the app's usual hairline so it reads
- * clearly against [AddingFill] instead of all but disappearing. */
-private val AddingDivider = OnCanvas.copy(alpha = 0.3f)
 
 /** A milestone's date can't come before today or after the vision's own target date. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,8 +96,31 @@ fun AddMilestoneSheet(
 
     val ready = step.isNotBlank() && dueDateMillis != null
 
+    var confirmLeaving by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Closing the sheet, or asking first.
+     *
+     * A milestone is only kept by the button at the foot of the sheet, so one that is
+     * finished but not added is lost by every other way out — the drag, the scrim and
+     * Cancel alike. Once there is something whole enough to add, those ask first.
+     *
+     * The sheet is shown again as the question goes up. A drag has already carried it
+     * most of the way out by the time this is reached, and a question hanging over
+     * nothing is worse than the loss it is asking about.
+     */
+    val leaveOrAsk: () -> Unit = {
+        if (ready) {
+            confirmLeaving = true
+            scope.launch { sheetState.show() }
+        } else {
+            onDismiss()
+        }
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = leaveOrAsk,
         sheetState = sheetState,
         containerColor = Canvas,
         dragHandle = { BottomSheetDefaults.DragHandle() },
@@ -128,41 +148,46 @@ fun AddMilestoneSheet(
                 color = OnCanvasMuted
             )
 
+            // The two fields stand on the sheet itself rather than inside a panel of
+            // their own. There are only two of them and the sheet holds nothing else, so
+            // the box was drawing a boundary around the whole of the content — and it
+            // put this sheet's fields on a different footing from the ones the vision is
+            // written in, which are the same two questions asked the same way.
             Spacer(Modifier.height(28.dp))
-            Text(text = "ADDING", style = SheetLabel, color = OnCanvasMuted)
+            StepField(
+                value = step,
+                // Clamped rather than called out, the way the goal and the task fields
+                // are: running out of room at the last character says itself.
+                onValueChange = { value -> step = value.take(MAX_MILESTONE_STEP_LENGTH) },
+                textStyle = VisionType.cardTitle(userFont)
+            )
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = Rule, thickness = 1.dp)
+
+            Spacer(Modifier.height(20.dp))
+            Text(text = "BY", style = SheetLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
-            Column(
+            Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(AddingFill)
-                    .padding(16.dp)
+                    .clickable(onClick = { showDatePicker = true }),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "STEP", style = SheetLabel, color = OnCanvasMuted)
-                Spacer(Modifier.height(10.dp))
-                StepField(
-                    value = step,
-                    // Clamped rather than called out, the way the goal and the task
-                    // fields are: running out of room at the last character says itself.
-                    onValueChange = { value -> step = value.take(MAX_MILESTONE_STEP_LENGTH) },
-                    textStyle = VisionType.cardTitle(userFont)
-                )
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = AddingDivider, thickness = 1.dp)
-                Spacer(Modifier.height(16.dp))
-                Text(text = "BY", style = SheetLabel, color = OnCanvasMuted)
-                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = dueDateMillis?.let(::formatShortDate) ?: "Pick a date",
+                    // Written out in full. The date is read once, here, to be agreed
+                    // with — and the short form the vision list uses is for a row that
+                    // has a column's width to say it in.
+                    text = dueDateMillis?.let(::formatTargetDate) ?: "Pick a date",
                     style = VisionType.cardTitle(userFont),
                     color = if (dueDateMillis == null) SheetHint else OnCanvas,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = { showDatePicker = true })
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = AddingDivider, thickness = 1.dp)
+                // Says the line can be tapped. The date alone looks like something
+                // already settled, and there is nothing else on it to suggest otherwise.
+                Text(text = "CHANGE  →", style = SheetLabel, color = OnCanvasMuted)
             }
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = Rule, thickness = 1.dp)
 
             Spacer(Modifier.height(28.dp))
             Box(
@@ -191,10 +216,29 @@ fun AddMilestoneSheet(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onDismiss)
+                    .clickable(onClick = leaveOrAsk)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             )
         }
+    }
+
+    if (confirmLeaving) {
+        PromptDialog(
+            eyebrow = "MILESTONE",
+            title = "Save this milestone?",
+            // Says where the keeping is done rather than offering to do it here. The
+            // button at the foot of the sheet is the only thing that adds one, and a
+            // second way to do it on the way out would be a second thing to keep right.
+            body = "This milestone isn't added yet. Tap Add milestone to keep it.",
+            userFont = userFont,
+            quietLabel = "Discard",
+            onQuiet = {
+                confirmLeaving = false
+                onDismiss()
+            },
+            loudLabel = "Keep editing",
+            onLoud = { confirmLeaving = false }
+        )
     }
 
     if (showDatePicker) {
@@ -249,7 +293,7 @@ private fun StepField(value: String, onValueChange: (String) -> Unit, textStyle:
 
     Box {
         if (value.isEmpty() && !focused) {
-            Text(text = "Add content", style = textStyle, color = SheetHint)
+            Text(text = "Add a milestone", style = textStyle, color = SheetHint)
         }
         BasicTextField(
             value = value,
