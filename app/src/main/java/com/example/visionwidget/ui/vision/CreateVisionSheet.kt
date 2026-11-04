@@ -34,6 +34,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.visionwidget.ui.components.PromptDialog
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -56,6 +58,7 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -114,8 +117,42 @@ fun CreateVisionSheet(
     // The goal names the vision and the date bounds it; the reason is optional.
     val ready = goal.isNotBlank() && targetDateMillis != null
 
+    // Whether anything has been written or changed since the sheet opened.
+    //
+    // Measured against what it was opened with, which is empty for a new vision and the
+    // vision itself while one is being edited. That makes one rule serve both: starting
+    // a vision and changing one are the same act of having something to lose, and
+    // opening an existing vision only to close it again is not.
+    //
+    // Apart from [ready] on purpose. Whether it can be saved is what the button at the
+    // foot of the sheet answers; this only asks whether there is anything here.
+    val started = goal.trim() != editing?.goal.orEmpty().trim() ||
+        why.trim() != editing?.why.orEmpty().trim() ||
+        targetDateMillis != editing?.targetDateMillis
+
+    var confirmLeaving by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Closing the sheet, or asking first.
+     *
+     * A vision is only kept by the button at the foot of the sheet, so one begun and not
+     * created — or changed and not saved — is lost by the drag, the scrim and Cancel
+     * alike. The sheet is shown again as the question goes up: a drag has carried it
+     * most of the way out by then, and a question hanging over nothing is worse than the
+     * loss it is asking about.
+     */
+    val leaveOrAsk: () -> Unit = {
+        if (started) {
+            confirmLeaving = true
+            scope.launch { sheetState.show() }
+        } else {
+            onDismiss()
+        }
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = leaveOrAsk,
         sheetState = sheetState,
         containerColor = Canvas,
         dragHandle = { BottomSheetDefaults.DragHandle() },
@@ -138,7 +175,7 @@ fun CreateVisionSheet(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = if (editing != null) "Edit this vision" else "What are you actually after?",
-                style = VisionType.screenPromptTitle(userFont),
+                style = VisionType.sheetTitle(userFont),
                 color = OnCanvas
             )
 
@@ -147,7 +184,7 @@ fun CreateVisionSheet(
                 label = "THE GOAL",
                 value = goal,
                 placeholder = "Name it in five words or fewer",
-                textStyle = VisionType.cardTitle(userFont),
+                textStyle = VisionType.sheetField(userFont),
                 // Clamped rather than called out, the way a task's own field is:
                 // running out of room at the last character says itself.
                 onValueChange = { value -> goal = value.take(MAX_VISION_GOAL_LENGTH) }
@@ -158,7 +195,7 @@ fun CreateVisionSheet(
                 label = "WHY IT MATTERS · OPTIONAL",
                 value = why,
                 placeholder = "Why does this matter to you?",
-                textStyle = VisionType.cardTitle(userFont),
+                textStyle = VisionType.sheetField(userFont),
                 onValueChange = { value -> why = value.take(MAX_VISION_WHY_LENGTH) }
             )
 
@@ -191,10 +228,31 @@ fun CreateVisionSheet(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onDismiss)
+                    .clickable(onClick = leaveOrAsk)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             )
         }
+    }
+
+    if (confirmLeaving) {
+        PromptDialog(
+            eyebrow = if (editing != null) "EDIT VISION" else "NEW VISION",
+            title = "Leave without saving?",
+            body = if (editing != null) {
+                "Your changes haven't been saved.\nIf you leave now, they'll be lost."
+            } else {
+                "This vision hasn't been created yet.\n" +
+                    "If you leave now, your progress will be lost."
+            },
+            userFont = userFont,
+            quietLabel = "Discard",
+            onQuiet = {
+                confirmLeaving = false
+                onDismiss()
+            },
+            loudLabel = "Keep editing",
+            onLoud = { confirmLeaving = false }
+        )
     }
 
     if (showDatePicker) {
@@ -294,7 +352,7 @@ private fun TargetDateRow(
     Spacer(Modifier.height(12.dp))
     Text(
         text = date.ifEmpty { "Pick a date" },
-        style = VisionType.cardTitle(userFont),
+        style = VisionType.sheetField(userFont),
         color = if (date.isEmpty()) SheetHint else OnCanvas,
         modifier = Modifier
             .fillMaxWidth()

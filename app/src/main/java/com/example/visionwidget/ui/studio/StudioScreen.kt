@@ -1756,7 +1756,7 @@ private fun SettingsSheet(userFont: UserFontChoice, onDismiss: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "Nothing here yet.",
-                style = VisionType.screenPromptTitle(userFont),
+                style = VisionType.sheetTitle(userFont),
                 color = OnCanvas
             )
         }

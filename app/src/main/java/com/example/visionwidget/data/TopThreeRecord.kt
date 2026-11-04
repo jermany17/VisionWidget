@@ -58,10 +58,10 @@ fun List<RuleOfThreeSlotEntity>.isSetKept(set: IntRange): Boolean {
 /**
  * How long a single task's own words can run.
  *
- * The same forty every other field the user writes into is held to, so that what can be
- * said in one place can be said in all of them.
+ * The same thirty-eight every other field the user writes into is held to, so that what
+ * can be said in one place can be said in all of them.
  */
-const val MAX_TOP_THREE_TASK_LENGTH = 40
+const val MAX_TOP_THREE_TASK_LENGTH = 38
 
 
 /** One slot of a day's Top 3, as Insights reads it — an empty slot never becomes an entry. */

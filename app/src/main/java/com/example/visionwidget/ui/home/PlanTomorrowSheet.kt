@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASK_LENGTH
+import com.example.visionwidget.ui.components.PromptDialog
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -51,6 +53,7 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -133,8 +136,35 @@ fun PlanTomorrowSheet(
 
     val ready = tasks.any { it.isNotBlank() }
 
+    // Whether anything has been written or changed since the sheet opened. Measured
+    // against what it was opened with rather than against empty, so coming back to a
+    // plan and leaving it exactly as it was is not something to be asked about.
+    val started = (0 until MAX_TOP_THREE_TASKS).any {
+        tasks[it].trim() != planned.getOrElse(it) { "" }.trim()
+    }
+
+    var confirmLeaving by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Closing the sheet, or asking first.
+     *
+     * The plan is only kept by the button at the foot of the sheet, so one begun and not
+     * set is lost by the drag, the scrim and the handle alike. The sheet is shown again
+     * as the question goes up: a drag has carried it most of the way out by then, and a
+     * question hanging over nothing is worse than the loss it is asking about.
+     */
+    val leaveOrAsk: () -> Unit = {
+        if (started) {
+            confirmLeaving = true
+            scope.launch { sheetState.show() }
+        } else {
+            onDismiss()
+        }
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = leaveOrAsk,
         sheetState = sheetState,
         containerColor = Canvas,
         dragHandle = { BottomSheetDefaults.DragHandle() },
@@ -211,6 +241,23 @@ fun PlanTomorrowSheet(
             }
         }
     }
+
+    if (confirmLeaving) {
+        PromptDialog(
+            eyebrow = "TOMORROW",
+            title = "Leave without saving?",
+            body = "Tomorrow's plan hasn't been set yet.\n" +
+                "If you leave now, your progress will be lost.",
+            userFont = userFont,
+            quietLabel = "Discard",
+            onQuiet = {
+                confirmLeaving = false
+                onDismiss()
+            },
+            loudLabel = "Keep editing",
+            onLoud = { confirmLeaving = false }
+        )
+    }
 }
 
 /** One line of the plan: what it is, and the rule under it. */
@@ -223,7 +270,7 @@ private fun PlanRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val textStyle = VisionType.cardTitle(userFont)
+    val textStyle = VisionType.sheetField(userFont)
 
     Box(Modifier.padding(vertical = 12.dp)) {
         if (value.isEmpty() && !focused) {

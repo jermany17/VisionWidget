@@ -103,15 +103,22 @@ fun AddMilestoneSheet(
      * Closing the sheet, or asking first.
      *
      * A milestone is only kept by the button at the foot of the sheet, so one that is
-     * finished but not added is lost by every other way out — the drag, the scrim and
-     * Cancel alike. Once there is something whole enough to add, those ask first.
+     * started but not added is lost by every other way out — the drag, the scrim and
+     * Cancel alike.
+     *
+     * Asked on anything begun rather than on a milestone whole enough to add. The two
+     * are not the same question: whether it can be added is what the button at the foot
+     * answers, and this one only asks whether there is anything to lose. A step typed
+     * without a date is still a step the user typed, and the answer offered is to come
+     * back to it rather than to add it.
      *
      * The sheet is shown again as the question goes up. A drag has already carried it
      * most of the way out by the time this is reached, and a question hanging over
      * nothing is worse than the loss it is asking about.
      */
+    val started = step.isNotBlank() || dueDateMillis != null
     val leaveOrAsk: () -> Unit = {
-        if (ready) {
+        if (started) {
             confirmLeaving = true
             scope.launch { sheetState.show() }
         } else {
@@ -138,7 +145,7 @@ fun AddMilestoneSheet(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "What's the next step?",
-                style = VisionType.screenPromptTitle(userFont),
+                style = VisionType.sheetTitle(userFont),
                 color = OnCanvas
             )
             Spacer(Modifier.height(10.dp))
@@ -159,7 +166,7 @@ fun AddMilestoneSheet(
                 // Clamped rather than called out, the way the goal and the task fields
                 // are: running out of room at the last character says itself.
                 onValueChange = { value -> step = value.take(MAX_MILESTONE_STEP_LENGTH) },
-                textStyle = VisionType.cardTitle(userFont)
+                textStyle = VisionType.sheetField(userFont)
             )
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = Rule, thickness = 1.dp)
@@ -178,7 +185,7 @@ fun AddMilestoneSheet(
                     // with — and the short form the vision list uses is for a row that
                     // has a column's width to say it in.
                     text = dueDateMillis?.let(::formatTargetDate) ?: "Pick a date",
-                    style = VisionType.cardTitle(userFont),
+                    style = VisionType.sheetField(userFont),
                     color = if (dueDateMillis == null) SheetHint else OnCanvas,
                     modifier = Modifier.weight(1f)
                 )
@@ -225,11 +232,13 @@ fun AddMilestoneSheet(
     if (confirmLeaving) {
         PromptDialog(
             eyebrow = "MILESTONE",
-            title = "Save this milestone?",
-            // Says where the keeping is done rather than offering to do it here. The
-            // button at the foot of the sheet is the only thing that adds one, and a
-            // second way to do it on the way out would be a second thing to keep right.
-            body = "This milestone isn't added yet. Tap Add milestone to keep it.",
+            title = "Leave without saving?",
+            // Says what has not happened and what leaving costs, and nothing about how
+            // to save: the button at the foot of the sheet is the only thing that adds
+            // a milestone, and a second way to do it from here would be a second thing
+            // to keep right.
+            body = "This milestone hasn't been added yet.\n" +
+                "If you leave now, your progress will be lost.",
             userFont = userFont,
             quietLabel = "Discard",
             onQuiet = {

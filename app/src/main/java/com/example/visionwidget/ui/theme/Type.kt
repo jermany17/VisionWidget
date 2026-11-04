@@ -125,8 +125,8 @@ object VisionType {
     fun buttonLabel(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
-        fontSize = 18.sp,
-        lineHeight = 24.sp
+        fontSize = 16.sp,
+        lineHeight = 22.sp
     )
 
     /** Empty-state headline that owns a whole screen, so it carries more weight. */
@@ -135,6 +135,34 @@ object VisionType {
         fontWeight = font.weight,
         fontSize = 32.sp,
         lineHeight = 38.sp
+    )
+
+    /**
+     * The headline of a sheet or a dialog.
+     *
+     * A size down from [screenPromptTitle], which is for a question that owns the whole
+     * screen. These sit on a panel a few lines tall with the answer right under them, so
+     * the figure that gives an empty screen its weight only crowds one.
+     */
+    fun sheetTitle(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 26.sp,
+        lineHeight = 32.sp
+    )
+
+    /**
+     * A field inside a sheet — the goal, a step, a line of tomorrow's plan.
+     *
+     * Short of [cardTitle], which is set to be read across a room on a card. A sheet is
+     * held at arm's length and read once, and the longest thing written into one of
+     * these runs to thirty-eight characters.
+     */
+    fun sheetField(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 19.sp,
+        lineHeight = 25.sp
     )
 
     /** The daily wisdom quote inside its card. */

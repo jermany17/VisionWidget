@@ -2,6 +2,7 @@ package com.example.visionwidget.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -59,12 +60,12 @@ fun PromptDialog(
             shape = RoundedCornerShape(28.dp),
             color = Canvas
         ) {
-            Column(Modifier.padding(horizontal = 28.dp, vertical = 30.dp)) {
+            Column(Modifier.padding(horizontal = 24.dp, vertical = 26.dp)) {
                 Text(text = eyebrow, style = VisionType.eyebrow, color = OnCanvasMuted)
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text = title,
-                    style = VisionType.screenPromptTitle(userFont),
+                    style = VisionType.sheetTitle(userFont),
                     color = OnCanvas
                 )
                 Spacer(Modifier.height(14.dp))
@@ -78,28 +79,32 @@ fun PromptDialog(
                     OutlinedButton(
                         onClick = onQuiet,
                         shape = RoundedCornerShape(percent = 50),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp)
+                            .height(52.dp)
                     ) {
                         Text(
                             text = quietLabel,
                             style = VisionType.buttonLabel(userFont),
-                            color = OnCanvas
+                            color = OnCanvas,
+                            maxLines = 1
                         )
                     }
                     Button(
                         onClick = onLoud,
                         shape = RoundedCornerShape(percent = 50),
                         colors = ButtonDefaults.buttonColors(containerColor = OnCanvas),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp)
+                            .height(52.dp)
                     ) {
                         Text(
                             text = loudLabel,
                             style = VisionType.buttonLabel(userFont),
-                            color = Canvas
+                            color = Canvas,
+                            maxLines = 1
                         )
                     }
                 }

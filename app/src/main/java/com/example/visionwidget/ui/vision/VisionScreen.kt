@@ -862,7 +862,7 @@ private fun ConfirmDeleteSheet(
         ) {
             Text(text = label, style = SheetLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
-            Text(text = title, style = VisionType.screenPromptTitle(userFont), color = OnCanvas)
+            Text(text = title, style = VisionType.sheetTitle(userFont), color = OnCanvas)
             if (message != null) {
                 Spacer(Modifier.height(14.dp))
                 Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)

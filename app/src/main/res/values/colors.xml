@@ -1,4 +1,5 @@
 <resources>
-    <color name="ic_launcher_background">#3A2A3C</color>
+    <!-- The warm off-white the mark is cut out of. -->
+    <color name="ic_launcher_background">#F0E7E2</color>
     <color name="canvas">#FFFFFF</color>
 </resources>
