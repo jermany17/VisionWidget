@@ -535,9 +535,14 @@ private fun TopThreeSection(
     HorizontalPager(
         state = pager,
         pageSpacing = 12.dp,
-        // The next card shows at the edge, so the one being read is not the only thing
-        // the row appears to hold. With a single page there is nothing to hint at.
-        contentPadding = PaddingValues(end = if (pageCount > 1) 34.dp else 0.dp),
+        // The card beside the one being read shows at the edge, so the row says it holds
+        // more than what is in front of you.
+        //
+        // Held off both edges rather than the trailing one alone. With the room only on
+        // the right, the second card had nowhere to show the first from once it was
+        // reached: it sat flush against the left and the row looked, from there, like it
+        // had never held anything else. With a single page there is nothing to hint at.
+        contentPadding = PaddingValues(horizontal = if (pageCount > 1) 28.dp else 0.dp),
         // Kept off while a row is open: the field is inside the page, and dragging to
         // place a caret would otherwise carry the whole card away instead.
         userScrollEnabled = editingTask == NoTaskEditing
