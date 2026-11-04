@@ -129,21 +129,26 @@ private const val LARGE_COUNT_LINE = 20f
 private const val MAX_MILESTONE_ROWS = 4
 
 /**
- * How far the side margin is pushed in to clear a rounded corner, against its radius.
+ * How far a margin is pushed in to clear a rounded corner, against its radius.
  *
  * A corner takes the card away diagonally, so the content's own corner has to sit
- * inside the curve: at the widest radius the slider offers, a margin the same on both
- * axes lands exactly on it, and the eyebrow at the head of the card and the dates at
- * its foot end up lying along the curve rather than inside it.
+ * inside the curve — and how far inside is what decides whether it reads as sitting
+ * there or as about to be cut by it. Measuring from the corner circle's own centre: at
+ * the widest radius the slider offers, the square card's twenty lands at seven-tenths
+ * of the radius and looks settled, while the wide and tall cards, whose margins are a
+ * dozen, land at nearly nine-tenths and look caught on it. A half of the radius puts
+ * all three at the same seven-tenths.
  *
- * Only the sides give way. Widening the top and bottom too would square the problem
- * away just as well, but a 4x2 is a shallow thing and the rule and dates are already
- * close under the words above them — there is width to spare there and no height. A
- * margin pushed in from the sides alone clears the curve with room over.
+ * Both axes give way now, where it was the sides alone. A corner is diagonal and a
+ * margin held back on one axis is a corner still near the curve, whatever the other
+ * does — the tall card had the width pushed in and still had its eyebrow lying along
+ * the arc. The one card left out is the 4x2: it is a shallow thing whose rule and dates
+ * are already close under the words above them, there is width to spare there and no
+ * height, and it was not what looked wrong.
  */
-private const val CORNER_CLEARANCE = 0.45f
+private const val CORNER_CLEARANCE = 0.5f
 
-private fun sideMargin(base: Float, cornerRadius: Int) =
+private fun cornerMargin(base: Float, cornerRadius: Int) =
     max(base, cornerRadius * CORNER_CLEARANCE)
 
 /** Everything a card draws with, resolved from what was applied to it. */
@@ -440,7 +445,7 @@ fun renderVisionCard(
     val align = Alignments[style.alignId]
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(MEDIUM_PADDING, style.cornerRadius) * s
+        val padX = cornerMargin(MEDIUM_PADDING, style.cornerRadius) * s
         val padY = MEDIUM_PADDING * s
         val left = padX
         val inner = (w - 2 * left).toInt()
@@ -551,7 +556,7 @@ fun renderTopThreeCard(
     val shown = set.take(BASE_TOP_THREE_TASKS)
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(MEDIUM_PADDING, style.cornerRadius) * s
+        val padX = cornerMargin(MEDIUM_PADDING, style.cornerRadius) * s
         val padY = MEDIUM_PADDING * s
         val left = padX
         val inner = (w - 2 * left).toInt()
@@ -635,7 +640,7 @@ fun renderWisdomCard(
     val align = Alignments[style.alignId]
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(MEDIUM_PADDING, style.cornerRadius) * s
+        val padX = cornerMargin(MEDIUM_PADDING, style.cornerRadius) * s
         val padY = MEDIUM_PADDING * s
         val left = padX
         val inner = (w - 2 * left).toInt()
@@ -692,8 +697,8 @@ fun renderVisionCardLarge(
     val reached = milestones.count { it.checked }
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(LARGE_PADDING, style.cornerRadius) * s
-        val padY = LARGE_PADDING * s
+        val padX = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (w - 2 * left).toInt()
 
@@ -821,8 +826,8 @@ fun renderTopThreeCardLarge(
     val done = set.count { checked[it] }
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(LARGE_PADDING, style.cornerRadius) * s
-        val padY = LARGE_PADDING * s
+        val padX = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (w - 2 * left).toInt()
 
@@ -930,8 +935,8 @@ fun renderWisdomCardLarge(
     val align = Alignments[style.alignId]
 
     return fixedCard(context, widthPx, heightPx, style, photoUri) { canvas, s, w, h ->
-        val padX = sideMargin(LARGE_PADDING, style.cornerRadius) * s
-        val padY = LARGE_PADDING * s
+        val padX = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(LARGE_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (w - 2 * left).toInt()
 
@@ -987,8 +992,8 @@ fun renderVisionCardSmall(
     val align = Alignments[style.alignId]
 
     return smallCard(context, sidePx, style, photoUri) { canvas, s, side ->
-        val padX = sideMargin(SMALL_PADDING, style.cornerRadius) * s
-        val padY = SMALL_PADDING * s
+        val padX = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (side - 2 * left).toInt()
 
@@ -1045,8 +1050,8 @@ fun renderTopThreeCardSmall(
     val next = set.firstOrNull { !checked[it] }
 
     return smallCard(context, sidePx, style, photoUri) { canvas, s, side ->
-        val padX = sideMargin(SMALL_PADDING, style.cornerRadius) * s
-        val padY = SMALL_PADDING * s
+        val padX = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (side - 2 * left).toInt()
 
@@ -1089,8 +1094,8 @@ fun renderWisdomCardSmall(
     val align = Alignments[style.alignId]
 
     return smallCard(context, sidePx, style, photoUri) { canvas, s, side ->
-        val padX = sideMargin(SMALL_PADDING, style.cornerRadius) * s
-        val padY = SMALL_PADDING * s
+        val padX = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
+        val padY = cornerMargin(SMALL_PADDING, style.cornerRadius) * s
         val left = padX
         val inner = (side - 2 * left).toInt()
 
