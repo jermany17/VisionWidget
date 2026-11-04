@@ -198,7 +198,11 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         // passed, archive them and clear the board for today. The cards are showing
         // yesterday's three until they're told, so they're told.
         viewModelScope.launch {
-            ruleOfThreeDao.rolloverToToday(LocalDate.now().toEpochDay())
+            val today = LocalDate.now().toEpochDay()
+            ruleOfThreeDao.rolloverToToday(today)
+            // After the board is cleared and before anything can be typed onto it, so a
+            // plan can only ever land on empty slots.
+            takeUpPlan(today)
             redrawWidgets()
         }
 
@@ -229,13 +233,28 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     val mainVisionId: StateFlow<Long?> = visionDao.observeMainVisionId()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), null)
 
+    // The day's own three — the set the widget shows and the record is kept on.
     val topThreeTasks: StateFlow<List<String?>> = ruleOfThreeDao.observeSlots()
-        .map { slots -> List(visibleSlotCount(slots)) { index -> slots.find { it.slotIndex == index }?.task } }
+        .map { it.tasksOf(TOP_THREE_SLOTS) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { null })
 
     val topThreeChecked: StateFlow<List<Boolean>> = ruleOfThreeDao.observeSlots()
-        .map { slots -> List(visibleSlotCount(slots)) { index -> slots.find { it.slotIndex == index }?.checked ?: false } }
+        .map { it.checksOf(TOP_THREE_SLOTS) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { false })
+
+    // What comes after them, which only Today ever shows.
+    val afterThreeTasks: StateFlow<List<String?>> = ruleOfThreeDao.observeSlots()
+        .map { it.tasksOf(AFTER_THREE_SLOTS) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { null })
+
+    val afterThreeChecked: StateFlow<List<Boolean>> = ruleOfThreeDao.observeSlots()
+        .map { it.checksOf(AFTER_THREE_SLOTS) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), List(BASE_TOP_THREE_TASKS) { false })
+
+    /** Whether the second set is in play at all — see [afterThreeUnlocked]. */
+    val afterThreeOpen: StateFlow<Boolean> = ruleOfThreeDao.observeSlots()
+        .map { afterThreeUnlocked(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(StopTimeoutMillis), false)
 
     /** Every day on record, newest first — what the Insights tab reads. */
     val dayRecords: StateFlow<List<DayRecord>> = combine(
@@ -324,9 +343,12 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // All three take a slot index across both sets rather than a place in one of them,
+    // so the second set is written the same way the first is and neither has to know
+    // which it is.
     fun setTopThreeText(index: Int, text: String) {
         viewModelScope.launch {
-            val checked = topThreeChecked.value.getOrElse(index) { false }
+            val checked = ruleOfThreeDao.slots().checkedAt(index)
             ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, text, checked))
             redrawWidgets()
         }
@@ -334,9 +356,10 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun toggleTopThreeChecked(index: Int) {
         viewModelScope.launch {
-            val task = topThreeTasks.value.getOrNull(index) ?: return@launch
-            val checked = topThreeChecked.value.getOrElse(index) { false }
-            ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, task, !checked))
+            val slots = ruleOfThreeDao.slots()
+            val task = slots.taskAt(index) ?: return@launch
+            ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, task, !slots.checkedAt(index)))
+            handOverIfKept()
             redrawWidgets()
         }
     }
@@ -346,5 +369,78 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, null, false))
             redrawWidgets()
         }
+    }
+
+    /** What is planned for the day ahead, in slot order — blanks for untouched slots. */
+    private val _plannedTasks = MutableStateFlow(preferences.plannedTasks)
+    val plannedTasks: StateFlow<List<String>> = _plannedTasks.asStateFlow()
+
+    /**
+     * Writes the plan for tomorrow, or clears it when nothing was left in it.
+     *
+     * Dated as it is saved rather than as it is taken up, so a plan made late at night
+     * belongs to the morning that follows it and not to the one after that.
+     */
+    fun setPlan(tasks: List<String>) {
+        val kept = tasks.map { it.trim() }
+        if (kept.all { it.isEmpty() }) {
+            preferences.clearPlan()
+            _plannedTasks.value = emptyList()
+            return
+        }
+        preferences.plannedDay = LocalDate.now().toEpochDay() + 1
+        preferences.plannedTasks = kept
+        _plannedTasks.value = kept
+    }
+
+    /**
+     * Takes up the plan the day it was written for, or files it where it belongs.
+     *
+     * A plan the user never came back for is not today's work — it was a day that was
+     * meant to happen and didn't, so it goes into the record under its own date rather
+     * than following them forward. Either way it is spent: a plan is for one day, and
+     * the day it was for has arrived or gone.
+     */
+    private suspend fun takeUpPlan(today: Long) {
+        val day = preferences.plannedDay
+        if (day == 0L || day > today) return
+
+        val tasks = preferences.plannedTasks
+        if (day == today) {
+            tasks.forEachIndexed { index, task ->
+                if (task.isNotBlank()) {
+                    ruleOfThreeDao.upsert(RuleOfThreeSlotEntity(index, task, false))
+                }
+            }
+        } else {
+            val missed = tasks.mapIndexedNotNull { index, task ->
+                task.takeIf { it.isNotBlank() }
+                    ?.let { RuleOfThreeHistoryEntity(day, index, it, false) }
+            }
+            if (missed.isNotEmpty()) ruleOfThreeDao.archive(missed)
+        }
+
+        preferences.clearPlan()
+        _plannedTasks.value = emptyList()
+    }
+
+    /**
+     * Gives the day over to the second set once the first has been kept.
+     *
+     * Only with something waiting: a set swapped onto an empty one would take the day's
+     * three off the screen and the widget, and leave nothing in their place. And only
+     * once, so a day cannot be handed back and forth — the set that has been kept stays
+     * where it was put, and the one now carrying the day is finished on its own terms.
+     */
+    private suspend fun handOverIfKept() {
+        val today = LocalDate.now().toEpochDay()
+        if (preferences.topThreeSwappedOn == today) return
+
+        val slots = ruleOfThreeDao.slots()
+        if (!slots.isSetKept(TOP_THREE_SLOTS)) return
+        if (AFTER_THREE_SLOTS.none { slots.taskAt(it) != null }) return
+
+        ruleOfThreeDao.swapSets()
+        preferences.topThreeSwappedOn = today
     }
 }

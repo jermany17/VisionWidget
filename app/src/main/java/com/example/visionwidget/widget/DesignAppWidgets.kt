@@ -27,7 +27,9 @@ import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.data.buildDayRecords
 import com.example.visionwidget.data.tallyBetween
 import com.example.visionwidget.data.topThreeStats
-import com.example.visionwidget.data.visibleSlotCount
+import com.example.visionwidget.data.TOP_THREE_SLOTS
+import com.example.visionwidget.data.checksOf
+import com.example.visionwidget.data.tasksOf
 import com.example.visionwidget.ui.home.Wisdom
 import com.example.visionwidget.ui.home.wisdomFor
 import com.example.visionwidget.ui.home.wisdomIndices
@@ -210,9 +212,11 @@ class TopThreeAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        val slotCount = visibleSlotCount(slots)
-        val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
-        val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
+        // The day's own three and no more. The second set takes their place on the
+        // screen when it is earned rather than lengthening the list, so a widget has a
+        // fixed three to draw and never has to say how many it is leaving out.
+        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
+        val checked = slots.checksOf(TOP_THREE_SLOTS)
 
         provideContent {
             val (widthPx, heightPx) = cardSizePx()
@@ -306,9 +310,11 @@ class TopThreeLargeAppWidget : GlanceAppWidget() {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val dao = AppDatabase.getInstance(context).ruleOfThreeDao()
         val slots = dao.slots()
-        val slotCount = visibleSlotCount(slots)
-        val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
-        val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
+        // The day's own three and no more. The second set takes their place on the
+        // screen when it is earned rather than lengthening the list, so a widget has a
+        // fixed three to draw and never has to say how many it is leaving out.
+        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
+        val checked = slots.checksOf(TOP_THREE_SLOTS)
 
         // The foot reads the same figures Today's own header does, built from the same
         // records the Insights tab reads rather than counted a second way here.
@@ -398,9 +404,11 @@ class TopThreeSmallAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        val slotCount = visibleSlotCount(slots)
-        val tasks = List(slotCount) { index -> slots.find { it.slotIndex == index }?.task }
-        val checked = List(slotCount) { index -> slots.find { it.slotIndex == index }?.checked == true }
+        // The day's own three and no more. The second set takes their place on the
+        // screen when it is earned rather than lengthening the list, so a widget has a
+        // fixed three to draw and never has to say how many it is leaving out.
+        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
+        val checked = slots.checksOf(TOP_THREE_SLOTS)
 
         provideContent {
             CardImage(

@@ -59,6 +59,55 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_WISDOM_OWN_TEXT, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_WISDOM_OWN_TEXT, value).apply()
 
+    /**
+     * The day the two sets of three last changed places, or zero if they never have.
+     *
+     * Kept as a date rather than a flag so it clears itself: a new day is a day this
+     * does not match, and the handover is there to be earned once more. It is the one
+     * thing about the sets that cannot be read off the slots — once they have swapped,
+     * the arrangement is indistinguishable from one the user built that way.
+     */
+    var topThreeSwappedOn: Long
+        get() = prefs.getLong(KEY_TOP_THREE_SWAPPED_ON, 0L)
+        set(value) = prefs.edit().putLong(KEY_TOP_THREE_SWAPPED_ON, value).apply()
+
+    /**
+     * The day the plan waiting in the wings is for, or zero while there is none.
+     *
+     * A plan is written the evening before and taken up when that day arrives, so it is
+     * dated: the same lines are a day's work if the app is opened on the day and a day
+     * that was never started if it is opened after.
+     */
+    var plannedDay: Long
+        get() = prefs.getLong(KEY_PLANNED_DAY, 0L)
+        set(value) = prefs.edit().putLong(KEY_PLANNED_DAY, value).apply()
+
+    /**
+     * What was planned, in slot order across both sets, blanks for the slots left alone.
+     *
+     * Kept here rather than in a table of its own. It is one day's six lines, read once
+     * and spent, and the database has no way through it yet — it was laid down at
+     * version one with no migrations, so a table added now would meet an older install
+     * with nowhere to go.
+     *
+     * Joined on newlines, which the fields it comes from cannot hold: every one of them
+     * is a single line that commits on Done.
+     */
+    var plannedTasks: List<String>
+        get() = prefs.getString(KEY_PLANNED_TASKS, "")
+            .orEmpty()
+            .split('\n')
+            .let { if (it.size == 1 && it.first().isEmpty()) emptyList() else it }
+        set(value) = prefs.edit().putString(KEY_PLANNED_TASKS, value.joinToString("\n")).apply()
+
+    /** Forgets the plan, whether it was taken up or missed. */
+    fun clearPlan() {
+        prefs.edit()
+            .remove(KEY_PLANNED_DAY)
+            .remove(KEY_PLANNED_TASKS)
+            .apply()
+    }
+
 
     /**
      * How one widget renders the user's own words — face, colour, layout, fill and
@@ -135,6 +184,9 @@ class AppPreferences(context: Context) {
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WISDOM_INDEX = "wisdom_index"
         const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
+        const val KEY_TOP_THREE_SWAPPED_ON = "top_three_swapped_on"
+        const val KEY_PLANNED_DAY = "planned_day"
+        const val KEY_PLANNED_TASKS = "planned_tasks"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"

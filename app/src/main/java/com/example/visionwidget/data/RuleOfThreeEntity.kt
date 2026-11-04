@@ -91,6 +91,27 @@ interface RuleOfThreeDao {
     suspend fun clearSlots()
 
     /**
+     * Hands the day over: the two sets of three change places, words and ticks alike.
+     *
+     * Done to the slots rather than remembered beside them, because a set is its
+     * position. Everything downstream — the widget, the record of the day, the card —
+     * reads the first three as the day's own, so moving the rows is what makes the
+     * second set become that without a word of it anywhere else.
+     */
+    @Transaction
+    suspend fun swapSets() {
+        val slots = currentSlots()
+        val size = BASE_TOP_THREE_TASKS
+        val taken = (0 until size * 2).map { index -> slots.find { it.slotIndex == index } }
+        for (index in 0 until size) {
+            val first = taken[index]
+            val second = taken[index + size]
+            upsert(RuleOfThreeSlotEntity(index, second?.task, second?.checked == true))
+            upsert(RuleOfThreeSlotEntity(index + size, first?.task, first?.checked == true))
+        }
+    }
+
+    /**
      * Called once per app start. If the live slots still belong to an earlier day and
      * at least one holds a task, that day is archived before the slots are cleared for
      * today — an empty day leaves nothing worth keeping, so it's just dated forward.

@@ -118,6 +118,10 @@ fun VisionApp(
     val mainVisionId by viewModel.mainVisionId.collectAsStateWithLifecycle()
     val topThreeTasks by viewModel.topThreeTasks.collectAsStateWithLifecycle()
     val topThreeChecked by viewModel.topThreeChecked.collectAsStateWithLifecycle()
+    val afterThreeTasks by viewModel.afterThreeTasks.collectAsStateWithLifecycle()
+    val afterThreeChecked by viewModel.afterThreeChecked.collectAsStateWithLifecycle()
+    val afterThreeOpen by viewModel.afterThreeOpen.collectAsStateWithLifecycle()
+    val plannedTasks by viewModel.plannedTasks.collectAsStateWithLifecycle()
     val dayRecords by viewModel.dayRecords.collectAsStateWithLifecycle()
     val widgetLooks by viewModel.widgetLooks.collectAsStateWithLifecycle()
 
@@ -179,6 +183,11 @@ fun VisionApp(
                 weekTotal = weekTally.total,
                 topThreeTasks = topThreeTasks,
                 topThreeChecked = topThreeChecked,
+                afterThreeTasks = afterThreeTasks,
+                afterThreeChecked = afterThreeChecked,
+                afterThreeOpen = afterThreeOpen,
+                plannedTasks = plannedTasks,
+                onSetPlan = viewModel::setPlan,
                 onSetTopThreeText = viewModel::setTopThreeText,
                 onToggleTopThree = viewModel::toggleTopThreeChecked,
                 onClearTopThree = viewModel::clearTopThree,

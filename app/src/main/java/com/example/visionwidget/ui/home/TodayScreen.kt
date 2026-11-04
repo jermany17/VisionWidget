@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -35,8 +37,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +59,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
+import com.example.visionwidget.ui.theme.ResolvedLook
 import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASK_LENGTH
 import com.example.visionwidget.ui.ContentWidthFraction
@@ -65,6 +70,7 @@ import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.theme.AlignChoice
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.OnCanvas
+import com.example.visionwidget.ui.theme.OnCanvasMuted
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
@@ -85,11 +91,24 @@ private val HeaderDateFormat = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale
 /** There's no account behind the app, so the header addresses the intent, not a name. */
 private const val GREETING = "Build the life you want."
 
-/** Shown in place of tasks before any exist — examples of what belongs in the slot. */
+/**
+ * Shown in place of tasks before any exist — what belongs in each slot, by position.
+ *
+ * The two sets ask for different things, so they prompt for different things: the first
+ * is what the day is for, the second is what would be good to reach if it goes well.
+ * Naming the position rather than asking a question of it keeps all six short enough to
+ * sit on one line beside the ring.
+ */
 private val TOP_3_PROMPTS = listOf(
-    "What matters most today?",
-    "What have you been putting off?",
-    "One small thing for the vision"
+    "Priority for today",
+    "A key task",
+    "Vision in action"
+)
+
+private val AFTER_THREE_PROMPTS = listOf(
+    "If time allows",
+    "Extra task",
+    "Later today"
 )
 
 /** No row is being edited. */
@@ -122,6 +141,13 @@ fun TodayScreen(
     weekTotal: Int = 0,
     topThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
     topThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
+    /** The set held back until the day's three are full — see [afterThreeUnlocked]. */
+    afterThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
+    afterThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
+    afterThreeOpen: Boolean = false,
+    /** What is already written for tomorrow, in slot order, or empty while nothing is. */
+    plannedTasks: List<String> = emptyList(),
+    onSetPlan: (tasks: List<String>) -> Unit = {},
     onSetTopThreeText: (index: Int, text: String) -> Unit = { _, _ -> },
     onToggleTopThree: (index: Int) -> Unit = {},
     onClearTopThree: (index: Int) -> Unit = {},
@@ -142,6 +168,17 @@ fun TodayScreen(
     // it stays local rather than in the store the committed tasks live in.
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
     var draft by rememberSaveable { mutableStateOf("") }
+    var planningTomorrow by rememberSaveable { mutableStateOf(false) }
+
+    // A slot is named by its place across both sets, so reading one back has to cross
+    // them the same way.
+    val taskAtSlot = { slot: Int ->
+        if (slot < BASE_TOP_THREE_TASKS) {
+            topThreeTasks.getOrNull(slot)
+        } else {
+            afterThreeTasks.getOrNull(slot - BASE_TOP_THREE_TASKS)
+        }
+    }
 
     // Keeping what was typed is one act however the row was left — the tick, the
     // keyboard's Done, or a tap somewhere else entirely. Walking away from a field is
@@ -215,55 +252,47 @@ fun TodayScreen(
             }
 
             Spacer(Modifier.height(22.dp))
-            val setCount = topThreeTasks.count { it != null }
-            val doneCount = topThreeTasks.indices.count {
-                topThreeTasks[it] != null && topThreeChecked[it]
-            }
-            SectionLabel(
-                label = "TODAY'S TOP 3",
-                // Measured against the tasks that exist, not the full three — a lone
-                // task ticked off reads as done, not a third done.
-                trailing = if (setCount > 0) "$doneCount / $setCount" else "NOT SET"
-            )
-            Spacer(Modifier.height(10.dp))
-            TopThreeCard(
-                skin = topThreeCard.skin,
-                photoUri = topThreeCard.photoUri,
-                shape = topThreeCard.shape,
-                userFont = topThreeCard.font,
-                align = topThreeCard.align,
-                tasks = topThreeTasks,
-                checkedTasks = topThreeChecked,
+            TopThreeSection(
+                card = topThreeCard,
+                sets = listOf(topThreeTasks, afterThreeTasks),
+                checks = listOf(topThreeChecked, afterThreeChecked),
+                afterThreeOpen = afterThreeOpen,
                 editingTask = editingTask,
                 draft = draft,
                 onToggleTask = onToggleTopThree,
-                onStartEdit = { index ->
+                onStartEdit = { slot ->
                     // Whatever was open keeps what was typed into it before the next
                     // row takes over.
                     commitDraft()
-                    draft = topThreeTasks[index].orEmpty()
-                    editingTask = index
+                    draft = taskAtSlot(slot).orEmpty()
+                    editingTask = slot
                 },
-                // Clamped rather than called out: running out of room at the thirtieth
+                // Clamped rather than called out: running out of room at the fortieth
                 // character says itself, without a notice that would flash past.
                 onDraftChange = { value -> draft = value.take(MAX_TOP_THREE_TASK_LENGTH) },
                 onCommitEdit = commitDraft,
                 // Only for the row that is actually open. A field is let go of as it is
                 // torn down too, and by then the edit may have already moved on — acting
                 // on that would close the row that just took over.
-                onFocusLost = { index -> if (editingTask == index) commitDraft() },
-                onRemoveTask = { index ->
+                onFocusLost = { slot -> if (editingTask == slot) commitDraft() },
+                onRemoveTask = { slot ->
                     // Back to a prompt, and the tick that belonged to the old task
                     // clears with it.
-                    onClearTopThree(index)
-                    if (editingTask == index) editingTask = NoTaskEditing
-                },
-                onAddMore = {
-                    // One past whatever is already there — the same slot a commit
-                    // would create, just asked for ahead of having anything to say.
+                    onClearTopThree(slot)
+                    if (editingTask == slot) editingTask = NoTaskEditing
+                }
+            )
+
+            Spacer(Modifier.height(22.dp))
+            PlanTomorrowRow(
+                day = LocalDate.now().plusDays(1),
+                plannedCount = plannedTasks.count { it.isNotBlank() },
+                userFont = userFont,
+                onClick = {
+                    // Whatever row was open keeps what was typed into it first — the
+                    // sheet takes the keyboard, and the field under it is torn down.
                     commitDraft()
-                    draft = ""
-                    editingTask = topThreeTasks.size
+                    planningTomorrow = true
                 }
             )
 
@@ -284,6 +313,19 @@ fun TodayScreen(
 
             Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
         }
+    }
+
+    if (planningTomorrow) {
+        PlanTomorrowSheet(
+            day = LocalDate.now().plusDays(1),
+            planned = plannedTasks,
+            userFontId = userFontId,
+            onDismiss = { planningTomorrow = false },
+            onSet = { tasks ->
+                onSetPlan(tasks)
+                planningTomorrow = false
+            }
+        )
     }
 }
 
@@ -349,6 +391,14 @@ private fun SectionLabel(
     label: String,
     action: String? = null,
     trailing: String? = null,
+    /**
+     * Underline the action.
+     *
+     * For the one that moves between the two sets of three rather than opening another
+     * screen: it sits where the figures usually do, and without a line under it reads
+     * as another label rather than something to press.
+     */
+    underlineAction: Boolean = false,
     onActionClick: (() -> Unit)? = null
 ) {
     // Fixed height, and the action carries no padding of its own: the two trailing
@@ -370,7 +420,13 @@ private fun SectionLabel(
                     .clickable(enabled = onActionClick != null) { onActionClick?.invoke() },
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = action, style = VisionType.eyebrow, color = OnCanvas)
+                Text(
+                    text = action,
+                    style = VisionType.eyebrow.copy(
+                        textDecoration = if (underlineAction) TextDecoration.Underline else null
+                    ),
+                    color = OnCanvas
+                )
             }
 
             trailing != null -> Text(
@@ -383,7 +439,159 @@ private fun SectionLabel(
 }
 
 /**
- * Today's three slots. Each is either a prompt waiting to be filled or a set task that
+ * The way into tomorrow, under the day's own three.
+ *
+ * Reads as an invitation until there is a plan and as a summary once there is, because
+ * those are the two things it can usefully say. The date is kept on the right either
+ * way — the plan is for a particular day, and a plan made late at night is the one
+ * moment that is easy to be wrong about.
+ */
+@Composable
+private fun PlanTomorrowRow(
+    day: LocalDate,
+    plannedCount: Int,
+    userFont: UserFontChoice,
+    onClick: () -> Unit
+) {
+    HorizontalDivider(color = Rule, thickness = 1.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (plannedCount > 0) "Tomorrow · $plannedCount planned" else "Plan tomorrow",
+            style = VisionType.cardTitle(userFont),
+            color = OnCanvas,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = if (plannedCount > 0) "EDIT  →" else "${planDayLabel(day)}  →",
+            style = VisionType.eyebrow,
+            color = OnCanvasMuted
+        )
+    }
+    HorizontalDivider(color = Rule, thickness = 1.dp)
+}
+
+/**
+ * The day's three, and what the user lined up to follow them.
+ *
+ * Two cards side by side rather than one list that grows. The second is only reachable
+ * once the first is full, which is what [afterThreeUnlocked] decides; until then this is
+ * the single card it has always been, with nothing to say it could be anything else.
+ *
+ * The label above carries whichever set is showing and its own figures, and the control
+ * opposite it names the other one. Both the swipe and that control move between them, so
+ * the page can be reached whether or not the gesture is discovered.
+ */
+@Composable
+private fun TopThreeSection(
+    card: ResolvedLook,
+    /** The day's three first, then the set waiting behind them. */
+    sets: List<List<String?>>,
+    checks: List<List<Boolean>>,
+    afterThreeOpen: Boolean,
+    editingTask: Int,
+    draft: String,
+    onToggleTask: (Int) -> Unit,
+    onStartEdit: (Int) -> Unit,
+    onDraftChange: (String) -> Unit,
+    onCommitEdit: () -> Unit,
+    onFocusLost: (Int) -> Unit,
+    onRemoveTask: (Int) -> Unit
+) {
+    val pageCount = if (afterThreeOpen) 2 else 1
+    val pager = rememberPagerState(pageCount = { pageCount })
+    val scope = rememberCoroutineScope()
+
+    // The page the pager is on can outlive the second set: empty it and close it while
+    // standing on it, and the pager is left pointing past the end for a frame.
+    val page = pager.currentPage.coerceIn(0, pageCount - 1)
+    val tasks = sets[page]
+    val checked = checks[page]
+    val setCount = tasks.count { it != null }
+    val doneCount = tasks.indices.count { tasks[it] != null && checked[it] }
+
+    val name = if (page == 0) "TODAY'S TOP 3" else "AFTER THREE"
+    SectionLabel(
+        // Measured against the tasks that exist, not the full three — a lone task
+        // ticked off reads as done, not a third done.
+        label = if (setCount > 0) "$name · $doneCount / $setCount" else name,
+        action = when {
+            !afterThreeOpen -> null
+            page == 0 -> "AFTER THREE  →"
+            else -> "←  TOP 3"
+        },
+        trailing = if (setCount == 0 && !afterThreeOpen) "NOT SET" else null,
+        underlineAction = true,
+        onActionClick = { scope.launch { pager.animateScrollToPage(1 - page) } }
+    )
+
+    Spacer(Modifier.height(10.dp))
+    HorizontalPager(
+        state = pager,
+        pageSpacing = 12.dp,
+        // The next card shows at the edge, so the one being read is not the only thing
+        // the row appears to hold. With a single page there is nothing to hint at.
+        contentPadding = PaddingValues(end = if (pageCount > 1) 34.dp else 0.dp),
+        // Kept off while a row is open: the field is inside the page, and dragging to
+        // place a caret would otherwise carry the whole card away instead.
+        userScrollEnabled = editingTask == NoTaskEditing
+    ) { index ->
+        TopThreeCard(
+            skin = card.skin,
+            photoUri = card.photoUri,
+            shape = card.shape,
+            userFont = card.font,
+            align = card.align,
+            tasks = sets[index],
+            checkedTasks = checks[index],
+            slotOffset = index * BASE_TOP_THREE_TASKS,
+            pending = index > 0,
+            editingTask = editingTask,
+            draft = draft,
+            onToggleTask = onToggleTask,
+            onStartEdit = onStartEdit,
+            onDraftChange = onDraftChange,
+            onCommitEdit = onCommitEdit,
+            onFocusLost = onFocusLost,
+            onRemoveTask = onRemoveTask
+        )
+    }
+
+    if (pageCount > 1) {
+        Spacer(Modifier.height(12.dp))
+        PagerDots(count = pageCount, current = page)
+    }
+}
+
+/** Which of the two cards is showing. The one being read is drawn as a bar, not a dot. */
+@Composable
+private fun PagerDots(count: Int, current: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(count) { index ->
+            val here = index == current
+            Box(
+                Modifier
+                    .height(6.dp)
+                    .width(if (here) 18.dp else 6.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(if (here) OnCanvas else Rule)
+            )
+        }
+    }
+}
+
+/**
+ * One set's three slots. Each is either a prompt waiting to be filled or a set task that
  * ticks off; the meter appears under them once any task exists.
  */
 @Composable
@@ -395,28 +603,25 @@ private fun TopThreeCard(
     align: AlignChoice,
     tasks: List<String?>,
     checkedTasks: List<Boolean>,
+    /**
+     * Where this set's slots begin, so a row can name itself to the store.
+     *
+     * The two sets are three slots each at fixed positions, so a row's place on the
+     * card and its place in the day are the same thing plus this.
+     */
+    slotOffset: Int,
+    /** The set waiting its turn — see [TaskRow]'s own note. */
+    pending: Boolean,
     editingTask: Int,
     draft: String,
     onToggleTask: (Int) -> Unit,
     onStartEdit: (Int) -> Unit,
     onDraftChange: (String) -> Unit,
     onCommitEdit: () -> Unit,
-    /** Which row's field was let go of — the open one, or the slot being added. */
+    /** Which row's field was let go of. */
     onFocusLost: (Int) -> Unit,
-    onRemoveTask: (Int) -> Unit,
-    onAddMore: () -> Unit
+    onRemoveTask: (Int) -> Unit
 ) {
-    // A fresh slot being typed into, one past whatever already exists — not yet a row
-    // of its own in [tasks], since nothing has been committed for it.
-    val addingNew = editingTask == tasks.size
-    // Asked for only once there's nothing left undone: adding a fourth task before the
-    // first three are kept would be asking for more before the three were answered.
-    val canAddMore = !addingNew &&
-        tasks.size < MAX_TOP_THREE_TASKS &&
-        tasks.size >= BASE_TOP_THREE_TASKS &&
-        tasks.all { it != null } &&
-        checkedTasks.take(tasks.size).all { it }
-
     ThemedCard(skin = skin, photoUri = photoUri, shape = shape) {
         // Less room above the first row than around it: the row's own 16dp and the
         // card's inset were stacking into too deep a gap at the top.
@@ -425,62 +630,42 @@ private fun TopThreeCard(
                 if (index > 0) {
                     HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
                 }
+                val slot = slotOffset + index
+                val prompts = if (pending) AFTER_THREE_PROMPTS else TOP_3_PROMPTS
                 TaskRow(
                     task = task,
-                    prompt = TOP_3_PROMPTS.getOrElse(index) { "" },
+                    prompt = prompts.getOrElse(index) { "" },
                     checked = checkedTasks[index],
-                    editing = editingTask == index,
+                    editing = editingTask == slot,
                     draft = draft,
                     skin = skin,
                     userFont = userFont,
                     align = align,
-                    onToggle = { onToggleTask(index) },
-                    onStartEdit = { onStartEdit(index) },
+                    pending = pending,
+                    onToggle = { onToggleTask(slot) },
+                    onStartEdit = { onStartEdit(slot) },
                     onDraftChange = onDraftChange,
                     onCommitEdit = onCommitEdit,
-                    onFocusLost = { onFocusLost(index) },
-                    onRemove = { onRemoveTask(index) }
-                )
-            }
-
-            if (addingNew) {
-                if (tasks.isNotEmpty()) {
-                    HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
-                }
-                // The same row a committed task gets, just open before it has one —
-                // an unset slot with nothing of its own to prompt with.
-                TaskRow(
-                    task = null,
-                    prompt = "",
-                    checked = false,
-                    editing = true,
-                    draft = draft,
-                    skin = skin,
-                    userFont = userFont,
-                    align = align,
-                    onToggle = {},
-                    onStartEdit = {},
-                    onDraftChange = onDraftChange,
-                    onCommitEdit = onCommitEdit,
-                    onFocusLost = { onFocusLost(tasks.size) },
-                    onRemove = {}
-                )
-            } else if (canAddMore) {
-                HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
-                AddMoreRow(
-                    extraLeft = MAX_TOP_THREE_TASKS - tasks.size,
-                    skin = skin,
-                    userFont = userFont,
-                    align = align,
-                    onClick = onAddMore
+                    onFocusLost = { onFocusLost(slot) },
+                    onRemove = { onRemoveTask(slot) }
                 )
             }
 
             Spacer(Modifier.height(10.dp))
-            if (tasks.all { it == null }) {
+            when {
+                // Says what the set is for rather than how it is going. Nothing here is
+                // ticked off while it waits, so a meter would read nothing but zero.
+                pending -> Text(
+                    text = align.format("Fills in after your three are done."),
+                    style = VisionType.helperText(userFont),
+                    color = skin.onSurfaceMuted,
+                    textAlign = align.textAlign,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 // Same guidance as before the first task exists — the meter would only
                 // read 0% and say nothing.
-                Text(
+                tasks.all { it == null } -> Text(
                     text = align.format(
                         "Choose three things that truly matter today. Three is the whole rule."
                     ),
@@ -489,8 +674,8 @@ private fun TopThreeCard(
                     textAlign = align.textAlign,
                     modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                TaskProgress(
+
+                else -> TaskProgress(
                     done = tasks.indices.count { tasks[it] != null && checkedTasks[it] },
                     total = tasks.count { it != null },
                     skin = skin
@@ -500,68 +685,6 @@ private fun TopThreeCard(
     }
 }
 
-/**
- * Offered once every task on the board is done, however many there are. Tapping it
- * opens the same field a fresh slot always does, one past whatever is already there.
- */
-@Composable
-private fun AddMoreRow(
-    extraLeft: Int,
-    skin: WidgetSkin,
-    userFont: UserFontChoice,
-    align: AlignChoice,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AddMark(color = skin.onSurfaceMuted)
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = align.format("Add one more"),
-            style = VisionType.bodyText(userFont),
-            color = skin.onSurfaceMuted,
-            textAlign = align.textAlign,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = "EXTRA · $extraLeft LEFT",
-            style = VisionType.eyebrow,
-            color = skin.onSurfaceMuted
-        )
-    }
-}
-
-/** The same dashed ring an unset task sits behind, carrying the mark that starts one. */
-@Composable
-private fun AddMark(color: Color) {
-    Box(
-        modifier = Modifier
-            .size(22.dp)
-            .drawBehind {
-                val stroke = 1.5.dp.toPx()
-                drawCircle(
-                    color = color,
-                    radius = (size.minDimension - stroke) / 2,
-                    style = Stroke(
-                        width = stroke,
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(3.dp.toPx(), 3.dp.toPx())
-                        )
-                    )
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = "+", style = VisionType.glyph, color = color)
-    }
-}
 
 /**
  * One slot: its prompt, the field that fills it, or the task it now holds. The leading
@@ -578,6 +701,14 @@ private fun TaskRow(
     skin: WidgetSkin,
     userFont: UserFontChoice,
     align: AlignChoice,
+    /**
+     * The row belongs to the set waiting its turn.
+     *
+     * An unticked one wears the open ring an unfilled slot does, so a set written ahead
+     * of time reads as lined up rather than under way. Ticked, it is drawn like any
+     * other — it has been done, whichever set it was sitting in at the time.
+     */
+    pending: Boolean = false,
     onToggle: () -> Unit,
     onStartEdit: () -> Unit,
     onDraftChange: (String) -> Unit,
@@ -589,8 +720,11 @@ private fun TaskRow(
         modifier = Modifier.padding(vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (task == null) {
-            DashedCheckMark(color = skin.onSurfaceMuted)
+        if (task == null || (pending && !checked)) {
+            DashedCheckMark(
+                color = skin.onSurfaceMuted,
+                onClick = if (task == null) null else onToggle
+            )
         } else {
             TaskCheck(checked = checked, skin = skin, onClick = onToggle)
         }
@@ -745,10 +879,20 @@ private fun TaskProgress(done: Int, total: Int, skin: WidgetSkin) {
 
 /** The empty circle that marks where a task's checkbox will sit. */
 @Composable
-private fun DashedCheckMark(color: Color) {
+private fun DashedCheckMark(color: Color, onClick: (() -> Unit)? = null) {
     Spacer(
         Modifier
             .size(22.dp)
+            // An empty slot has nothing to tick, so it takes no tap. A slot in the
+            // waiting set does: it wears the open ring to say it is not under way yet,
+            // not to say it is out of reach.
+            .then(
+                if (onClick == null) {
+                    Modifier
+                } else {
+                    Modifier.clip(CircleShape).clickable(onClick = onClick)
+                }
+            )
             .drawBehind {
                 val stroke = 1.5.dp.toPx()
                 drawCircle(

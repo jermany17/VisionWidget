@@ -1,10 +1,59 @@
 package com.example.visionwidget.data
 
-/** How many of today's slots are offered before the user asks for more. */
+/** How many slots one set holds. Three is the whole point of the screen. */
 const val BASE_TOP_THREE_TASKS = 3
 
-/** How many a day can hold in total, the three base slots plus however many are added. */
+/** How many a day can hold in total: the two sets of three. */
 const val MAX_TOP_THREE_TASKS = 6
+
+/**
+ * The day's two sets of three.
+ *
+ * A day is not one list that grows but two sets that take turns. The first is what the
+ * day is actually judged on and the only one a widget shows; the second is held back
+ * until the first is full, and takes its place once the first is kept. Which slot
+ * indices belong to which is fixed, so a set is a position rather than a thing to be
+ * kept track of.
+ */
+val TOP_THREE_SLOTS = 0 until BASE_TOP_THREE_TASKS
+val AFTER_THREE_SLOTS = BASE_TOP_THREE_TASKS until MAX_TOP_THREE_TASKS
+
+fun List<RuleOfThreeSlotEntity>.taskAt(index: Int): String? =
+    find { it.slotIndex == index }?.task
+
+fun List<RuleOfThreeSlotEntity>.checkedAt(index: Int): Boolean =
+    find { it.slotIndex == index }?.checked == true
+
+/** One set's words, in slot order, with the slots nobody filled left as nulls. */
+fun List<RuleOfThreeSlotEntity>.tasksOf(set: IntRange): List<String?> = set.map { taskAt(it) }
+
+fun List<RuleOfThreeSlotEntity>.checksOf(set: IntRange): List<Boolean> = set.map { checkedAt(it) }
+
+/**
+ * Whether the second set is in play.
+ *
+ * Filling the first set is what opens it, and holding anything of its own is what keeps
+ * it open: once a task has been written there, emptying a slot in the first set no
+ * longer takes it away, because there would be somewhere real to lose. With nothing in
+ * it and the first set no longer full there is nothing to keep, and it closes again.
+ *
+ * Nothing records this. It is read off the slots themselves, so it cannot drift from
+ * them, and it starts closed each morning because the slots do.
+ */
+fun afterThreeUnlocked(slots: List<RuleOfThreeSlotEntity>): Boolean =
+    TOP_THREE_SLOTS.all { slots.taskAt(it) != null } ||
+        AFTER_THREE_SLOTS.any { slots.taskAt(it) != null }
+
+/**
+ * Whether [set] is filled and every task in it is ticked.
+ *
+ * Empty is not complete — a set nobody wrote in has not been kept, it has not been
+ * started. This is what hands the day over to the other set.
+ */
+fun List<RuleOfThreeSlotEntity>.isSetKept(set: IntRange): Boolean {
+    val written = set.filter { taskAt(it) != null }
+    return written.isNotEmpty() && written.all { checkedAt(it) }
+}
 
 /**
  * How long a single task's own words can run.
@@ -14,15 +63,6 @@ const val MAX_TOP_THREE_TASKS = 6
  */
 const val MAX_TOP_THREE_TASK_LENGTH = 40
 
-/**
- * How many of today's slots are in play — the base three, or one past whichever extra
- * slot holds a task, whichever is taller. A slot earns its place by having something in
- * it; nothing pads the list out to six just because six is allowed.
- */
-fun visibleSlotCount(slots: List<RuleOfThreeSlotEntity>): Int {
-    val highestSet = slots.filter { it.task != null }.maxOfOrNull { it.slotIndex } ?: -1
-    return maxOf(BASE_TOP_THREE_TASKS, highestSet + 1)
-}
 
 /** One slot of a day's Top 3, as Insights reads it — an empty slot never becomes an entry. */
 data class TopThreeEntry(
