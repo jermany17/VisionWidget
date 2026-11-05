@@ -253,7 +253,9 @@ fun InsightsScreen(
             Spacer(Modifier.height(20.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                // Held to the top rather than centred: the gear carries its own band, and
+                // centring this row would drop it below where the single-line tabs put it.
+                verticalAlignment = Alignment.Top
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(

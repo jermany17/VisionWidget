@@ -36,24 +36,40 @@ import com.example.visionwidget.ui.theme.VisionType
 private val IconButtonFill = Color(0xFFEFEBE3)
 private val IconButtonBorder = Color(0xFF12110F).copy(alpha = 0.09f)
 
+/**
+ * The band the gear is centred in — one line of the title face, whatever the header
+ * around it is made of.
+ *
+ * Vision and Studio head their tabs with a single line and Today and Insights with an
+ * eyebrow above one, so a gear centred on its own header sits at two different heights
+ * and steps down the screen as the tabs are switched. Centring it on the first line's
+ * height instead puts it in the same place on all four.
+ */
+private val TitleLine = 40.dp
+
 /** The gear, at the head of every tab. */
 @Composable
 fun SettingsButton(onClick: () -> Unit) {
     Box(
-        modifier = Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(IconButtonFill)
-            .border(1.dp, IconButtonBorder, CircleShape)
-            .clickable(onClick = onClick),
+        modifier = Modifier.height(TitleLine),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_settings),
-            contentDescription = "Settings",
-            tint = OnCanvas,
-            modifier = Modifier.size(17.dp)
-        )
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(IconButtonFill)
+                .border(1.dp, IconButtonBorder, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings),
+                contentDescription = "Settings",
+                tint = OnCanvas,
+                modifier = Modifier.size(17.dp)
+            )
+        }
     }
 }
 
