@@ -2747,10 +2747,9 @@ private fun TopThreeWidget(
 ) {
     val set = tasks.indices.filter { tasks[it] != null }
     val done = set.count { checked[it] }
-    // The widget has no more room for a sixth row than a fourth, so the preview caps
-    // at the same base three and names whatever is past it the same way the card does.
+    // The widget has no more room for a sixth row than a fourth, so the preview caps at
+    // the same base three and, like the card, leaves the rest to the count in the eyebrow.
     val shown = set.take(BASE_TOP_THREE_TASKS)
-    val overflow = set.size - shown.size
 
     WidgetCard(skin, photoUri, align, shape) {
         Text(
@@ -2772,15 +2771,6 @@ private fun TopThreeWidget(
                     skin = skin,
                     userFont = userFont,
                     align = align
-                )
-            }
-            if (overflow > 0) {
-                Text(
-                    text = "+ $overflow more",
-                    style = WidgetMeta,
-                    color = skin.onSurfaceMuted,
-                    textAlign = align.textAlign,
-                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

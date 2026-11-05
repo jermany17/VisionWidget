@@ -134,7 +134,7 @@ private const val MAX_MILESTONE_ROWS = 4
  * A corner takes the card away diagonally, so the content's own corner has to sit
  * inside the curve — and how far inside is what decides whether it reads as sitting
  * there or as about to be cut by it. Measuring from the corner circle's own centre: at
- * the widest radius the slider offers, the square card's twenty lands at seven-tenths
+ * a radius of forty, the square card's twenty lands at seven-tenths
  * of the radius and looks settled, while the wide and tall cards, whose margins are a
  * dozen, land at nearly nine-tenths and look caught on it. A half of the radius puts
  * all three at the same seven-tenths.
@@ -150,6 +150,25 @@ private const val CORNER_CLEARANCE = 0.5f
 
 private fun cornerMargin(base: Float, cornerRadius: Int) =
     max(base, cornerRadius * CORNER_CLEARANCE)
+
+/**
+ * Where a list of rows starts in the room it has, and how far apart they sit.
+ *
+ * Three rows in a card with space for more used to pile up under the eyebrow with the
+ * whole lower half left empty. The slack goes to the gaps first, up to one row's worth
+ * — past that the rows stop reading as one list — and whatever is still over is split
+ * above and below, so the block sits in the middle of its room rather than at the top
+ * of it. A card with no room to spare keeps the tight spacing and the old start.
+ *
+ * @return the lead-in before the first row, and the gap between any two.
+ */
+private fun spreadRows(room: Float, count: Int, rowLine: Float, minGap: Float): Pair<Float, Float> {
+    if (count < 2) return max(0f, (room - count * rowLine) / 2f) to minGap
+
+    val gap = ((room - count * rowLine) / (count - 1)).coerceIn(minGap, minGap + rowLine)
+    val block = count * rowLine + (count - 1) * gap
+    return max(0f, (room - block) / 2f) to gap
+}
 
 /** Everything a card draws with, resolved from what was applied to it. */
 private class CardInk(
@@ -537,8 +556,9 @@ private fun drawCheck(
  * Paints today's three.
  *
  * Capped at [BASE_TOP_THREE_TASKS] rows rather than however many are set — a fixed card
- * has no more room for a sixth row than it does a fourth, so anything past the base
- * three is named rather than drawn.
+ * has no more room for a sixth row than it does a fourth. What's past the base three is
+ * left off without a word: the eyebrow already counts the whole set, so a strip saying
+ * so again only takes room from the rows it is counting against.
  */
 fun renderTopThreeCard(
     context: Context,
@@ -583,19 +603,16 @@ fun renderTopThreeCard(
         } else {
             // How many rows the card's own height has room for, which is not always the
             // three it means to show: a flatter cell than the usual 4x2 would otherwise
-            // run the last of them out past the bottom edge. The strip at the foot is
-            // only kept back when something is actually being left out of the list.
+            // run the last of them out past the bottom edge.
             val rowSpan = MEDIUM_ROW_LINE * s + MEDIUM_SPACING * s
-            val strip = MEDIUM_META_LINE * s + MEDIUM_SPACING * s
-            fun roomFor(reserved: Float) =
-                ((h - padY - reserved - y + MEDIUM_SPACING * s) / rowSpan)
-                    .toInt().coerceAtLeast(1)
-
-            var room = roomFor(0f)
-            if (set.size > room) room = roomFor(strip)
-
+            val listRoom = h - padY - y
+            val room = ((listRoom + MEDIUM_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
             val visible = shown.take(room)
-            val hidden = set.size - visible.size
+
+            // The rows are given the whole of what's under the eyebrow rather than the
+            // top of it, so a card sized for more than three doesn't sit half empty.
+            val (lead, gap) = spreadRows(listRoom, visible.size, MEDIUM_ROW_LINE * s, MEDIUM_SPACING * s)
+            y += lead
 
             visible.forEach { index ->
                 val row = textBlock(
@@ -605,22 +622,7 @@ fun renderTopThreeCard(
                 )
                 drawCheck(canvas, ink, left, y, checked[index], s, check, MEDIUM_ROW_LINE * s)
                 canvas.draw(row, left + gutter, y)
-                y += row.height + MEDIUM_SPACING * s
-            }
-            // Down in the corner rather than in line with the rows: it is a count of
-            // what isn't shown, not another thing to tick off.
-            if (hidden > 0) {
-                val more = Paint(CardPaintFlags).apply {
-                    typeface = ink.face
-                    textSize = MEDIUM_META * s
-                    color = ink.onSurfaceMuted
-                    letterSpacing = 0.14f
-                    textAlign = Paint.Align.RIGHT
-                }
-                val moreHeight = MEDIUM_META_LINE * s
-                canvas.drawTextLine(
-                    "+ $hidden MORE", w - left, h - padY - moreHeight, moreHeight, more
-                )
+                y += row.height + gap
             }
         }
     }
@@ -875,12 +877,8 @@ fun renderTopThreeCardLarge(
         val shown = set.take(BASE_TOP_THREE_TASKS)
 
         val roomBelow = footRule - LARGE_SPACING * s - y
-        var room = ((roomBelow + LARGE_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
-        if (set.size > room) {
-            room = ((roomBelow - rowSpan + LARGE_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
-        }
+        val room = ((roomBelow + LARGE_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
         val visible = shown.take(room)
-        val hidden = set.size - visible.size
 
         if (visible.isEmpty()) {
             canvas.draw(
@@ -891,6 +889,11 @@ fun renderTopThreeCardLarge(
                 left, y
             )
         } else {
+            // As on the medium card: the rows take the room between the two rules
+            // rather than stacking against the top one.
+            val (lead, gap) = spreadRows(roomBelow, visible.size, rowLine, LARGE_SPACING * s)
+            y += lead
+
             visible.forEach { index ->
                 val row = textBlock(
                     align.format(tasks[index].orEmpty()), ink.face, LARGE_ROW * s, rowLine,
@@ -900,12 +903,7 @@ fun renderTopThreeCardLarge(
                 )
                 drawCheck(canvas, ink, left, y, checked[index], s, check, rowLine)
                 canvas.draw(row, left + gutter, y)
-                y += rowSpan
-            }
-            if (hidden > 0) {
-                meta.textAlign = Paint.Align.RIGHT
-                canvas.drawTextLine("+ $hidden MORE", w - left, y, rowLine, meta)
-                meta.textAlign = Paint.Align.LEFT
+                y += rowLine + gap
             }
         }
 
