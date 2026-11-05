@@ -177,11 +177,11 @@ fun PlanTomorrowSheet(
         ) {
             Text(
                 text = "TOMORROW · ${planDayLabel(day)}",
-                style = VisionType.eyebrow.copy(fontSize = 9.5.sp, letterSpacing = 1.9.sp),
+                style = VisionType.sheetLabel,
                 color = OnCanvasMuted
             )
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
             repeat(BASE_TOP_THREE_TASKS) { index ->
                 PlanRow(
                     value = tasks[index],
@@ -192,12 +192,12 @@ fun PlanTomorrowSheet(
             }
 
             if (afterShown > 0) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
                 Text(
                     text = "AFTER THREE",
                     // A step under the sheet's own label: it divides the rows rather
                     // than naming the sheet, so it is the quieter of the two.
-                    style = VisionType.eyebrow.copy(fontSize = 9.sp, letterSpacing = 1.8.sp),
+                    style = VisionType.fieldCounter.copy(letterSpacing = 1.8.sp),
                     color = OnCanvasMuted
                 )
                 Spacer(Modifier.height(8.dp))
@@ -216,7 +216,7 @@ fun PlanTomorrowSheet(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = "+ One more",
-                    style = VisionType.bodyText(userFont),
+                    style = VisionType.sheetLead(userFont),
                     color = OnCanvasMuted,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
@@ -225,19 +225,19 @@ fun PlanTomorrowSheet(
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(percent = 50))
                     .background(if (ready) NavBar else AvatarFill)
                     .clickable(enabled = ready) { onSet(tasks.toList()) }
-                    .padding(vertical = 20.dp),
+                    .padding(vertical = 17.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Set tomorrow",
-                    style = VisionType.buttonLabel(userFont).copy(fontSize = 15.sp),
+                    style = VisionType.sheetButton(userFont),
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
             }
@@ -272,11 +272,9 @@ private fun PlanRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    // Drawn a hair tighter than the face sets it, which is what keeps a line of
-    // thirty-eight characters from running wide of the rule under it.
-    val textStyle = VisionType.sheetField(userFont).copy(letterSpacing = (-0.19).sp)
+    val textStyle = VisionType.sheetRowField(userFont)
 
-    Box(Modifier.padding(vertical = 12.dp)) {
+    Box(Modifier.padding(vertical = 10.dp)) {
         if (value.isEmpty() && !focused) {
             Text(text = placeholder, style = textStyle, color = PlanHint)
         }

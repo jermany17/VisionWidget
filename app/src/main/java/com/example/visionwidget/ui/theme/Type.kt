@@ -137,32 +137,146 @@ object VisionType {
         lineHeight = 38.sp
     )
 
-    /**
-     * The headline of a sheet or a dialog.
-     *
-     * A size down from [screenPromptTitle], which is for a question that owns the whole
-     * screen. These sit on a panel a few lines tall with the answer right under them, so
-     * the figure that gives an empty screen its weight only crowds one.
-     */
-    fun sheetTitle(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 26.sp,
-        lineHeight = 32.sp
+    // --- Sheets and dialogs ---
+    //
+    // One scale for every panel that comes up over a screen, so a sheet and the question
+    // it raises are set the same way wherever they appear. Held deliberately under the
+    // page scale above: these are read once, close, with the answer right under them,
+    // and the figures that give a screen its weight only crowd a panel a few lines tall.
+    //
+    // Set against the design table, with one standing rule — nothing here grows. Where
+    // the table asked for more than the app already had, the app's own figure comes down
+    // a step instead. The complaint these answer is that the sheets read large, and a
+    // table is a description of proportions before it is a list of numbers.
+
+    /** NEW VISION · ADD A MILESTONE · DELETE VISION — the panel's own name. */
+    val sheetLabel = TextStyle(
+        fontFamily = DMMono,
+        fontWeight = FontWeight.Normal,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 2.sp
     )
 
     /**
-     * A field inside a sheet — the goal, a step, a line of tomorrow's plan.
-     *
-     * Short of [cardTitle], which is set to be read across a room on a card. A sheet is
-     * held at arm's length and read once, and the longest thing written into one of
-     * these runs to thirty-eight characters.
+     * THE GOAL · TARGET DATE · BY — the name of a field rather than of the panel. The
+     * same size, tracked a shade tighter, so the two read as different ranks without
+     * either having to be the louder.
      */
-    fun sheetField(font: UserFontChoice) = TextStyle(
+    val fieldLabel = sheetLabel.copy(letterSpacing = 1.8.sp)
+
+    /** How much room is left in a field — "0 / 25". The quietest mark on the panel. */
+    val fieldCounter = TextStyle(
+        fontFamily = DMMono,
+        fontWeight = FontWeight.Normal,
+        fontSize = 9.sp,
+        lineHeight = 12.sp,
+        letterSpacing = 0.9.sp
+    )
+
+    /** The headline of a sheet. */
+    fun sheetTitle(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
-        fontSize = 19.sp,
-        lineHeight = 25.sp
+        fontSize = 25.sp,
+        lineHeight = 27.sp,
+        letterSpacing = (-0.375).sp
+    )
+
+    /** The one line under a sheet's headline — "One step, one date." */
+    fun sheetLead(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    )
+
+    /** A sheet's prose — what deleting costs, what a hundred per cent means. */
+    fun sheetBody(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 14.sp,
+        lineHeight = 21.sp,
+        letterSpacing = (-0.14).sp
+    )
+
+    /**
+     * What a vision is called. The largest thing written into a sheet, because it is the
+     * one the whole sheet is about.
+     */
+    fun sheetGoalField(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        letterSpacing = (-0.27).sp
+    )
+
+    /** The reason under it — an aside to the goal, so a step down from it. */
+    fun sheetWhyField(font: UserFontChoice) = sheetGoalField(font).copy(
+        fontSize = 17.sp,
+        lineHeight = 23.sp,
+        letterSpacing = (-0.26).sp
+    )
+
+    /** A date, once chosen. Read as a figure to agree with rather than as prose. */
+    fun sheetDateField(font: UserFontChoice) = sheetGoalField(font)
+
+    /** A line in a list — a milestone, a task on tomorrow's plan. */
+    fun sheetRowField(font: UserFontChoice) = sheetGoalField(font).copy(
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = (-0.16).sp
+    )
+
+    /** The label in a sheet's buttons, whichever of the two answers it carries. */
+    fun sheetButton(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        letterSpacing = (-0.15).sp
+    )
+
+    /** The way out under them, which is not one of the two answers. */
+    fun sheetCancel(font: UserFontChoice) = sheetButton(font).copy(
+        fontSize = 14.sp,
+        lineHeight = 19.sp,
+        letterSpacing = (-0.21).sp
+    )
+
+    /**
+     * A dialog is the same panel at closer range — it covers the sheet it was raised
+     * from rather than a screen, so every figure sits a step under the sheet's own.
+     */
+    val modalLabel = TextStyle(
+        fontFamily = DMMono,
+        fontWeight = FontWeight.Normal,
+        fontSize = 9.5.sp,
+        lineHeight = 13.sp,
+        letterSpacing = 1.9.sp
+    )
+
+    fun modalTitle(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 24.sp,
+        lineHeight = 25.sp,
+        letterSpacing = (-0.36).sp
+    )
+
+    fun modalBody(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 14.5.sp,
+        lineHeight = 20.5.sp
+    )
+
+    fun modalButton(font: UserFontChoice) = TextStyle(
+        fontFamily = font.family,
+        fontWeight = font.weight,
+        fontSize = 15.sp,
+        lineHeight = 20.sp
     )
 
     /** The daily wisdom quote inside its card. */

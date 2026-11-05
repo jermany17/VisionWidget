@@ -143,10 +143,10 @@ fun AddMilestoneSheet(
                 style = VisionType.sheetTitle(userFont),
                 color = OnCanvas
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = "One step, one date.",
-                style = VisionType.bodyText(userFont),
+                style = VisionType.sheetLead(userFont),
                 color = OnCanvasMuted
             )
 
@@ -155,19 +155,19 @@ fun AddMilestoneSheet(
             // the box was drawing a boundary around the whole of the content — and it
             // put this sheet's fields on a different footing from the ones the vision is
             // written in, which are the same two questions asked the same way.
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(22.dp))
             StepField(
                 value = step,
                 // Clamped rather than called out, the way the goal and the task fields
                 // are: running out of room at the last character says itself.
                 onValueChange = { value -> step = value.take(MAX_MILESTONE_STEP_LENGTH) },
-                textStyle = VisionType.sheetField(userFont)
+                textStyle = VisionType.sheetRowField(userFont)
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Rule, thickness = 1.dp)
 
-            Spacer(Modifier.height(20.dp))
-            Text(text = "BY", style = SheetLabel, color = OnCanvasMuted)
+            Spacer(Modifier.height(18.dp))
+            Text(text = "BY", style = FieldLabel, color = OnCanvasMuted)
             Spacer(Modifier.height(10.dp))
             Row(
                 Modifier
@@ -180,18 +180,18 @@ fun AddMilestoneSheet(
                     // with — and the short form the vision list uses is for a row that
                     // has a column's width to say it in.
                     text = dueDateMillis?.let(::formatTargetDate) ?: "Pick a date",
-                    style = VisionType.sheetField(userFont),
+                    style = VisionType.sheetRowField(userFont),
                     color = if (dueDateMillis == null) SheetHint else OnCanvas,
                     modifier = Modifier.weight(1f)
                 )
                 // Says the line can be tapped. The date alone looks like something
                 // already settled, and there is nothing else on it to suggest otherwise.
-                Text(text = "CHANGE  →", style = SheetLabel, color = OnCanvasMuted)
+                Text(text = "CHANGE  →", style = FieldLabel, color = OnCanvasMuted)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Rule, thickness = 1.dp)
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -200,26 +200,26 @@ fun AddMilestoneSheet(
                     .clickable(enabled = ready) {
                         dueDateMillis?.let { onAdd(step.trim(), it) }
                     }
-                    .padding(vertical = 20.dp),
+                    .padding(vertical = 17.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Add milestone",
-                    style = VisionType.buttonLabel(userFont),
+                    style = VisionType.sheetButton(userFont),
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = "Cancel",
-                style = VisionType.buttonLabel(userFont),
+                style = VisionType.sheetCancel(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = leaveOrAsk)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             )
         }
     }

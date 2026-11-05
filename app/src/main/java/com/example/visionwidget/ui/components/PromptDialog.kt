@@ -60,33 +60,33 @@ fun PromptDialog(
             shape = RoundedCornerShape(28.dp),
             color = Canvas
         ) {
-            Column(Modifier.padding(horizontal = 24.dp, vertical = 26.dp)) {
-                Text(text = eyebrow, style = VisionType.eyebrow, color = OnCanvasMuted)
-                Spacer(Modifier.height(10.dp))
+            Column(Modifier.padding(horizontal = 22.dp, vertical = 22.dp)) {
+                Text(text = eyebrow, style = VisionType.modalLabel, color = OnCanvasMuted)
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = title,
-                    style = VisionType.sheetTitle(userFont),
+                    style = VisionType.modalTitle(userFont),
                     color = OnCanvas
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = body,
-                    style = VisionType.bodyText(userFont),
+                    style = VisionType.modalBody(userFont),
                     color = OnCanvasMuted
                 )
-                Spacer(Modifier.height(26.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Spacer(Modifier.height(22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(
                         onClick = onQuiet,
                         shape = RoundedCornerShape(percent = 50),
                         contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(46.dp)
                     ) {
                         Text(
                             text = quietLabel,
-                            style = VisionType.buttonLabel(userFont),
+                            style = VisionType.modalButton(userFont),
                             color = OnCanvas,
                             maxLines = 1
                         )
@@ -98,11 +98,11 @@ fun PromptDialog(
                         contentPadding = PaddingValues(horizontal = 8.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(46.dp)
                     ) {
                         Text(
                             text = loudLabel,
-                            style = VisionType.buttonLabel(userFont),
+                            style = VisionType.modalButton(userFont),
                             color = Canvas,
                             maxLines = 1
                         )

@@ -899,13 +899,13 @@ private fun ConfirmDeleteSheet(
                 .navigationBarsPadding()
         ) {
             Text(text = label, style = SheetLabel, color = OnCanvasMuted)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Text(text = title, style = VisionType.sheetTitle(userFont), color = OnCanvas)
             if (message != null) {
-                Spacer(Modifier.height(14.dp))
-                Text(text = message, style = VisionType.bodyText(userFont), color = OnCanvasMuted)
+                Spacer(Modifier.height(12.dp))
+                Text(text = message, style = VisionType.sheetBody(userFont), color = OnCanvasMuted)
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
                     modifier = Modifier
@@ -914,10 +914,10 @@ private fun ConfirmDeleteSheet(
                         .background(Canvas)
                         .border(1.dp, Rule, ChipShape)
                         .clickable(onClick = onKeep)
-                        .padding(vertical = 16.dp),
+                        .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Keep it", style = VisionType.buttonLabel(userFont), color = OnCanvas)
+                    Text(text = "Keep it", style = VisionType.sheetButton(userFont), color = OnCanvas)
                 }
                 Box(
                     modifier = Modifier
@@ -925,10 +925,10 @@ private fun ConfirmDeleteSheet(
                         .clip(ChipShape)
                         .background(DestructiveFill)
                         .clickable(onClick = onDelete)
-                        .padding(vertical = 16.dp),
+                        .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "Delete", style = VisionType.buttonLabel(userFont), color = OnNavBar)
+                    Text(text = "Delete", style = VisionType.sheetButton(userFont), color = OnNavBar)
                 }
             }
         }

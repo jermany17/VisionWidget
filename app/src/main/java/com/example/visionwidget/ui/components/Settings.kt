@@ -80,8 +80,8 @@ fun SettingsSheet(userFont: UserFontChoice, onDismiss: () -> Unit) {
                 .padding(top = 4.dp, bottom = 32.dp)
                 .navigationBarsPadding()
         ) {
-            Text(text = "SETTINGS", style = VisionType.eyebrow, color = OnCanvasMuted)
-            Spacer(Modifier.height(10.dp))
+            Text(text = "SETTINGS", style = VisionType.sheetLabel, color = OnCanvasMuted)
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = "Nothing here yet.",
                 style = VisionType.sheetTitle(userFont),

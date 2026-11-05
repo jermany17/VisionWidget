@@ -44,7 +44,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.components.PromptDialog
 import com.example.visionwidget.ui.components.rememberGuardedSheetState
 import com.example.visionwidget.ui.theme.AvatarFill
@@ -62,10 +61,11 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * The sheet's DM Mono labels, a step up from the app's 10sp eyebrow so they hold their
- * own against the serif fields they sit beside. Local to this sheet on purpose.
+ * The sheet's DM Mono labels. Named here because three sheets reach for them; the
+ * figures themselves are [VisionType]'s, with the rest of the panel scale.
  */
-internal val SheetLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 16.sp)
+internal val SheetLabel = VisionType.sheetLabel
+internal val FieldLabel = VisionType.fieldLabel
 
 /** Placeholder ink for the sheet's fields — fainter than [OnCanvasMuted] body text. */
 internal val SheetHint = OnCanvas.copy(alpha = 0.3f)
@@ -174,27 +174,27 @@ fun CreateVisionSheet(
                 color = OnCanvas
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(22.dp))
             SheetField(
                 label = "THE GOAL",
                 value = goal,
                 placeholder = "Name it in five words or fewer",
-                textStyle = VisionType.sheetField(userFont),
+                textStyle = VisionType.sheetGoalField(userFont),
                 // Clamped rather than called out, the way a task's own field is:
                 // running out of room at the last character says itself.
                 onValueChange = { value -> goal = value.take(MAX_VISION_GOAL_LENGTH) }
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             SheetField(
                 label = "WHY IT MATTERS · OPTIONAL",
                 value = why,
                 placeholder = "Why does this matter to you?",
-                textStyle = VisionType.sheetField(userFont),
+                textStyle = VisionType.sheetWhyField(userFont),
                 onValueChange = { value -> why = value.take(MAX_VISION_WHY_LENGTH) }
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
             TargetDateRow(
                 date = targetDateLabel,
                 userFont = userFont,
@@ -204,7 +204,7 @@ fun CreateVisionSheet(
                 }
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
             PrimaryAction(
                 ready = ready,
                 readyLabel = if (editing != null) "Save changes" else "Create vision",
@@ -215,16 +215,16 @@ fun CreateVisionSheet(
                 }
             )
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = "Cancel",
-                style = VisionType.buttonLabel(userFont),
+                style = VisionType.sheetCancel(userFont),
                 color = OnCanvasMuted,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = leaveOrAsk)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             )
         }
     }
@@ -310,8 +310,8 @@ private fun SheetField(
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
-    Text(text = label, style = SheetLabel, color = OnCanvasMuted)
-    Spacer(Modifier.height(12.dp))
+    Text(text = label, style = FieldLabel, color = OnCanvasMuted)
+    Spacer(Modifier.height(10.dp))
     Box {
         // The hint clears the moment the field is touched, not just once text exists.
         if (value.isEmpty() && !focused) {
@@ -343,17 +343,17 @@ private fun TargetDateRow(
     userFont: UserFontChoice,
     onPick: () -> Unit
 ) {
-    Text(text = "TARGET DATE", style = SheetLabel, color = OnCanvasMuted)
-    Spacer(Modifier.height(12.dp))
+    Text(text = "TARGET DATE", style = FieldLabel, color = OnCanvasMuted)
+    Spacer(Modifier.height(10.dp))
     Text(
         text = date.ifEmpty { "Pick a date" },
-        style = VisionType.sheetField(userFont),
+        style = VisionType.sheetDateField(userFont),
         color = if (date.isEmpty()) SheetHint else OnCanvas,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onPick)
     )
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(10.dp))
     HorizontalDivider(color = Rule, thickness = 1.dp)
 }
 
@@ -375,12 +375,12 @@ private fun PrimaryAction(
             .clip(RoundedCornerShape(percent = 50))
             .background(if (ready) NavBar else AvatarFill)
             .clickable(enabled = ready, onClick = onClick)
-            .padding(vertical = 20.dp),
+            .padding(vertical = 17.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = if (ready) readyLabel else "Name it first",
-            style = VisionType.buttonLabel(userFont),
+            style = VisionType.sheetButton(userFont),
             color = if (ready) OnNavBar else OnCanvasMuted
         )
     }
