@@ -107,7 +107,10 @@ class AppPreferences(context: Context) {
         themeId = prefs.getInt(target.key(KEY_WIDGET_THEME), CardThemes.DEFAULT_ID),
         alignId = prefs.getInt(target.key(KEY_WIDGET_ALIGN), Alignments.DEFAULT_ID),
         backgroundId = prefs.getInt(target.key(KEY_WIDGET_BACKGROUND), BackgroundStyles.DEFAULT_ID),
-        cornerRadius = prefs.getInt(target.key(KEY_WIDGET_RADIUS), CornerRadii.DEFAULT),
+        // Held to the range the slider offers: a corner saved when it reached further
+        // would otherwise stay on the widget with no way left to move it back.
+        cornerRadius = prefs.getInt(target.key(KEY_WIDGET_RADIUS), CornerRadii.DEFAULT)
+            .coerceIn(CornerRadii.MIN, CornerRadii.MAX),
         customColour = prefs.getInt(target.key(KEY_WIDGET_CUSTOM_COLOUR), 0)
     )
 

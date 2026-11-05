@@ -31,7 +31,7 @@ object ThemePresets {
 
         // ── Vision+ (4–9) ──
         ThemePreset(4, "Film Diary", 3, 19, 2, 4, 20),
-        ThemePreset(5, "Zen", 6, 6, 2, 1, 34),
+        ThemePreset(5, "Zen", 6, 6, 2, 1, 30),
         ThemePreset(6, "Forest", 1, 28, 1, 2, 26),
         ThemePreset(7, "Dusk", 7, 29, 2, 2, 30),
         ThemePreset(8, "Bloom", 5, 15, 1, 3, 22),
@@ -64,5 +64,11 @@ object ThemePresets {
 object CornerRadii {
     const val DEFAULT = 16
     const val MIN = 0
-    const val MAX = 40
+
+    /**
+     * Stops short of a corner that eats the card. Past thirty the curve reaches far
+     * enough in that the content's own corner is pushed off the words beside it, and
+     * the rows start reading as clipped however far the margin is held back.
+     */
+    const val MAX = 30
 }
