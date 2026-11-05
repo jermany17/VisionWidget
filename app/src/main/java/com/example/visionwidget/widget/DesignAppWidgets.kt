@@ -27,7 +27,12 @@ import com.example.visionwidget.data.AppPreferences
 import com.example.visionwidget.data.buildDayRecords
 import com.example.visionwidget.data.tallyBetween
 import com.example.visionwidget.data.topThreeStats
+import com.example.visionwidget.data.AFTER_THREE_SLOTS
 import com.example.visionwidget.data.TOP_THREE_SLOTS
+import com.example.visionwidget.data.checkedAt
+import com.example.visionwidget.data.rowOrder
+import com.example.visionwidget.data.taskAt
+import com.example.visionwidget.data.topThreeLeads
 import com.example.visionwidget.data.checksOf
 import com.example.visionwidget.data.tasksOf
 import com.example.visionwidget.ui.home.Wisdom
@@ -212,11 +217,13 @@ class TopThreeAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        // The day's own three and no more. The second set takes their place on the
-        // screen when it is earned rather than lengthening the list, so a widget has a
-        // fixed three to draw and never has to say how many it is leaving out.
-        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
-        val checked = slots.checksOf(TOP_THREE_SLOTS)
+        // Whichever set is in front, which is the one with work left in it. A widget is
+        // read at a glance and has room for three, so it shows what is being got on with
+        // rather than the half of the day that happens to be written first.
+        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
+        val order = slots.rowOrder(set)
+        val tasks = order.map { slots.taskAt(it) }
+        val checked = order.map { slots.checkedAt(it) }
 
         provideContent {
             val (widthPx, heightPx) = cardSizePx()
@@ -310,11 +317,13 @@ class TopThreeLargeAppWidget : GlanceAppWidget() {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val dao = AppDatabase.getInstance(context).ruleOfThreeDao()
         val slots = dao.slots()
-        // The day's own three and no more. The second set takes their place on the
-        // screen when it is earned rather than lengthening the list, so a widget has a
-        // fixed three to draw and never has to say how many it is leaving out.
-        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
-        val checked = slots.checksOf(TOP_THREE_SLOTS)
+        // Whichever set is in front, which is the one with work left in it. A widget is
+        // read at a glance and has room for three, so it shows what is being got on with
+        // rather than the half of the day that happens to be written first.
+        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
+        val order = slots.rowOrder(set)
+        val tasks = order.map { slots.taskAt(it) }
+        val checked = order.map { slots.checkedAt(it) }
 
         // The foot reads the same figures Today's own header does, built from the same
         // records the Insights tab reads rather than counted a second way here.
@@ -404,11 +413,13 @@ class TopThreeSmallAppWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val (style, photo) = lookOf(context, WidgetTarget.TopThree)
         val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        // The day's own three and no more. The second set takes their place on the
-        // screen when it is earned rather than lengthening the list, so a widget has a
-        // fixed three to draw and never has to say how many it is leaving out.
-        val tasks = slots.tasksOf(TOP_THREE_SLOTS)
-        val checked = slots.checksOf(TOP_THREE_SLOTS)
+        // Whichever set is in front, which is the one with work left in it. A widget is
+        // read at a glance and has room for three, so it shows what is being got on with
+        // rather than the half of the day that happens to be written first.
+        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
+        val order = slots.rowOrder(set)
+        val tasks = order.map { slots.taskAt(it) }
+        val checked = order.map { slots.checkedAt(it) }
 
         provideContent {
             CardImage(

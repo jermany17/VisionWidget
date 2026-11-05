@@ -1,5 +1,5 @@
 <resources>
-    <!-- The warm off-white the mark is cut out of. -->
-    <color name="ic_launcher_background">#F0E7E2</color>
+    <!-- The paper the mark was drawn on, sampled from the artwork itself. -->
+    <color name="ic_launcher_background">#FEFDFA</color>
     <color name="canvas">#FFFFFF</color>
 </resources>

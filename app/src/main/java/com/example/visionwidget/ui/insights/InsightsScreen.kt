@@ -54,6 +54,8 @@ import com.example.visionwidget.data.TopThreeStats
 import com.example.visionwidget.data.longestStreak
 import com.example.visionwidget.data.topThreeStats
 import com.example.visionwidget.ui.ContentWidthFraction
+import com.example.visionwidget.ui.components.SettingsButton
+import com.example.visionwidget.ui.components.SettingsSheet
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.CardThemes
 import com.example.visionwidget.ui.theme.NavBar
@@ -205,6 +207,7 @@ fun InsightsScreen(
     var period by rememberSaveable { mutableStateOf(InsightsPeriod.Week) }
     var offset by rememberSaveable { mutableIntStateOf(0) }
     var filter by rememberSaveable { mutableStateOf(DayFilter.All) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // Read once per composition so a midnight crossing can't have the range and the
     // streak disagreeing about which day is today.
@@ -248,17 +251,25 @@ fun InsightsScreen(
     ) {
         Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
             Spacer(Modifier.height(20.dp))
-            Text(
-                text = period.label.uppercase(),
-                style = VisionType.eyebrow,
-                color = OnCanvas
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = RECORD_BLURB,
-                style = VisionType.greeting(userFont),
-                color = OnCanvas
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = period.label.uppercase(),
+                        style = VisionType.eyebrow,
+                        color = OnCanvas
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = RECORD_BLURB,
+                        style = VisionType.greeting(userFont),
+                        color = OnCanvas
+                    )
+                }
+                SettingsButton(onClick = { showSettings = true })
+            }
 
             Spacer(Modifier.height(22.dp))
             StatsRow(stats = stats, userFont = userFont)
@@ -348,6 +359,10 @@ fun InsightsScreen(
 
             Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
         }
+    }
+
+    if (showSettings) {
+        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
     }
 }
 

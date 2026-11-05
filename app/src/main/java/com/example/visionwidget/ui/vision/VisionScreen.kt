@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CreateVisionRow
+import com.example.visionwidget.ui.components.SettingsButton
+import com.example.visionwidget.ui.components.SettingsSheet
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
 import com.example.visionwidget.ui.theme.OnCanvas
@@ -120,6 +122,7 @@ fun VisionScreen(
     var showAddMilestoneSheet by rememberSaveable { mutableStateOf(false) }
     var showMilestoneLimitAlert by rememberSaveable { mutableStateOf(false) }
     var milestonePendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // Falling back to the first vision covers both the first visit and a selection whose
     // vision is gone, so the screen always has something to show.
@@ -146,7 +149,8 @@ fun VisionScreen(
                 EmptyVision(
                     userFont = userFont,
                     contentPadding = contentPadding,
-                    onCreate = { showCreateSheet = true }
+                    onCreate = { showCreateSheet = true },
+                    onOpenSettings = { showSettings = true }
                 )
             } else {
                 VisionDetail(
@@ -162,6 +166,7 @@ fun VisionScreen(
                     onRequestDelete = { showDeleteDialog = true },
                     onToggleMilestone = { milestoneId -> onToggleMilestone(selected.id, milestoneId) },
                     onRequestDeleteMilestone = { milestone -> milestonePendingDeleteId = milestone.id },
+                    onOpenSettings = { showSettings = true },
                     onRequestAddMilestone = {
                         if (selected.milestones.size >= MAX_MILESTONES_PER_VISION) {
                             showMilestoneLimitAlert = true
@@ -172,6 +177,10 @@ fun VisionScreen(
                 )
             }
         }
+    }
+
+    if (showSettings) {
+        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
     }
 
     if (showCreateSheet) {
@@ -269,10 +278,22 @@ fun VisionScreen(
 private fun ColumnScope.EmptyVision(
     userFont: UserFontChoice,
     contentPadding: PaddingValues,
-    onCreate: () -> Unit
+    onCreate: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     Spacer(Modifier.height(20.dp))
-    Text(text = "VISION", style = VisionType.eyebrow, color = OnCanvas)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "VISION",
+            style = VisionType.eyebrow,
+            color = OnCanvas,
+            modifier = Modifier.weight(1f)
+        )
+        SettingsButton(onClick = onOpenSettings)
+    }
 
     // Equal weights above and below centre the prompt between the eyebrow
     // and the action row, rather than pinning it to a fixed offset.
@@ -306,10 +327,27 @@ private fun VisionDetail(
     onRequestDelete: () -> Unit,
     onToggleMilestone: (Long) -> Unit,
     onRequestDeleteMilestone: (Milestone) -> Unit,
+    onOpenSettings: () -> Unit,
     onRequestAddMilestone: () -> Unit
 ) {
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Spacer(Modifier.height(20.dp))
+        // The tab's own title, so the gear sits at the height it does on every other
+        // tab rather than riding the eyebrow below it.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Vision",
+                style = VisionType.greeting(userFont),
+                color = OnCanvas,
+                modifier = Modifier.weight(1f)
+            )
+            SettingsButton(onClick = onOpenSettings)
+        }
+
+        Spacer(Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween

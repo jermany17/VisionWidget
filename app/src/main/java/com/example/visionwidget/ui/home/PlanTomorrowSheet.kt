@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASK_LENGTH
@@ -181,7 +182,7 @@ fun PlanTomorrowSheet(
         ) {
             Text(
                 text = "TOMORROW · ${planDayLabel(day)}",
-                style = VisionType.eyebrow,
+                style = VisionType.eyebrow.copy(fontSize = 9.5.sp, letterSpacing = 1.9.sp),
                 color = OnCanvasMuted
             )
 
@@ -197,7 +198,13 @@ fun PlanTomorrowSheet(
 
             if (afterShown > 0) {
                 Spacer(Modifier.height(18.dp))
-                Text(text = "AFTER THREE", style = VisionType.eyebrow, color = OnCanvasMuted)
+                Text(
+                    text = "AFTER THREE",
+                    // A step under the sheet's own label: it divides the rows rather
+                    // than naming the sheet, so it is the quieter of the two.
+                    style = VisionType.eyebrow.copy(fontSize = 9.sp, letterSpacing = 1.8.sp),
+                    color = OnCanvasMuted
+                )
                 Spacer(Modifier.height(8.dp))
                 repeat(afterShown) { offset ->
                     val index = BASE_TOP_THREE_TASKS + offset
@@ -235,7 +242,7 @@ fun PlanTomorrowSheet(
             ) {
                 Text(
                     text = "Set tomorrow",
-                    style = VisionType.buttonLabel(userFont),
+                    style = VisionType.buttonLabel(userFont).copy(fontSize = 15.sp),
                     color = if (ready) OnNavBar else OnCanvasMuted
                 )
             }
@@ -270,7 +277,9 @@ private fun PlanRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val textStyle = VisionType.sheetField(userFont)
+    // Drawn a hair tighter than the face sets it, which is what keeps a line of
+    // thirty-eight characters from running wide of the rule under it.
+    val textStyle = VisionType.sheetField(userFont).copy(letterSpacing = (-0.19).sp)
 
     Box(Modifier.padding(vertical = 12.dp)) {
         if (value.isEmpty() && !focused) {

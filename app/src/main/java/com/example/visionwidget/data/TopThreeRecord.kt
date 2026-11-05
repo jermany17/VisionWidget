@@ -40,20 +40,66 @@ fun List<RuleOfThreeSlotEntity>.checksOf(set: IntRange): List<Boolean> = set.map
  * Nothing records this. It is read off the slots themselves, so it cannot drift from
  * them, and it starts closed each morning because the slots do.
  */
-fun afterThreeUnlocked(slots: List<RuleOfThreeSlotEntity>): Boolean =
-    TOP_THREE_SLOTS.all { slots.taskAt(it) != null } ||
+fun afterThreeUnlocked(slots: List<RuleOfThreeSlotEntity>): Boolean {
+    // Nothing written at all means nothing to come after: the day has not been set, and
+    // a second card beside an empty first one would be offering to plan past something
+    // that does not exist. What was lined up is kept, and comes back with the first task.
+    if (TOP_THREE_SLOTS.none { slots.taskAt(it) != null }) return false
+    return TOP_THREE_SLOTS.all { slots.taskAt(it) != null } ||
         AFTER_THREE_SLOTS.any { slots.taskAt(it) != null }
+}
+
+/** Whether [set] still holds something written and not ticked. */
+fun List<RuleOfThreeSlotEntity>.hasUnfinished(set: IntRange): Boolean =
+    set.any { taskAt(it) != null && !checkedAt(it) }
 
 /**
- * Whether [set] is filled and every task in it is ticked.
+ * Whether the day's three come first.
  *
- * Empty is not complete — a set nobody wrote in has not been kept, it has not been
- * started. This is what hands the day over to the other set.
+ * One rule decides the order of the two cards, and it is read off the slots every time
+ * rather than recorded: anything left in the day's three puts them in front, and only
+ * once they are all kept does what was lined up behind take their place. With that
+ * finished too the day's three come back, since there is nothing left to be getting on
+ * with and they are the ones the day was about.
+ *
+ * Nothing moves between the sets to make this happen. A task stays in the slot it was
+ * written into for the whole day, and what changes is which card is read first — so
+ * ticking, unticking, writing and deleting all settle the order the same way, and none
+ * of them can leave it somewhere a later one disagrees with.
  */
-fun List<RuleOfThreeSlotEntity>.isSetKept(set: IntRange): Boolean {
-    val written = set.filter { taskAt(it) != null }
-    return written.isNotEmpty() && written.all { checkedAt(it) }
-}
+fun List<RuleOfThreeSlotEntity>.topThreeLeads(): Boolean =
+    hasUnfinished(TOP_THREE_SLOTS) || !hasUnfinished(AFTER_THREE_SLOTS)
+
+/**
+ * Whether what was lined up behind can be ticked yet.
+ *
+ * Only once the day's three are done. Before that these are a plan rather than work in
+ * hand, and a tick against one would be a tick against something the day has not got to
+ * — the card says as much by standing a tone lighter.
+ *
+ * What was ticked while they were open stays ticked when the day's three reopen. It was
+ * done; reopening something else does not undo it.
+ */
+fun List<RuleOfThreeSlotEntity>.afterThreeTickable(): Boolean =
+    !hasUnfinished(TOP_THREE_SLOTS)
+
+/**
+ * The slots of [set], ordered as the card reads them.
+ *
+ * What is left to do first, what is done under it, and the slots nobody wrote in last.
+ * A card is a list of what is outstanding, so the thing just ticked off drops below the
+ * things that are not — and the thing just unticked rises back to the top of them.
+ *
+ * Order within each group is the order the slots were written in, so nothing shuffles
+ * except across those three lines.
+ */
+fun List<RuleOfThreeSlotEntity>.rowOrder(set: IntRange): List<Int> =
+    set.sortedWith(
+        compareBy(
+            { if (taskAt(it) == null) 1 else 0 },
+            { if (checkedAt(it)) 1 else 0 }
+        )
+    )
 
 /**
  * How long a single task's own words can run.

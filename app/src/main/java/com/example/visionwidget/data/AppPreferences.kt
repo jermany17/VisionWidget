@@ -60,18 +60,6 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_WISDOM_OWN_TEXT, value).apply()
 
     /**
-     * The day the two sets of three last changed places, or zero if they never have.
-     *
-     * Kept as a date rather than a flag so it clears itself: a new day is a day this
-     * does not match, and the handover is there to be earned once more. It is the one
-     * thing about the sets that cannot be read off the slots — once they have swapped,
-     * the arrangement is indistinguishable from one the user built that way.
-     */
-    var topThreeSwappedOn: Long
-        get() = prefs.getLong(KEY_TOP_THREE_SWAPPED_ON, 0L)
-        set(value) = prefs.edit().putLong(KEY_TOP_THREE_SWAPPED_ON, value).apply()
-
-    /**
      * The day the plan waiting in the wings is for, or zero while there is none.
      *
      * A plan is written the evening before and taken up when that day arrives, so it is
@@ -184,7 +172,6 @@ class AppPreferences(context: Context) {
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WISDOM_INDEX = "wisdom_index"
         const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
-        const val KEY_TOP_THREE_SWAPPED_ON = "top_three_swapped_on"
         const val KEY_PLANNED_DAY = "planned_day"
         const val KEY_PLANNED_TASKS = "planned_tasks"
         const val KEY_WIDGET_FONT = "widget_font_id"

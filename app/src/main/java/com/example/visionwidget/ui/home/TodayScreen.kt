@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.pager.HorizontalPager
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
@@ -58,13 +61,18 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.visionwidget.data.AFTER_THREE_SLOTS
 import com.example.visionwidget.data.BASE_TOP_THREE_TASKS
+import com.example.visionwidget.data.TOP_THREE_SLOTS
 import com.example.visionwidget.ui.theme.ResolvedLook
 import com.example.visionwidget.data.MAX_TOP_THREE_TASKS
 import com.example.visionwidget.data.MAX_TOP_THREE_TASK_LENGTH
 import com.example.visionwidget.ui.ContentWidthFraction
 import com.example.visionwidget.ui.components.CardFooterRow
 import com.example.visionwidget.ui.components.CreateVisionRow
+import com.example.visionwidget.ui.components.SettingsButton
+import com.example.visionwidget.ui.components.SettingsSheet
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.theme.AlignChoice
@@ -145,6 +153,13 @@ fun TodayScreen(
     afterThreeTasks: List<String?> = List(TOP_3_PROMPTS.size) { null },
     afterThreeChecked: List<Boolean> = List(TOP_3_PROMPTS.size) { false },
     afterThreeOpen: Boolean = false,
+    /** Each set's slots in the order its card reads them — see [rowOrder]. */
+    topThreeOrder: List<Int> = TOP_THREE_SLOTS.toList(),
+    afterThreeOrder: List<Int> = AFTER_THREE_SLOTS.toList(),
+    /** Whether the day's three are the card in front — see [topThreeLeads]. */
+    topThreeFirst: Boolean = true,
+    /** Whether the set behind can be ticked yet — see [afterThreeTickable]. */
+    afterThreeTickable: Boolean = false,
     /** What is already written for tomorrow, in slot order, or empty while nothing is. */
     plannedTasks: List<String> = emptyList(),
     onSetPlan: (tasks: List<String>) -> Unit = {},
@@ -169,6 +184,7 @@ fun TodayScreen(
     var editingTask by rememberSaveable { mutableIntStateOf(NoTaskEditing) }
     var draft by rememberSaveable { mutableStateOf("") }
     var planningTomorrow by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // A slot is named by its place across both sets, so reading one back has to cross
     // them the same way.
@@ -207,7 +223,7 @@ fun TodayScreen(
     ) {
         Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
             Spacer(Modifier.height(20.dp))
-            Header(userFont = userFont)
+            Header(userFont = userFont, onOpenSettings = { showSettings = true })
 
             Spacer(Modifier.height(20.dp))
             MetricsRow(
@@ -256,7 +272,10 @@ fun TodayScreen(
                 card = topThreeCard,
                 sets = listOf(topThreeTasks, afterThreeTasks),
                 checks = listOf(topThreeChecked, afterThreeChecked),
+                orders = listOf(topThreeOrder, afterThreeOrder),
                 afterThreeOpen = afterThreeOpen,
+                topThreeFirst = topThreeFirst,
+                afterThreeTickable = afterThreeTickable,
                 editingTask = editingTask,
                 draft = draft,
                 onToggleTask = onToggleTopThree,
@@ -315,6 +334,10 @@ fun TodayScreen(
         }
     }
 
+    if (showSettings) {
+        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+    }
+
     if (planningTomorrow) {
         PlanTomorrowSheet(
             day = LocalDate.now().plusDays(1),
@@ -330,17 +353,23 @@ fun TodayScreen(
 }
 
 @Composable
-private fun Header(userFont: UserFontChoice) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            // Formatted per composition rather than remembered, so an app left open
-            // overnight shows the new day rather than yesterday's date.
-            text = LocalDate.now().format(HeaderDateFormat).uppercase(),
-            style = VisionType.eyebrow,
-            color = OnCanvas
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(text = GREETING, style = VisionType.greeting(userFont), color = OnCanvas)
+private fun Header(userFont: UserFontChoice, onOpenSettings: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                // Formatted per composition rather than remembered, so an app left open
+                // overnight shows the new day rather than yesterday's date.
+                text = LocalDate.now().format(HeaderDateFormat).uppercase(),
+                style = VisionType.eyebrow,
+                color = OnCanvas
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(text = GREETING, style = VisionType.greeting(userFont), color = OnCanvas)
+        }
+        SettingsButton(onClick = onOpenSettings)
     }
 }
 
@@ -464,13 +493,16 @@ private fun PlanTomorrowRow(
     ) {
         Text(
             text = if (plannedCount > 0) "Tomorrow · $plannedCount planned" else "Plan tomorrow",
-            style = VisionType.cardTitle(userFont),
+            // A row, not a card headline: it names what is through it rather than
+            // carrying the thing itself, so it is set well below the cards above.
+            style = VisionType.cardTitle(userFont)
+                .copy(fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = (-0.16).sp),
             color = OnCanvas,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = if (plannedCount > 0) "EDIT  →" else "${planDayLabel(day)}  →",
-            style = VisionType.eyebrow,
+            style = VisionType.eyebrow.copy(fontSize = 9.5.sp, letterSpacing = 1.9.sp),
             color = OnCanvasMuted
         )
     }
@@ -491,10 +523,16 @@ private fun PlanTomorrowRow(
 @Composable
 private fun TopThreeSection(
     card: ResolvedLook,
-    /** The day's three first, then the set waiting behind them. */
+    /** Both sets, the day's three at index 0 — their slots, not their place on screen. */
     sets: List<List<String?>>,
     checks: List<List<Boolean>>,
+    /** Each set's slots in the order its own card reads them. */
+    orders: List<List<Int>>,
     afterThreeOpen: Boolean,
+    /** Whether the day's three are the card in front — see [topThreeLeads]. */
+    topThreeFirst: Boolean,
+    /** Whether the set behind can be ticked yet — see [afterThreeTickable]. */
+    afterThreeTickable: Boolean,
     editingTask: Int,
     draft: String,
     onToggleTask: (Int) -> Unit,
@@ -508,23 +546,38 @@ private fun TopThreeSection(
     val pager = rememberPagerState(pageCount = { pageCount })
     val scope = rememberCoroutineScope()
 
+    // Which set each page holds. The order is not kept anywhere — it is read off the
+    // slots every time, so the card in front is whichever one has work left in it.
+    val onPage = if (topThreeFirst) listOf(0, 1) else listOf(1, 0)
+
+    // Back to the front of the row whenever the order changes under it. The card that
+    // has just moved to the front is the one being asked for next, and being left
+    // looking at the other one is being left behind by your own tick.
+    LaunchedEffect(topThreeFirst) {
+        if (pager.currentPage != 0) pager.animateScrollToPage(0)
+    }
+
     // The page the pager is on can outlive the second set: empty it and close it while
     // standing on it, and the pager is left pointing past the end for a frame.
     val page = pager.currentPage.coerceIn(0, pageCount - 1)
-    val tasks = sets[page]
-    val checked = checks[page]
+    val shown = onPage[page]
+    val tasks = sets[shown]
+    val checked = checks[shown]
     val setCount = tasks.count { it != null }
     val doneCount = tasks.indices.count { tasks[it] != null && checked[it] }
 
-    val name = if (page == 0) "TODAY'S TOP 3" else "AFTER THREE"
+    val nameOf = { set: Int -> if (set == 0) "TODAY'S TOP 3" else "AFTER THREE" }
+    val name = nameOf(shown)
     SectionLabel(
         // Measured against the tasks that exist, not the full three — a lone task
         // ticked off reads as done, not a third done.
         label = if (setCount > 0) "$name · $doneCount / $setCount" else name,
         action = when {
             !afterThreeOpen -> null
-            page == 0 -> "AFTER THREE  →"
-            else -> "←  TOP 3"
+            // Names the card it would take you to, which is the other set whichever way
+            // round the two happen to be standing.
+            page == 0 -> "${if (shown == 0) "AFTER THREE" else "TOP 3"}  →"
+            else -> "←  ${if (shown == 0) "AFTER THREE" else "TOP 3"}"
         },
         trailing = if (setCount == 0 && !afterThreeOpen) "NOT SET" else null,
         underlineAction = true,
@@ -532,31 +585,43 @@ private fun TopThreeSection(
     )
 
     Spacer(Modifier.height(10.dp))
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Where the card beside this one is given room to show: the screen's own side
+    // margin, worked back from the share of it the content column takes.
+    //
+    // The page itself stays the width of every other card on the screen. One that shrank
+    // to make room for its neighbour would sit inside the vision above it and read as a
+    // different kind of thing — so instead the pager is widened past the column by that
+    // margin on either side, and the neighbour shows in the screen's edge rather than in
+    // the card's. The box centres it, which puts the overhang evenly on both.
+    val sideMargin = if (pageCount > 1) {
+        maxWidth * ((1f / ContentWidthFraction - 1f) / 2f)
+    } else {
+        0.dp
+    }
     HorizontalPager(
         state = pager,
-        pageSpacing = 12.dp,
-        // The card beside the one being read shows at the edge, so the row says it holds
-        // more than what is in front of you.
-        //
-        // Held off both edges rather than the trailing one alone. With the room only on
-        // the right, the second card had nowhere to show the first from once it was
-        // reached: it sat flush against the left and the row looked, from there, like it
-        // had never held anything else. With a single page there is nothing to hint at.
-        contentPadding = PaddingValues(horizontal = if (pageCount > 1) 28.dp else 0.dp),
+        pageSpacing = 10.dp,
+        contentPadding = PaddingValues(horizontal = sideMargin),
         // Kept off while a row is open: the field is inside the page, and dragging to
         // place a caret would otherwise carry the whole card away instead.
-        userScrollEnabled = editingTask == NoTaskEditing
+        userScrollEnabled = editingTask == NoTaskEditing,
+        modifier = Modifier.requiredWidth(maxWidth + sideMargin * 2)
     ) { index ->
+        val set = onPage[index]
         TopThreeCard(
             skin = card.skin,
             photoUri = card.photoUri,
             shape = card.shape,
             userFont = card.font,
             align = card.align,
-            tasks = sets[index],
-            checkedTasks = checks[index],
-            slotOffset = index * BASE_TOP_THREE_TASKS,
-            pending = index > 0,
+            tasks = sets[set],
+            checkedTasks = checks[set],
+            slotOffset = set * BASE_TOP_THREE_TASKS,
+            order = orders[set],
+            // The set behind is a plan until the day's three are done, and says so by
+            // standing a tone lighter with its rings left open.
+            pending = set == 1 && !afterThreeTickable,
             editingTask = editingTask,
             draft = draft,
             onToggleTask = onToggleTask,
@@ -566,6 +631,7 @@ private fun TopThreeSection(
             onFocusLost = onFocusLost,
             onRemoveTask = onRemoveTask
         )
+    }
     }
 
     if (pageCount > 1) {
@@ -615,6 +681,14 @@ private fun TopThreeCard(
      * card and its place in the day are the same thing plus this.
      */
     slotOffset: Int,
+    /**
+     * The set's slots in the order the card reads them — see [rowOrder].
+     *
+     * What is left to do rises to the top and what is done sinks below it, so a card is
+     * always a list of what is outstanding. The numbers here are slots across both sets,
+     * which is how a row names itself to the store however far it has moved.
+     */
+    order: List<Int>,
     /** The set waiting its turn — see [TaskRow]'s own note. */
     pending: Boolean,
     editingTask: Int,
@@ -627,27 +701,30 @@ private fun TopThreeCard(
     onFocusLost: (Int) -> Unit,
     onRemoveTask: (Int) -> Unit
 ) {
-    ThemedCard(skin = skin, photoUri = photoUri, shape = shape) {
+    ThemedCard(skin = skin, photoUri = photoUri, shape = shape, lifted = pending) {
         // Less room above the first row than around it: the row's own 16dp and the
         // card's inset were stacking into too deep a gap at the top.
         Column(Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)) {
-            tasks.forEachIndexed { index, task ->
-                if (index > 0) {
+            order.forEachIndexed { position, slot ->
+                if (position > 0) {
                     HorizontalDivider(color = skin.onSurfaceRule, thickness = 1.dp)
                 }
-                val slot = slotOffset + index
-                val prompts = if (pending) AFTER_THREE_PROMPTS else TOP_3_PROMPTS
+                val within = slot - slotOffset
+                val task = tasks[within]
+                // The prompt belongs to the slot rather than to where it has ended up,
+                // so an empty one asks the same thing wherever the order has put it.
+                val prompts = if (slotOffset == 0) TOP_3_PROMPTS else AFTER_THREE_PROMPTS
                 TaskRow(
                     task = task,
-                    prompt = prompts.getOrElse(index) { "" },
-                    checked = checkedTasks[index],
+                    prompt = prompts.getOrElse(within) { "" },
+                    checked = checkedTasks[within],
                     editing = editingTask == slot,
                     draft = draft,
                     skin = skin,
                     userFont = userFont,
                     align = align,
                     pending = pending,
-                    onToggle = { onToggleTask(slot) },
+                    onToggle = { if (!pending) onToggleTask(slot) },
                     onStartEdit = { onStartEdit(slot) },
                     onDraftChange = onDraftChange,
                     onCommitEdit = onCommitEdit,
@@ -728,10 +805,16 @@ private fun TaskRow(
         if (task == null || (pending && !checked)) {
             DashedCheckMark(
                 color = skin.onSurfaceMuted,
-                onClick = if (task == null) null else onToggle
+                // An empty slot has nothing to tick and a locked one is not the day's
+                // work yet, so neither takes the tap.
+                onClick = null
             )
         } else {
-            TaskCheck(checked = checked, skin = skin, onClick = onToggle)
+            // Faded while the set is locked: the tick was earned and is not taken away,
+            // but it belongs to work the day has not come round to yet.
+            Box(Modifier.alpha(if (pending) 0.45f else 1f)) {
+                TaskCheck(checked = checked, skin = skin, onClick = onToggle)
+            }
         }
         Spacer(Modifier.width(14.dp))
 
@@ -1079,6 +1162,15 @@ private fun ThemedCard(
     photoUri: String?,
     shape: RoundedCornerShape,
     minHeight: Dp = 0.dp,
+    /**
+     * The card is not in play yet, and is drawn a tone lighter to say so.
+     *
+     * A wash of the page's own colour over the surface rather than a second colour of
+     * its own: whatever the card was dressed in, lifting it towards the page is the one
+     * move that reads the same on all of them — and it says the card is further off
+     * without saying it is a different kind of card.
+     */
+    lifted: Boolean = false,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit = {}
 ) {
@@ -1099,6 +1191,7 @@ private fun ThemedCard(
                 }
             )
             .then(skin.overlay?.let { Modifier.background(it) } ?: Modifier)
+            .then(if (lifted) Modifier.background(Canvas.copy(alpha = 0.3f)) else Modifier)
             .then(skin.border?.let { Modifier.border(1.dp, it, shape) } ?: Modifier)
             // Clickable last so the ripple lands inside the clipped, painted card.
             .then(onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier)

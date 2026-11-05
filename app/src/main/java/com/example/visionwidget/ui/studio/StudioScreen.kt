@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,7 +45,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -56,11 +54,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Slider
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -113,6 +109,8 @@ import com.example.visionwidget.ui.gallery.GalleryWidget
 import com.example.visionwidget.ui.gallery.arrange
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import com.example.visionwidget.ui.components.PromptDialog
+import com.example.visionwidget.ui.components.SettingsButton
+import com.example.visionwidget.ui.components.SettingsSheet
 import com.example.visionwidget.ui.components.croppedPhotoBackground
 import com.example.visionwidget.ui.components.rememberWidgetPhoto
 import com.example.visionwidget.ui.home.MAX_OWN_WISDOM_LENGTH
@@ -237,9 +235,8 @@ private fun widgetQuote(font: UserFontChoice) = TextStyle(
 /** The mark beside a paid face — warm, so it reads as an offer rather than a warning. */
 private val PlusMark = Color(0xFF9A7B4F)
 
-/** The settings button's own fill and hairline, a shade warmer than the canvas. */
+/** A pressable disc's fill, a shade warmer than the canvas. */
 private val IconButtonFill = Color(0xFFEFEBE3)
-private val IconButtonBorder = Color(0xFF12110F).copy(alpha = 0.09f)
 
 /** The two halves of Studio. Gallery is a placeholder until its own work lands. */
 private enum class StudioTab(val label: String) {
@@ -1713,54 +1710,6 @@ private fun MissingWisdomAlert(userFont: UserFontChoice, onDismiss: () -> Unit) 
             }
         }
     )
-}
-
-/** The gear beside the plan chip. Opens settings; what's in them comes later. */
-@Composable
-private fun SettingsButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(IconButtonFill)
-            .border(1.dp, IconButtonBorder, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_settings),
-            contentDescription = "Settings",
-            tint = OnCanvas,
-            modifier = Modifier.size(17.dp)
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SettingsSheet(userFont: UserFontChoice, onDismiss: () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Canvas,
-        dragHandle = { BottomSheetDefaults.DragHandle() }
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(top = 4.dp, bottom = 32.dp)
-                .navigationBarsPadding()
-        ) {
-            Text(text = "SETTINGS", style = VisionType.eyebrow, color = OnCanvasMuted)
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Nothing here yet.",
-                style = VisionType.sheetTitle(userFont),
-                color = OnCanvas
-            )
-        }
-    }
 }
 
 /**
