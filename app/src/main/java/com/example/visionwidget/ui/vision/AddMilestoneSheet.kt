@@ -26,12 +26,10 @@ import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +42,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.visionwidget.ui.components.PromptDialog
+import com.example.visionwidget.ui.components.rememberGuardedSheetState
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -53,7 +52,6 @@ import com.example.visionwidget.ui.theme.OnNavBar
 import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -88,7 +86,6 @@ fun AddMilestoneSheet(
     userFontId: Int = UserFonts.DEFAULT_ID
 ) {
     val userFont = UserFonts[userFontId]
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var step by rememberSaveable { mutableStateOf("") }
     var dueDateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -97,7 +94,6 @@ fun AddMilestoneSheet(
     val ready = step.isNotBlank() && dueDateMillis != null
 
     var confirmLeaving by rememberSaveable { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     /**
      * Closing the sheet, or asking first.
@@ -112,18 +108,17 @@ fun AddMilestoneSheet(
      * without a date is still a step the user typed, and the answer offered is to come
      * back to it rather than to add it.
      *
-     * The sheet is shown again as the question goes up. A drag has already carried it
-     * most of the way out by the time this is reached, and a question hanging over
-     * nothing is worse than the loss it is asking about.
+     * The drag and the scrim are refused outright while there is something to lose, so
+     * the sheet stays put with the question over it; this is what the ways out that
+     * aren't gestures take.
      */
     val started = step.isNotBlank() || dueDateMillis != null
+    val sheetState = rememberGuardedSheetState(
+        hasUnsavedWork = { started },
+        onAsk = { confirmLeaving = true }
+    )
     val leaveOrAsk: () -> Unit = {
-        if (started) {
-            confirmLeaving = true
-            scope.launch { sheetState.show() }
-        } else {
-            onDismiss()
-        }
+        if (started) confirmLeaving = true else onDismiss()
     }
 
     ModalBottomSheet(

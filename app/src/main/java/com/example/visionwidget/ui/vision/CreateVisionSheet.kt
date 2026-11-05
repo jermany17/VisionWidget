@@ -27,14 +27,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +46,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.visionwidget.ui.components.PromptDialog
+import com.example.visionwidget.ui.components.rememberGuardedSheetState
 import com.example.visionwidget.ui.theme.AvatarFill
 import com.example.visionwidget.ui.theme.Canvas
 import com.example.visionwidget.ui.theme.NavBar
@@ -58,7 +57,6 @@ import com.example.visionwidget.ui.theme.Rule
 import com.example.visionwidget.ui.theme.UserFontChoice
 import com.example.visionwidget.ui.theme.UserFonts
 import com.example.visionwidget.ui.theme.VisionType
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -103,7 +101,6 @@ fun CreateVisionSheet(
     editing: Vision? = null
 ) {
     val userFont = UserFonts[userFontId]
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var goal by rememberSaveable { mutableStateOf(editing?.goal.orEmpty()) }
     var why by rememberSaveable { mutableStateOf(editing?.why.orEmpty()) }
@@ -131,24 +128,22 @@ fun CreateVisionSheet(
         targetDateMillis != editing?.targetDateMillis
 
     var confirmLeaving by rememberSaveable { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     /**
      * Closing the sheet, or asking first.
      *
      * A vision is only kept by the button at the foot of the sheet, so one begun and not
      * created — or changed and not saved — is lost by the drag, the scrim and Cancel
-     * alike. The sheet is shown again as the question goes up: a drag has carried it
-     * most of the way out by then, and a question hanging over nothing is worse than the
-     * loss it is asking about.
+     * alike. The drag and the scrim are refused outright while there is something to
+     * lose, so the sheet stays where it is with the question over it; this is what the
+     * ways out that aren't gestures take.
      */
+    val sheetState = rememberGuardedSheetState(
+        hasUnsavedWork = { started },
+        onAsk = { confirmLeaving = true }
+    )
     val leaveOrAsk: () -> Unit = {
-        if (started) {
-            confirmLeaving = true
-            scope.launch { sheetState.show() }
-        } else {
-            onDismiss()
-        }
+        if (started) confirmLeaving = true else onDismiss()
     }
 
     ModalBottomSheet(
