@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visionwidget.data.VisionAppViewModel
@@ -104,6 +105,14 @@ fun VisionApp(
     // which is the one the widgets and Today read from. Navigation state, not data, so
     // it stays here rather than in the database.
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    // A process can sit in the background through a midnight, and a widget can turn the
+    // daily line over while it does, so the day is checked on every return to the front
+    // rather than at launch alone.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.refreshWisdomForToday()
+        onPauseOrDispose { }
+    }
 
     val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
 

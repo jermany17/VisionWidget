@@ -126,6 +126,22 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /**
+     * Turns the daily line over when the day has turned under it.
+     *
+     * Called at launch and again each time the app comes back to the front, because a
+     * process can sit in the background through a midnight and a widget can turn the
+     * line over while it does. So this resyncs from preferences rather than only
+     * writing to them: the turn may already have happened somewhere else.
+     */
+    fun refreshWisdomForToday() {
+        preferences.rollWisdomForDay(LocalDate.now().toEpochDay())
+        if (_wisdomIndex.value != preferences.wisdomIndex) {
+            _wisdomIndex.value = preferences.wisdomIndex
+            redrawWidgets()
+        }
+    }
+
+    /**
      * How each of the three widgets is dressed. One map rather than a flow per value:
      * Studio may write one widget or all three in a single act, and a map moves as one.
      */
@@ -203,6 +219,8 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
             // After the board is cleared and before anything can be typed onto it, so a
             // plan can only ever land on empty slots.
             takeUpPlan(today)
+            // The day brings a new line with it, whether or not anyone pressed shuffle.
+            refreshWisdomForToday()
             redrawWidgets()
         }
 

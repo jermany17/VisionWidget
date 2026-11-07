@@ -97,10 +97,15 @@ private suspend fun lookOf(context: Context, target: WidgetTarget) =
 
 /**
  * The daily line as the app left it — the theme it settled on and, under that theme,
- * the line it settled on. Never a line picked here: shuffling belongs to the app, and
- * the card on the home screen is meant to be the same card.
+ * the line it settled on. The card on the home screen is meant to be the same card.
+ *
+ * The one line picked here is the day's own. A home screen can go a week without the
+ * app being opened, and the line is meant to turn with the date rather than with the
+ * next visit, so whichever of the two wakes first does the turning and the day stamp
+ * keeps the other from doing it again.
  */
 private fun settledWisdom(preferences: AppPreferences): Wisdom {
+    preferences.rollWisdomForDay(LocalDate.now().toEpochDay())
     val category = preferences.wisdomCategory
     val pool = wisdomIndices(category)
     val index = preferences.wisdomIndex.takeIf { it in pool } ?: pool.firstOrNull() ?: 0

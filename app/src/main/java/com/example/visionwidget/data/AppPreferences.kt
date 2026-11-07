@@ -2,6 +2,8 @@
 
 import android.content.Context
 import com.example.visionwidget.ui.home.DEFAULT_WISDOM_THEME
+import com.example.visionwidget.ui.home.isOwnWisdom
+import com.example.visionwidget.ui.home.nextWisdomIndex
 import com.example.visionwidget.ui.theme.Alignments
 import com.example.visionwidget.ui.theme.BackgroundStyles
 import com.example.visionwidget.ui.theme.CardThemes
@@ -58,6 +60,50 @@ class AppPreferences(context: Context) {
     var wisdomOwnText: String
         get() = prefs.getString(KEY_WISDOM_OWN_TEXT, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_WISDOM_OWN_TEXT, value).apply()
+
+    /**
+     * The day the line now showing was turned to, as an epoch day. Zero until the first
+     * day is recorded.
+     *
+     * Kept beside the line itself because nothing is running at midnight to be told the
+     * date changed. Whichever of the app and the widgets wakes first works out that a
+     * turn is owed, and this is what stops the other from turning it a second time.
+     */
+    var wisdomDay: Long
+        get() = prefs.getLong(KEY_WISDOM_DAY, 0L)
+        set(value) = prefs.edit().putLong(KEY_WISDOM_DAY, value).apply()
+
+    /**
+     * Moves the daily line on if [today] is not the day it was last turned to.
+     *
+     * Beside the shuffle control rather than instead of it: the user may still press
+     * that as often as they like, and this only sees to it that a day never opens on
+     * the line the one before it closed with. The move is [nextWisdomIndex]'s, so it is
+     * random within the theme and never lands on the line already showing.
+     *
+     * Two days are left alone. The user's own theme holds a single line, so turning it
+     * would land on the same words; and the very first day only records itself, because
+     * a line just chosen in onboarding is not one to replace before it has been read.
+     *
+     * Held under a lock because the three wisdom widgets are rendered in parallel and
+     * each one asks. Unguarded, two could both read yesterday's stamp and the day would
+     * turn the line twice.
+     *
+     * @return whether the line actually moved, so the caller can redraw what shows it.
+     */
+    fun rollWisdomForDay(today: Long): Boolean = synchronized(RollLock) {
+        if (wisdomDay == today) return false
+
+        val firstEver = wisdomDay == 0L
+        wisdomDay = today
+        if (firstEver || isOwnWisdom(wisdomCategory)) return false
+
+        val moved = nextWisdomIndex(wisdomIndex, wisdomCategory)
+        if (moved == wisdomIndex) return false
+
+        wisdomIndex = moved
+        return true
+    }
 
     /**
      * The day the plan waiting in the wings is for, or zero while there is none.
@@ -169,12 +215,16 @@ class AppPreferences(context: Context) {
     }
 
     private companion object {
+        /** Shared, not per-instance: every caller builds its own [AppPreferences]. */
+        val RollLock = Any()
+
         const val PREFS_NAME = "vision_prefs"
         const val KEY_WIDGET_RADIUS = "widget_corner_radius"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WISDOM_INDEX = "wisdom_index"
         const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
+        const val KEY_WISDOM_DAY = "wisdom_day"
         const val KEY_PLANNED_DAY = "planned_day"
         const val KEY_PLANNED_TASKS = "planned_tasks"
         const val KEY_WIDGET_FONT = "widget_font_id"
