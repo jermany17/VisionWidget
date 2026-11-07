@@ -20,7 +20,6 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.layout.Box
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
-import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.visionov.visionwidget.MainActivity
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
@@ -54,12 +53,13 @@ const val OpenGalleryExtra = "open_gallery"
 
 open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
 
-    override val stateDefinition = PreferencesGlanceStateDefinition
-
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        when (val slot = readSlot(context, id)) {
+        val held = readSlot(context, id)
+        Log.i("VisionSlot", "compose $size widget=${appWidgetIdOf(context, id)} holding=${held?.encode()}")
+
+        when (val slot = held) {
             Slot.Vision -> {
                 val payload = visionPayload(context, size)
                 provideContent { VisionCardContent(payload, size) }
@@ -210,6 +210,15 @@ abstract class SlotWidgetReceiver(
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
         GalleryTicker.schedule(context)
+    }
+
+    // What a widget held is kept against the launcher's id for it, so it has to be let
+    // go of when the launcher says that id is gone. Left behind, the entries would
+    // outlive every widget that ever used one — and an id the system hands out again
+    // would arrive already holding something.
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        appWidgetIds.forEach { forgetSlot(context, it) }
     }
 
     override fun onDisabled(context: Context) {

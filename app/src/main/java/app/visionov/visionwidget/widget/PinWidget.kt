@@ -144,17 +144,23 @@ class WidgetPinnedReceiver : BroadcastReceiver() {
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID || slot == null) return
 
         val app = context.applicationContext
-        // Held open while the state is written: a receiver that returns first is one the
-        // system may stop the app behind, leaving the widget blank until something else
-        // happens to redraw it.
+
+        // Written straight away, before anything that can fail. The redraw below is
+        // only to bring it forward — the widget reads this on whatever composition
+        // comes next regardless.
+        writeSlot(app, appWidgetId, slot)
+
+        // Held open while the widget is redrawn: a receiver that returns first is one
+        // the system may stop the app behind, leaving the cell empty until something
+        // else happens to ask for it.
         val pending = goAsync()
         pinScope.launch {
             try {
-                val glanceId = glanceIdOf(app, appWidgetId) ?: return@launch
-                writeSlot(app, glanceId, slot)
-
-                val size = SlotWidgets.sizeOf(app, appWidgetId) ?: return@launch
-                runCatching { SlotWidgets.of(size).update(app, glanceId) }
+                val glanceId = glanceIdOf(app, appWidgetId)
+                val size = SlotWidgets.sizeOf(app, appWidgetId)
+                if (glanceId != null && size != null) {
+                    runCatching { SlotWidgets.of(size).update(app, glanceId) }
+                }
 
                 // A design just arrived; if it is a clock the minute has to start running.
                 if (slot is Slot.Design) GalleryTicker.schedule(app)

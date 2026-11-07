@@ -1,12 +1,9 @@
 package app.visionov.visionwidget.widget
 
 import android.content.Context
-import androidx.datastore.preferences.core.stringPreferencesKey
+import android.util.Log
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.glance.appwidget.state.getAppWidgetState
-import androidx.glance.appwidget.state.updateAppWidgetState
-import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
 
 /**
@@ -19,11 +16,11 @@ import app.visionov.visionwidget.ui.gallery.GalleryWidget
  *
  * That only works because the choice is kept per widget rather than per class. Glance
  * hands [androidx.glance.appwidget.GlanceAppWidget.provideGlance] the [GlanceId] of the
- * one widget being drawn, and the state read here is keyed by it — so two clocks placed
- * side by side are two rows in the same store, and each is drawn as itself. The earlier
- * arrangement put the design in the class and redrew with `updateAll`, which dispatches
- * on the class: that is why a design could only ever have a provider to itself, and why
- * the second one placed used to change the first.
+ * one widget being drawn, and the choice is stored against that widget's own id — so
+ * two clocks placed side by side are two entries in the same store, and each is drawn
+ * as itself. The earlier arrangement put the design in the class and redrew with
+ * `updateAll`, which dispatches on the class: that is why a design could only ever have
+ * a provider to itself, and why the second one placed used to change the first.
  */
 sealed interface Slot {
 
@@ -81,31 +78,78 @@ enum class WidgetSize(
         catalogSize != null && design.size.equals(catalogSize, ignoreCase = true)
 }
 
-/** Where the choice is written in the widget's own state. */
-private val SlotKey = stringPreferencesKey("slot")
-
-/** What [id] is holding, or null if it was placed without ever being told. */
-suspend fun readSlot(context: Context, id: GlanceId): Slot? =
-    runCatching {
-        Slot.decode(getAppWidgetState(context, PreferencesGlanceStateDefinition, id)[SlotKey])
-    }.getOrNull()
-
 /**
- * Writes what [id] is to hold.
+ * Where each placed widget's choice is kept, against the launcher's own id for it.
  *
- * Does not redraw — the caller settles that, because the two places this is called from
- * want different things. The setting screen writes before handing the widget back to the
- * launcher, which draws it itself; a pin callback writes to a widget already up, and has
- * to ask for the redraw.
+ * Deliberately not Glance's own per-widget state, which is the obvious home for this.
+ * Writing to that needs a [GlanceId], and the only way to get one from the id a
+ * configuration activity is handed is [GlanceAppWidgetManager.getGlanceIdBy], which
+ * throws unless the widget is already bound. It is not reliably bound while its own
+ * setting screen is open — so the write was being skipped and every widget arrived
+ * holding nothing at all, which is what an empty cell on the home screen was.
+ *
+ * Plain preferences have none of that: the id is an Int the activity already has, and
+ * the write is done before anything else is attempted. Reading back needs only
+ * [GlanceAppWidgetManager.getAppWidgetId], which unwraps the id it is given and cannot
+ * fail.
  */
-suspend fun writeSlot(context: Context, id: GlanceId, slot: Slot) {
-    updateAppWidgetState(context, PreferencesGlanceStateDefinition, id) { kept ->
-        kept.toMutablePreferences().apply { this[SlotKey] = slot.encode() }
+private object SlotStore {
+    private const val NAME = "vision_widget_slots"
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+
+    fun read(context: Context, appWidgetId: Int): Slot? =
+        Slot.decode(prefs(context).getString(appWidgetId.toString(), null))
+
+    /**
+     * Committed rather than applied: the caller is a setting screen about to finish,
+     * and the widget is composed the moment it does. An asynchronous write can still be
+     * in flight then, which is the same empty cell by another route.
+     */
+    fun write(context: Context, appWidgetId: Int, slot: Slot) {
+        prefs(context).edit().putString(appWidgetId.toString(), slot.encode()).commit()
+    }
+
+    fun forget(context: Context, appWidgetId: Int) {
+        prefs(context).edit().remove(appWidgetId.toString()).apply()
     }
 }
 
-/** The [GlanceId] behind a launcher's own widget id, or null if it has gone. */
-suspend fun glanceIdOf(context: Context, appWidgetId: Int): GlanceId? =
+/** What the widget behind [appWidgetId] is holding, or null if it was never told. */
+fun readSlot(context: Context, appWidgetId: Int): Slot? = SlotStore.read(context, appWidgetId)
+
+/** What [id] is holding, or null if it was placed without ever being told. */
+fun readSlot(context: Context, id: GlanceId): Slot? =
+    appWidgetIdOf(context, id)?.let { SlotStore.read(context, it) }
+
+/**
+ * Writes what the widget behind [appWidgetId] is to hold.
+ *
+ * Does not redraw — the caller settles that, because the two places this is called from
+ * want different things. The setting screen writes before handing the widget back to
+ * the launcher, which composes it itself; a pin callback writes to a widget already up,
+ * and has to ask for the redraw.
+ */
+fun writeSlot(context: Context, appWidgetId: Int, slot: Slot) {
+    SlotStore.write(context, appWidgetId, slot)
+    Log.i("VisionSlot", "wrote ${slot.encode()} to widget $appWidgetId")
+}
+
+/** Drops what a widget was holding, once the launcher says it has gone. */
+fun forgetSlot(context: Context, appWidgetId: Int) = SlotStore.forget(context, appWidgetId)
+
+/**
+ * The launcher's own id behind a [GlanceId].
+ *
+ * An unwrap rather than a lookup — see [SlotStore] for why that distinction is the
+ * whole of this file's design.
+ */
+fun appWidgetIdOf(context: Context, id: GlanceId): Int? =
+    runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrNull()
+
+/** The [GlanceId] behind a launcher's own widget id, or null if it is not bound yet. */
+fun glanceIdOf(context: Context, appWidgetId: Int): GlanceId? =
     runCatching { GlanceAppWidgetManager(context).getGlanceIdBy(appWidgetId) }.getOrNull()
 
 /**

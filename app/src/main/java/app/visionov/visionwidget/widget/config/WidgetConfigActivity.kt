@@ -66,6 +66,7 @@ import app.visionov.visionwidget.ui.theme.Rule
 import app.visionov.visionwidget.ui.theme.VisionType
 import app.visionov.visionwidget.ui.theme.UserFonts
 import app.visionov.visionwidget.widget.OpenGalleryExtra
+import app.visionov.visionwidget.widget.GalleryTicker
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.SlotWidgets
 import app.visionov.visionwidget.widget.WidgetSize
@@ -91,6 +92,9 @@ class WidgetConfigActivity : ComponentActivity() {
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
+    /** The size the screen was drawn for, kept so the redraw agrees with it. */
+    private var requestedSize = WidgetSize.Medium
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -110,12 +114,12 @@ class WidgetConfigActivity : ComponentActivity() {
             return
         }
 
-        val size = SlotWidgets.sizeOf(this, appWidgetId) ?: WidgetSize.Medium
+        requestedSize = SlotWidgets.sizeOf(this, appWidgetId) ?: WidgetSize.Medium
 
         setContent {
             ScaledToDesign {
                 ChooseWidgetScreen(
-                    size = size,
+                    size = requestedSize,
                     onPick = ::choose,
                     onBrowse = ::browseGallery,
                     onClose = ::finish
@@ -126,28 +130,32 @@ class WidgetConfigActivity : ComponentActivity() {
 
     /** Writes the choice onto the widget, then hands it back to the launcher to draw. */
     private fun choose(slot: Slot) {
+        // Written first, and written synchronously, before anything that can fail or
+        // suspend. Everything below is an attempt to make the widget show it sooner;
+        // none of it is how the widget comes to know. Once this line has run, the very
+        // next composition reads the choice even if the rest of this never happens.
+        writeSlot(applicationContext, appWidgetId, slot)
+
+        // Handed back before the redraw rather than after, so the launcher keeps the
+        // cell whatever the redraw does.
+        setResult(
+            RESULT_OK,
+            Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        )
+
+        val size = SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: requestedSize
+
         lifecycleScope.launch {
+            // Drawn here rather than left to the launcher: handing back RESULT_OK only
+            // tells it the widget is configured, and on some launchers nothing then
+            // asks the widget to compose itself until its own schedule comes round —
+            // half an hour of an empty cell.
             val glanceId = glanceIdOf(applicationContext, appWidgetId)
             if (glanceId != null) {
-                writeSlot(applicationContext, glanceId, slot)
-                // Drawn here rather than left to the launcher: handing back RESULT_OK
-                // only tells it the widget is configured, and on some launchers nothing
-                // then asks the widget to compose itself until its own schedule comes
-                // round — half an hour of an empty cell.
-                runCatching {
-                    SlotWidgets.of(SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: WidgetSize.Medium)
-                        .update(applicationContext, glanceId)
-                }
-                // A clock face needs the minute running; nothing else books it.
-                if (slot is Slot.Design) {
-                    app.visionov.visionwidget.widget.GalleryTicker.schedule(applicationContext)
-                }
+                runCatching { SlotWidgets.of(size).update(applicationContext, glanceId) }
             }
-
-            setResult(
-                RESULT_OK,
-                Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            )
+            // A clock face needs the minute running; nothing else books it.
+            if (slot is Slot.Design) GalleryTicker.schedule(applicationContext)
             finish()
         }
     }
