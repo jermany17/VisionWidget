@@ -4,7 +4,17 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
+import androidx.glance.background
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.padding
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -51,37 +61,73 @@ private const val FIRST_PAINT_WAIT_MS = 6_000L
  */
 const val OpenGalleryExtra = "open_gallery"
 
+/** The cell a notice is drawn on — the app's own plum, so it reads as ours. */
+private val NoticeFill = Color(0xFF4A3A52)
+private val NoticeInk = Color(0xFFF2EDE6)
+
 open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val held = readSlot(context, id)
-        Log.i("VisionSlot", "compose $size widget=${appWidgetIdOf(context, id)} holding=${held?.encode()}")
+        val appWidgetId = appWidgetIdOf(context, id)
+        val held = appWidgetId?.let { readSlot(context, it) }
+        Log.i("VisionSlot", "compose $size widget=$appWidgetId holding=${held?.encode()}")
 
-        when (val slot = held) {
-            Slot.Vision -> {
-                val payload = visionPayload(context, size)
-                provideContent { VisionCardContent(payload, size) }
+        // Nothing here draws nothing. A widget that composes an empty box is
+        // indistinguishable from one that was never asked to compose at all, from one
+        // whose picture failed to paint, and from one that threw — and telling those
+        // apart from a photograph of a home screen is most of the work of fixing any
+        // of them. Each failure says which it is instead.
+        try {
+            when (val slot = held) {
+                Slot.Vision -> {
+                    val payload = visionPayload(context, size)
+                    provideContent { VisionCardContent(payload, size) }
+                }
+
+                Slot.TopThree -> {
+                    val payload = topThreePayload(context, size)
+                    provideContent { TopThreeCardContent(payload, size) }
+                }
+
+                Slot.Wisdom -> {
+                    val payload = wisdomPayload(context)
+                    provideContent { WisdomCardContent(payload, size) }
+                }
+
+                is Slot.Design -> provideDesign(context, slot.designId)
+
+                // Placed without ever being told what to hold. Tapping opens the app,
+                // which is the only way back to a choice from here.
+                null -> provideContent { Notice("Tap to set up", id = appWidgetId) }
             }
+        } catch (failure: Throwable) {
+            Log.e("VisionSlot", "compose $size widget=$appWidgetId failed", failure)
+            provideContent { Notice(failure.javaClass.simpleName, id = appWidgetId) }
+        }
+    }
 
-            Slot.TopThree -> {
-                val payload = topThreePayload(context, size)
-                provideContent { TopThreeCardContent(payload, size) }
-            }
-
-            Slot.Wisdom -> {
-                val payload = wisdomPayload(context)
-                provideContent { WisdomCardContent(payload, size) }
-            }
-
-            is Slot.Design -> provideDesign(context, slot.designId)
-
-            // Placed without ever being told what to hold — which happens if the setting
-            // screen was dismissed in a way the launcher took for a success. Nothing is
-            // guessed at: an empty cell reads as unfinished, where a card picked on the
-            // user's behalf reads as the wrong card.
-            null -> provideContent { Box(modifier = GlanceModifier.fillMaxSize()) {} }
+    /**
+     * A plain word in the cell, for the states that have no picture to show.
+     *
+     * Deliberately legible rather than tasteful: every one of these is a fault or an
+     * unfinished setup, and the point is that it can be read off the home screen.
+     */
+    @Composable
+    private fun Notice(text: String, id: Int?) {
+        Box(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(NoticeFill)
+                .clickable(actionStartActivity<MainActivity>())
+                .padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (id == null) text else "$text\n#$id",
+                style = TextStyle(color = ColorProvider(NoticeInk), fontSize = 12.sp)
+            )
         }
     }
 
@@ -117,11 +163,11 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
             LocalSize.current
 
             if (bitmap == null) {
-                // Still a box rather than an empty tree: with nothing composed the
-                // launcher goes on showing the layout it put up while it waited and
-                // nothing ever replaces it. Empty for now, and the painting still
-                // running will ask for the redraw that fills it.
-                Box(modifier = GlanceModifier.fillMaxSize()) {}
+                // The design has not been drawn yet and could not be drawn in the time
+                // this update had. Said out loud rather than left blank: the painting
+                // still running will ask for the redraw that replaces this, and if it
+                // never does, the cell says so instead of looking like a bug elsewhere.
+                Notice(if (design == null) "Unknown design" else "Drawing…", id = null)
             } else {
                 Image(
                     provider = ImageProvider(bitmap),
