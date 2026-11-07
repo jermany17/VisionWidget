@@ -28,6 +28,13 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.glance.layout.Box
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
@@ -113,6 +120,13 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
                 // which is the only way back to a choice from here.
                 null -> provideContent { Notice("Tap to set up", id = appWidgetId) }
             }
+        } catch (cancellation: CancellationException) {
+            // Not a failure. provideContent never returns — it holds the session open
+            // and ends by being cancelled, which is what happens every single time the
+            // widget is asked to draw again. Caught alongside real faults, each ordinary
+            // redraw was logged as a crash and answered by trying to paint a notice over
+            // the content that was replacing it.
+            throw cancellation
         } catch (failure: Throwable) {
             Log.e("VisionSlot", "compose $size widget=$appWidgetId failed", failure)
             provideContent { Notice(failure.javaClass.simpleName, id = appWidgetId) }
@@ -235,24 +249,48 @@ object SlotWidgets {
     }
 
     /**
-     * Asks the system to redraw one widget, by the id the launcher knows it by.
+     * Asks for one widget to be drawn again, now that what it holds has changed.
      *
-     * The ordinary broadcast rather than [GlanceAppWidget.update], because that needs a
-     * GlanceId and the only way to one is `getGlanceIdBy`, which throws while the widget
-     * is still being placed. Skipping the redraw there is what left "Tap to set up"
-     * frozen on the cell: the launcher puts the widget up while its setting screen is
-     * still open, so the first composition legitimately finds no choice yet, and those
-     * are the views that stay until something else asks for new ones.
+     * Not the ordinary APPWIDGET_UPDATE broadcast, which is what this used to send.
+     * That action is a protected one: only the system may send it, and an app that
+     * tries is refused with a SecurityException. Caught and logged, the refusal left
+     * the redraw simply never happening — the launcher composes the cell once while
+     * the setting screen is still open, finds nothing chosen yet, and those are the
+     * views that stay. That is the whole of why a configured widget sat on the home
+     * screen reading "Tap to set up" with its choice already written down beside it.
      *
-     * This asks for new ones, and needs nothing but the Int the caller already has.
+     * Glance's own update is not protected. It wants a GlanceId, and the only way to
+     * one is a lookup that fails while the widget is still being placed — so it is
+     * tried a few times across the moment the launcher takes to finish, and if the
+     * cell never becomes nameable, everything of its size is redrawn instead. Each of
+     * those reads its own slot, so the rest come back exactly as they were.
      */
     fun requestRedraw(context: Context, appWidgetId: Int, size: WidgetSize) {
-        val intent = Intent(context, receiverOf(size))
-            .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
-        runCatching { context.sendBroadcast(intent) }
-            .onFailure { Log.w("VisionSlot", "redraw request for $appWidgetId failed", it) }
+        val app = context.applicationContext
+        redrawScope.launch {
+            repeat(REDRAW_ATTEMPTS) { attempt ->
+                if (attempt > 0) delay(REDRAW_RETRY_MS)
+                val id = glanceIdOf(app, appWidgetId) ?: return@repeat
+                val drawn = runCatching { of(size).update(app, id) }
+                    .onFailure { Log.w("VisionSlot", "redraw of $appWidgetId failed", it) }
+                    .isSuccess
+                if (drawn) {
+                    Log.i("VisionSlot", "redrew $appWidgetId")
+                    return@launch
+                }
+            }
+
+            Log.i("VisionSlot", "$appWidgetId never became nameable; redrawing all $size")
+            runCatching { of(size).updateAll(app) }
+                .onFailure { Log.w("VisionSlot", "redraw of all $size failed", it) }
+        }
     }
+
+    /** Long enough to outlast a launcher finishing its placement, short enough to feel instant. */
+    private const val REDRAW_ATTEMPTS = 5
+    private const val REDRAW_RETRY_MS = 400L
+
+    private val redrawScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** The receiver declared in the manifest for [size]. */
     fun receiverOf(size: WidgetSize): Class<*> = when (size) {
