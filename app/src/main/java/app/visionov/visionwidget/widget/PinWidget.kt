@@ -163,7 +163,7 @@ class WidgetPinnedReceiver : BroadcastReceiver() {
                 }
 
                 // A design just arrived; if it is a clock the minute has to start running.
-                if (slot is Slot.Design) GalleryTicker.schedule(app)
+                if (slot is Slot.Design) GalleryTicker.schedule(app, known = true)
             } finally {
                 pending.finish()
             }

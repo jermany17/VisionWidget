@@ -155,7 +155,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 runCatching { SlotWidgets.of(size).update(applicationContext, glanceId) }
             }
             // A clock face needs the minute running; nothing else books it.
-            if (slot is Slot.Design) GalleryTicker.schedule(applicationContext)
+            if (slot is Slot.Design) GalleryTicker.schedule(applicationContext, known = true)
             finish()
         }
     }

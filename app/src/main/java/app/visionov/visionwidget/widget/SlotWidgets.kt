@@ -198,9 +198,13 @@ abstract class SlotWidgetReceiver(
     override val glanceAppWidget: GlanceAppWidget
 ) : GlanceAppWidgetReceiver() {
 
+    // Being here at all means a widget of this size exists, so the booking is told as
+    // much rather than going to look. What it would look at is a record Glance writes
+    // as part of this very update, and reading it mid-flight answers that the screen is
+    // empty — which would stop the tick for the clock that just arrived.
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        GalleryTicker.schedule(context)
+        GalleryTicker.schedule(context, known = true)
     }
 
     override fun onUpdate(
@@ -209,7 +213,7 @@ abstract class SlotWidgetReceiver(
         appWidgetIds: IntArray
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
-        GalleryTicker.schedule(context)
+        GalleryTicker.schedule(context, known = appWidgetIds.isNotEmpty())
     }
 
     // What a widget held is kept against the launcher's id for it, so it has to be let

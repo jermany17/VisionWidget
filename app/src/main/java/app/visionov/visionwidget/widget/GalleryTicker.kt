@@ -92,15 +92,29 @@ object GalleryTicker {
      * so the work is handed to the ticker's own scope. Callers are broadcast receivers
      * with a deadline — none of them can afford to wait on it, and none of them need to.
      */
-    fun schedule(context: Context) {
+    fun schedule(context: Context, known: Boolean = false) {
         val app = context.applicationContext
-        scope.launch { scheduleNow(app) }
+        scope.launch { scheduleNow(app, known) }
     }
 
-    private suspend fun scheduleNow(context: Context) {
+    /**
+     * [known] says the caller has already seen a widget, and the screen is not to be
+     * read to check.
+     *
+     * Reading it means [placedSlots], which asks Glance which widgets exist — and Glance
+     * answers from a record its receiver writes asynchronously as part of the very
+     * update that brought us here. Asked in that moment the record is not there yet, the
+     * screen looks empty, and this cancels the tick for a clock that was only just put
+     * up. That is a clock frozen at the minute it was added.
+     *
+     * Every caller that is only here because a widget exists says so. The reading is
+     * left to [tick], which happens a minute later with nothing left in flight, and
+     * which does stop the alarm once the last design is gone.
+     */
+    private suspend fun scheduleNow(context: Context, known: Boolean) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
 
-        if (liveDesigns(context).isEmpty()) {
+        if (!known && liveDesigns(context).isEmpty()) {
             alarms.cancel(pendingIntent(context))
             return
         }
@@ -151,7 +165,11 @@ object GalleryTicker {
                 flipOn(app, target)
                 // Booked here rather than through [schedule], which would hand it to the
                 // scope and let the broadcast finish before the alarm was actually set.
-                scheduleNow(app)
+                //
+                // This is the one that reads the screen. A minute after anything was
+                // placed there is nothing still being written, so an empty answer here
+                // is the truth: the last design has gone and the tick stops with it.
+                scheduleNow(app, known = false)
             } finally {
                 done()
             }
