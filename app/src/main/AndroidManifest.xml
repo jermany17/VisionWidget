@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
+        Asked for once, on the way out of onboarding. A runtime permission from
+        Android 13; below that, declaring it is the whole of it. Refusing is not final —
+        it can be granted later from the app's own settings.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
         Lets the app talk to Play's billing service, and is how Play knows to offer this
         app's subscriptions to it at all. Nothing is asked of the user for it: it grants
         no access to anything of theirs, so no prompt is ever shown.

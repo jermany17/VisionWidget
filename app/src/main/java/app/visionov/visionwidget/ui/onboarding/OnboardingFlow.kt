@@ -1,5 +1,13 @@
 package app.visionov.visionwidget.ui.onboarding
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -87,7 +95,7 @@ private val StepLabel = VisionType.eyebrow.copy(fontSize = 12.sp, lineHeight = 1
 private val GoalPresets = listOf(
     "Launch my startup",
     "Run a marathon",
-    "Harvard Law School",
+    "Become a published author",
     "Financial freedom"
 )
 
@@ -98,6 +106,22 @@ data class OnboardingData(
     val targetDateMillis: Long? = null,
     val wisdomCategory: String? = null
 )
+
+/**
+ * Whether the notification permission is worth asking for.
+ *
+ * Only from Android 13, where it became a runtime permission — below that it is granted
+ * by declaring it. Already answered either way means the system would return the
+ * standing answer without showing anything, so there is nothing to wait on.
+ *
+ * Refusing is not final: the permission can be granted later from the app's own
+ * settings, which is where someone who declined here would go.
+ */
+private fun wantsNotificationPermission(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+}
 
 /**
  * The first-run flow: five short questions, each skippable, with a progress line and a
@@ -126,6 +150,50 @@ fun OnboardingFlow(
     var wisdomError by rememberSaveable { mutableStateOf(false) }
     var showSkipConfirm by rememberSaveable { mutableStateOf(false) }
 
+    // Which way the flow was left, held while the permission dialog is up.
+    //
+    // A flag rather than the departing lambda itself: the dialog is another activity on
+    // top of this one, and a rotation behind it would drop anything not saveable — which
+    // would leave the flow finished in the user's mind and still on screen.
+    var leavingBySkip by rememberSaveable { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val leave = {
+        if (leavingBySkip) {
+            // Nothing to wipe by hand — leaving this composable drops every
+            // rememberSaveable it owns, which is all the flow has collected.
+            onSkip()
+        } else {
+            onComplete(
+                OnboardingData(
+                    goal = goal.trim(),
+                    why = why.trim(),
+                    targetDateMillis = dateMillis,
+                    wisdomCategory = wisdomCategory?.lowercase()
+                )
+            )
+        }
+    }
+
+    // Asked once, on the way out, whichever way the flow is left.
+    //
+    // Here rather than on a step of its own because it is the system's dialog and not
+    // ours — there is no page to put it on. Whatever the answer, the flow is over: the
+    // permission is for what the app will send later, and refusing it is not a reason
+    // to keep someone in the setup.
+    val permission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { leave() }
+
+    val leaveAsking = {
+        if (wantsNotificationPermission(context)) {
+            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            leave()
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -153,14 +221,8 @@ fun OnboardingFlow(
             )
 
             val finish = {
-                onComplete(
-                    OnboardingData(
-                        goal = goal.trim(),
-                        why = why.trim(),
-                        targetDateMillis = dateMillis,
-                        wisdomCategory = wisdomCategory?.lowercase()
-                    )
-                )
+                leavingBySkip = false
+                leaveAsking()
             }
 
             when (step) {
@@ -218,10 +280,12 @@ fun OnboardingFlow(
             userFont = userFont,
             onKeepGoing = { showSkipConfirm = false },
             onConfirmSkip = {
-                // Nothing to wipe by hand — leaving this composable drops every
-                // rememberSaveable it owns, which is all the flow has collected.
                 showSkipConfirm = false
-                onSkip()
+                // Skipping still passes the notification question on the way out — it
+                // is about what the app will send later, not about the setup that was
+                // just declined.
+                leavingBySkip = true
+                leaveAsking()
             }
         )
     }
@@ -300,13 +364,14 @@ private fun ColumnScope.IntroStep(userFont: UserFontChoice, onStart: () -> Unit)
     Text(text = "VISION WIDGET", style = VisionType.eyebrow, color = OnCanvasMuted)
     Spacer(Modifier.height(16.dp))
     Text(
-        text = "One goal. Three things a day. On your home screen.",
+        text = "Turn vision into reality.",
         style = VisionType.screenPromptTitle(userFont),
         color = OnCanvas
     )
     Spacer(Modifier.height(16.dp))
     Text(
-        text = "Five short questions. Skip any of them — nothing here is required, and nothing is lost if you leave early.",
+        text = "Just five quick questions to get started.\n" +
+            "Nothing is required, and you can skip any step.",
         style = VisionType.bodyText(userFont),
         color = OnCanvasMuted
     )
@@ -336,13 +401,13 @@ private fun ColumnScope.GoalStep(
         Text(text = "THE GOAL", style = VisionType.eyebrow, color = OnCanvasMuted)
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "What do you want most?",
+            text = "What’s your biggest vision?",
             style = VisionType.screenPromptTitle(userFont),
             color = OnCanvas
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "Five words or fewer. You can change it any time.",
+            text = "Think about what matters most. You can change it anytime.",
             style = VisionType.bodyText(userFont),
             color = OnCanvasMuted
         )
@@ -397,7 +462,7 @@ private fun ColumnScope.WhyStep(
             .imePadding()
     ) {
         Spacer(Modifier.height(28.dp))
-        Text(text = "WHY IT MATTERS", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Text(text = "YOUR REASON", style = VisionType.eyebrow, color = OnCanvasMuted)
         Spacer(Modifier.height(12.dp))
         Text(
             text = "Why does it matter?",
@@ -406,8 +471,7 @@ private fun ColumnScope.WhyStep(
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "The sentence you would say at 11pm. This is what the widget " +
-                "shows you on a bad day.",
+            text = "Your reason can keep you going when things get difficult.",
             style = VisionType.bodyText(userFont),
             color = OnCanvasMuted
         )
@@ -667,8 +731,7 @@ private fun ColumnScope.WisdomStep(
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = "One short line lands on your home screen every morning. Pick the " +
-                "theme it's drawn from — you can change it later.",
+            text = "Choose a theme that speaks to you. You can always change it later.",
             style = VisionType.bodyText(userFont),
             color = OnCanvasMuted
         )
