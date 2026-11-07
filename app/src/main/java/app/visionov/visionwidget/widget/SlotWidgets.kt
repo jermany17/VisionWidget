@@ -72,7 +72,17 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val appWidgetId = appWidgetIdOf(context, id)
+
+        // Its own answer if it has one. Failing that, the one the setting screen left
+        // for whichever cell of this size came up next — see [offerSlot] for why the id
+        // alone cannot be relied on. Claimed once and written down, so this cell has an
+        // answer of its own from here on and the next one doesn't take the same.
         val held = appWidgetId?.let { readSlot(context, it) }
+            ?: claimOfferedSlot(context, size)?.also { claimed ->
+                appWidgetId?.let { writeSlot(context, it, claimed) }
+                Log.i("VisionSlot", "widget=$appWidgetId claimed the offered ${claimed.encode()}")
+            }
+
         Log.i("VisionSlot", "compose $size widget=$appWidgetId holding=${held?.encode()}")
 
         // Nothing here draws nothing. A widget that composes an empty box is

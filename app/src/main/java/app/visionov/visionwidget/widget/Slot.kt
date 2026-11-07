@@ -96,6 +96,19 @@ enum class WidgetSize(
 private object SlotStore {
     private const val NAME = "vision_widget_slots"
 
+    private const val PENDING_SLOT = "pending_slot"
+    private const val PENDING_SIZE = "pending_size"
+    private const val PENDING_AT = "pending_at"
+
+    /**
+     * How long an unclaimed answer stays on offer.
+     *
+     * Long enough to cover a launcher taking its time to bind the cell, short enough
+     * that an answer nobody came for cannot be picked up by an unrelated widget placed
+     * later. A minute is several times the former and a small fraction of the latter.
+     */
+    private const val PENDING_TTL_MS = 60_000L
+
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -113,6 +126,40 @@ private object SlotStore {
 
     fun forget(context: Context, appWidgetId: Int) {
         prefs(context).edit().remove(appWidgetId.toString()).apply()
+    }
+
+    /** Leaves the answer where a cell that has none can find it. */
+    fun offer(context: Context, slot: Slot, size: WidgetSize) {
+        prefs(context).edit()
+            .putString(PENDING_SLOT, slot.encode())
+            .putString(PENDING_SIZE, size.name)
+            .putLong(PENDING_AT, System.currentTimeMillis())
+            .commit()
+    }
+
+    /**
+     * Takes the offered answer if it was meant for a cell of [size], and spends it.
+     *
+     * Spent on the way out so two cells cannot both claim it — a launcher that lost one
+     * id and made another would otherwise hand the same answer to both.
+     */
+    fun claim(context: Context, size: WidgetSize): Slot? {
+        val store = prefs(context)
+        val fresh = System.currentTimeMillis() - store.getLong(PENDING_AT, 0L) < PENDING_TTL_MS
+        val forUs = store.getString(PENDING_SIZE, null) == size.name
+        if (!fresh || !forUs) return null
+
+        val slot = Slot.decode(store.getString(PENDING_SLOT, null)) ?: return null
+        clearOffer(context)
+        return slot
+    }
+
+    fun clearOffer(context: Context) {
+        prefs(context).edit()
+            .remove(PENDING_SLOT)
+            .remove(PENDING_SIZE)
+            .remove(PENDING_AT)
+            .commit()
     }
 }
 
@@ -135,6 +182,32 @@ fun writeSlot(context: Context, appWidgetId: Int, slot: Slot) {
     SlotStore.write(context, appWidgetId, slot)
     Log.i("VisionSlot", "wrote ${slot.encode()} to widget $appWidgetId")
 }
+
+/**
+ * Leaves the answer somewhere a cell can find it, for when the id cannot be trusted.
+ *
+ * The setting screen is handed an id before the widget is finally bound, and not every
+ * launcher keeps that id: some bind the cell under a second one once the screen returns
+ * OK, and at least one takes the first id away afterwards, which erases what was written
+ * against it. Either way the cell composes holding nothing, and "Tap to set up" is what
+ * stays on the home screen.
+ *
+ * So the answer is written twice — against the id, which is right when the id survives,
+ * and here, which is right when it doesn't. The second copy is addressed by size rather
+ * than by id, lives a minute, and is spent by the first cell of that size to come up
+ * without an answer of its own.
+ */
+fun offerSlot(context: Context, slot: Slot, size: WidgetSize) {
+    SlotStore.offer(context, slot, size)
+    Log.i("VisionSlot", "offered ${slot.encode()} to the next $size cell")
+}
+
+/** Takes the offered answer, if one is waiting for a cell of [size]. */
+fun claimOfferedSlot(context: Context, size: WidgetSize): Slot? =
+    SlotStore.claim(context, size)
+
+/** Drops the offer, once the cell it was meant for has an answer of its own. */
+fun clearOfferedSlot(context: Context) = SlotStore.clearOffer(context)
 
 /** Drops what a widget was holding, once the launcher says it has gone. */
 fun forgetSlot(context: Context, appWidgetId: Int) = SlotStore.forget(context, appWidgetId)

@@ -69,6 +69,7 @@ import app.visionov.visionwidget.widget.GalleryTicker
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.SlotWidgets
 import app.visionov.visionwidget.widget.WidgetSize
+import app.visionov.visionwidget.widget.offerSlot
 import app.visionov.visionwidget.widget.renderCardPreview
 import app.visionov.visionwidget.widget.writeSlot
 import kotlinx.coroutines.Dispatchers
@@ -133,14 +134,20 @@ class WidgetConfigActivity : ComponentActivity() {
         // next composition reads the choice even if the rest of this never happens.
         writeSlot(applicationContext, appWidgetId, slot)
 
+        val size = SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: requestedSize
+
+        // And again, addressed by size rather than by id. The id above is right whenever
+        // the launcher keeps the one it opened this screen with, and some do not — see
+        // [offerSlot]. This copy is what the cell falls back on, and is spent the first
+        // time a cell of this size composes without an answer of its own.
+        offerSlot(applicationContext, slot, size)
+
         // Handed back before the redraw rather than after, so the launcher keeps the
         // cell whatever the redraw does.
         setResult(
             RESULT_OK,
             Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         )
-
-        val size = SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: requestedSize
 
         // Asked for rather than done here. The launcher puts the widget up while this
         // screen is still open, so it has already composed once and found no choice —
