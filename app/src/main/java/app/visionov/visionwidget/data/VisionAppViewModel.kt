@@ -12,6 +12,8 @@ import app.visionov.visionwidget.ui.home.nextWisdomIndex
 import app.visionov.visionwidget.ui.home.randomWisdomIndex
 import app.visionov.visionwidget.ui.home.wisdomIndices
 import app.visionov.visionwidget.ui.vision.Milestone
+import app.visionov.visionwidget.ui.gallery.GalleryCatalog
+import app.visionov.visionwidget.widget.GalleryTicker
 import app.visionov.visionwidget.widget.updateDesignWidgets
 import app.visionov.visionwidget.ui.vision.Vision
 import kotlinx.coroutines.channels.Channel
@@ -86,6 +88,16 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         val kept = _libraryDesignIds.value + designId
         preferences.libraryDesignIds = kept
         _libraryDesignIds.value = kept
+
+        // Drawn now, long before anyone asks for it on a home screen.
+        //
+        // A widget's own update is a broadcast with a deadline, and painting a design
+        // means running it through a web view — a second or two it does not have. Left
+        // until then, the cell shows that it is still drawing and corrects itself
+        // afterwards. Saving is the moment there is time to spare, so it is spent here.
+        GalleryCatalog.load(getApplication())
+            .firstOrNull { it.id == designId }
+            ?.let { GalleryTicker.requestPaint(getApplication(), it) }
     }
 
     /**

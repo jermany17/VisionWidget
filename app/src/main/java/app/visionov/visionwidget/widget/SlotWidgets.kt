@@ -3,6 +3,7 @@ package app.visionov.visionwidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -221,6 +222,26 @@ object SlotWidgets {
         return WidgetSize.entries.firstOrNull {
             provider == ComponentName(context, receiverOf(it))
         }
+    }
+
+    /**
+     * Asks the system to redraw one widget, by the id the launcher knows it by.
+     *
+     * The ordinary broadcast rather than [GlanceAppWidget.update], because that needs a
+     * GlanceId and the only way to one is `getGlanceIdBy`, which throws while the widget
+     * is still being placed. Skipping the redraw there is what left "Tap to set up"
+     * frozen on the cell: the launcher puts the widget up while its setting screen is
+     * still open, so the first composition legitimately finds no choice yet, and those
+     * are the views that stay until something else asks for new ones.
+     *
+     * This asks for new ones, and needs nothing but the Int the caller already has.
+     */
+    fun requestRedraw(context: Context, appWidgetId: Int, size: WidgetSize) {
+        val intent = Intent(context, receiverOf(size))
+            .setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+        runCatching { context.sendBroadcast(intent) }
+            .onFailure { Log.w("VisionSlot", "redraw request for $appWidgetId failed", it) }
     }
 
     /** The receiver declared in the manifest for [size]. */

@@ -24,6 +24,9 @@ private const val ACTION_PINNED = "app.visionov.visionwidget.WIDGET_PINNED"
 /** What the widget about to be placed should hold, carried on the callback. */
 private const val EXTRA_SLOT = "slot"
 
+/** The size it was asked for, in case the placed widget cannot yet be asked its own. */
+private const val EXTRA_SIZE = "size"
+
 private val pinScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 /**
@@ -55,7 +58,8 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
         slot.encode().hashCode(),
         Intent(context, WidgetPinnedReceiver::class.java)
             .setAction(ACTION_PINNED)
-            .putExtra(EXTRA_SLOT, slot.encode()),
+            .putExtra(EXTRA_SLOT, slot.encode())
+            .putExtra(EXTRA_SIZE, size.name),
         // Mutable because the system is the one filling in EXTRA_APPWIDGET_ID — an
         // immutable callback comes back without it, which is a widget placed and never
         // told what it is. Safe to leave open: the component is named explicitly, so
@@ -145,28 +149,19 @@ class WidgetPinnedReceiver : BroadcastReceiver() {
 
         val app = context.applicationContext
 
-        // Written straight away, before anything that can fail. The redraw below is
-        // only to bring it forward — the widget reads this on whatever composition
-        // comes next regardless.
+        // Written straight away, before anything else. A pinned widget never saw the
+        // setting screen, so this is the only moment the choice can be recorded.
         writeSlot(app, appWidgetId, slot)
 
-        // Held open while the widget is redrawn: a receiver that returns first is one
-        // the system may stop the app behind, leaving the cell empty until something
-        // else happens to ask for it.
-        val pending = goAsync()
-        pinScope.launch {
-            try {
-                val glanceId = glanceIdOf(app, appWidgetId)
-                val size = SlotWidgets.sizeOf(app, appWidgetId)
-                if (glanceId != null && size != null) {
-                    runCatching { SlotWidgets.of(size).update(app, glanceId) }
-                }
+        // The size the pin was asked for, since the widget may not be bound firmly
+        // enough yet to be asked what it is.
+        val size = SlotWidgets.sizeOf(app, appWidgetId)
+            ?: WidgetSize.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_SIZE) }
+            ?: return
 
-                // A design just arrived; if it is a clock the minute has to start running.
-                if (slot is Slot.Design) GalleryTicker.schedule(app, known = true)
-            } finally {
-                pending.finish()
-            }
-        }
+        SlotWidgets.requestRedraw(app, appWidgetId, size)
+
+        // A design just arrived; if it is a clock the minute has to start running.
+        if (slot is Slot.Design) GalleryTicker.schedule(app, known = true)
     }
 }

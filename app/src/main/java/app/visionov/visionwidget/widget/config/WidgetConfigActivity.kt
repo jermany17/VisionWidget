@@ -7,7 +7,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,11 +69,9 @@ import app.visionov.visionwidget.widget.GalleryTicker
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.SlotWidgets
 import app.visionov.visionwidget.widget.WidgetSize
-import app.visionov.visionwidget.widget.glanceIdOf
 import app.visionov.visionwidget.widget.renderCardPreview
 import app.visionov.visionwidget.widget.writeSlot
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -145,19 +142,18 @@ class WidgetConfigActivity : ComponentActivity() {
 
         val size = SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: requestedSize
 
-        lifecycleScope.launch {
-            // Drawn here rather than left to the launcher: handing back RESULT_OK only
-            // tells it the widget is configured, and on some launchers nothing then
-            // asks the widget to compose itself until its own schedule comes round —
-            // half an hour of an empty cell.
-            val glanceId = glanceIdOf(applicationContext, appWidgetId)
-            if (glanceId != null) {
-                runCatching { SlotWidgets.of(size).update(applicationContext, glanceId) }
-            }
-            // A clock face needs the minute running; nothing else books it.
-            if (slot is Slot.Design) GalleryTicker.schedule(applicationContext, known = true)
-            finish()
-        }
+        // Asked for rather than done here. The launcher puts the widget up while this
+        // screen is still open, so it has already composed once and found no choice —
+        // and those views stay on the cell until something asks for new ones. Handing
+        // back RESULT_OK is not that something on every launcher.
+        //
+        // The ordinary broadcast is, and it needs nothing this screen might not have.
+        SlotWidgets.requestRedraw(applicationContext, appWidgetId, size)
+
+        // A clock face needs the minute running; nothing else books it.
+        if (slot is Slot.Design) GalleryTicker.schedule(applicationContext, known = true)
+
+        finish()
     }
 
     /**
