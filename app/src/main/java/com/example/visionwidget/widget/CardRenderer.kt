@@ -64,6 +64,15 @@ private const val MEDIUM_ROW_LINE = 11f
 private const val MEDIUM_CHECK = 8f
 
 /**
+ * What stands between two of the day's three.
+ *
+ * A step wider than the spacing the rest of the card is built from. An eyebrow belongs
+ * close to what it names, but three things to do want a little air between them to read
+ * as three — and only a little, or they stop reading as one list at all.
+ */
+private const val MEDIUM_TASK_GAP = 7f
+
+/**
  * The 2x2 card's measurements.
  *
  * The square has height to spare where the wide card has none, and type scaled for the
@@ -121,6 +130,9 @@ private const val LARGE_QUOTE_LINE = 19f
 private const val LARGE_ROW = 9.5f
 private const val LARGE_ROW_LINE = 12f
 private const val LARGE_ROW_GAP = 4f
+
+/** [MEDIUM_TASK_GAP] at the larger card's scale. */
+private const val LARGE_TASK_GAP = 8f
 private const val LARGE_CHECK = 10f
 private const val LARGE_COUNT = 18f
 private const val LARGE_COUNT_LINE = 20f
@@ -152,22 +164,24 @@ private fun cornerMargin(base: Float, cornerRadius: Int) =
     max(base, cornerRadius * CORNER_CLEARANCE)
 
 /**
- * Where a list of rows starts in the room it has, and how far apart they sit.
+ * Where a list of rows starts in the room it has.
  *
- * Three rows in a card with space for more used to pile up under the eyebrow with the
- * whole lower half left empty. The slack goes to the gaps first, up to one row's worth
- * — past that the rows stop reading as one list — and whatever is still over is split
- * above and below, so the block sits in the middle of its room rather than at the top
- * of it. A card with no room to spare keeps the tight spacing and the old start.
+ * Rows used to pile up under the eyebrow with the whole lower half of the card left
+ * empty. They keep the spacing they have always had — opening the gaps to fill the card
+ * left three lines standing apart rather than one list — and the room to spare is split
+ * above and below the block instead, so the set sits in the middle of it as a group.
  *
- * @return the lead-in before the first row, and the gap between any two.
+ * [slots] is how many rows the card is laid out for, not how many are written. Measuring
+ * the full set is what keeps the first row in one place: against the rows actually there,
+ * a day with one task left would centre that one line halfway down the card, and every
+ * row would slide as the others were set or struck off. Laid out for three, a card with
+ * one shows it where the first of three goes and grows downward from there.
  */
-private fun spreadRows(room: Float, count: Int, rowLine: Float, minGap: Float): Pair<Float, Float> {
-    if (count < 2) return max(0f, (room - count * rowLine) / 2f) to minGap
+private fun leadInFor(room: Float, slots: Int, rowLine: Float, gap: Float): Float {
+    if (slots < 1) return 0f
 
-    val gap = ((room - count * rowLine) / (count - 1)).coerceIn(minGap, minGap + rowLine)
-    val block = count * rowLine + (count - 1) * gap
-    return max(0f, (room - block) / 2f) to gap
+    val block = slots * rowLine + (slots - 1) * gap
+    return max(0f, (room - block) / 2f)
 }
 
 /** Everything a card draws with, resolved from what was applied to it. */
@@ -604,15 +618,16 @@ fun renderTopThreeCard(
             // How many rows the card's own height has room for, which is not always the
             // three it means to show: a flatter cell than the usual 4x2 would otherwise
             // run the last of them out past the bottom edge.
-            val rowSpan = MEDIUM_ROW_LINE * s + MEDIUM_SPACING * s
+            val gap = MEDIUM_TASK_GAP * s
+            val rowSpan = MEDIUM_ROW_LINE * s + gap
             val listRoom = h - padY - y
-            val room = ((listRoom + MEDIUM_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
+            val room = ((listRoom + gap) / rowSpan).toInt().coerceAtLeast(1)
             val visible = shown.take(room)
 
             // The rows are given the whole of what's under the eyebrow rather than the
             // top of it, so a card sized for more than three doesn't sit half empty.
-            val (lead, gap) = spreadRows(listRoom, visible.size, MEDIUM_ROW_LINE * s, MEDIUM_SPACING * s)
-            y += lead
+            val slots = BASE_TOP_THREE_TASKS.coerceAtMost(room)
+            y += leadInFor(listRoom, slots, MEDIUM_ROW_LINE * s, gap)
 
             visible.forEach { index ->
                 val row = textBlock(
@@ -873,11 +888,12 @@ fun renderTopThreeCardLarge(
         val check = LARGE_CHECK * s
         val gutter = check + LARGE_SPACING * s
         val rowLine = LARGE_ROW_LINE * s
-        val rowSpan = rowLine + LARGE_SPACING * s
+        val gap = LARGE_TASK_GAP * s
+        val rowSpan = rowLine + gap
         val shown = set.take(BASE_TOP_THREE_TASKS)
 
         val roomBelow = footRule - LARGE_SPACING * s - y
-        val room = ((roomBelow + LARGE_SPACING * s) / rowSpan).toInt().coerceAtLeast(1)
+        val room = ((roomBelow + gap) / rowSpan).toInt().coerceAtLeast(1)
         val visible = shown.take(room)
 
         if (visible.isEmpty()) {
@@ -891,8 +907,7 @@ fun renderTopThreeCardLarge(
         } else {
             // As on the medium card: the rows take the room between the two rules
             // rather than stacking against the top one.
-            val (lead, gap) = spreadRows(roomBelow, visible.size, rowLine, LARGE_SPACING * s)
-            y += lead
+            y += leadInFor(roomBelow, BASE_TOP_THREE_TASKS.coerceAtMost(room), rowLine, gap)
 
             visible.forEach { index ->
                 val row = textBlock(
@@ -903,7 +918,7 @@ fun renderTopThreeCardLarge(
                 )
                 drawCheck(canvas, ink, left, y, checked[index], s, check, rowLine)
                 canvas.draw(row, left + gutter, y)
-                y += rowLine + gap
+                y += rowSpan
             }
         }
 
