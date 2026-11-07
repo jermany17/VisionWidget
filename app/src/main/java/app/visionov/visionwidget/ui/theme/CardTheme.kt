@@ -106,8 +106,13 @@ data class CardTheme(
 }
 
 object CardThemes {
-    /** Used until the DB is wired up, and as the fallback for an unknown id. */
-    const val DEFAULT_ID = 1
+    /**
+     * The colour a widget wears before one is chosen for it, and the fallback for an
+     * id the list doesn't hold. Cacao rather than the Plum it opened on: a near-black
+     * brown sits under a home screen's wallpaper instead of competing with it, and it
+     * is the one card in the palette that reads as furniture rather than as a colour.
+     */
+    const val DEFAULT_ID = 30
 
     /**
      * The colour the user mixed themselves, which is no entry in the list below — the
