@@ -27,153 +27,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <receiver
-            android:name=".widget.ClockWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_clock">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/clock_widget_info" />
-        </receiver>
 
-        <receiver
-            android:name=".widget.BlushWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_calendar">
+        <!--
+          Where a widget is told what to hold. The launcher opens this itself once a
+          size has been dragged out of the picker, which is why it has to be exported:
+          the caller is the launcher, not us. It is handed nothing but the widget's own
+          id, and answers with that same id once the choice is written.
+        -->
+        <activity
+            android:name=".widget.config.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.VisionWidget">
             <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/blush_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.QuoteWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_quote">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/quote_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.VisionCardWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_vision">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/vision_card_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TopThreeWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_top_three">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/top_three_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.WisdomWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_wisdom">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/wisdom_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.VisionCardSmallWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_vision_small">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/vision_card_small_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TopThreeSmallWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_top_three_small">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/top_three_small_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.WisdomSmallWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_wisdom_small">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/wisdom_small_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.VisionCardLargeWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_vision_large">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/vision_card_large_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TopThreeLargeWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_top_three_large">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/top_three_large_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.WisdomLargeWidgetReceiver"
-            android:exported="false"
-            android:label="@string/widget_label_wisdom_large">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/wisdom_large_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.ClockTickReceiver"
-            android:exported="false" />
+        </activity>
         <!--
           Drives the Gallery clocks. The minute's tick is sent here by an alarm; the
           three system announcements are the ones that move a clock or a calendar on
@@ -191,492 +59,59 @@
             </intent-filter>
         </receiver>
 
-        <!-- GALLERY-WIDGETS:BEGIN generated by tools/generate_gallery_widgets.ps1 -->
+        <!--
+          Takes the launcher's word that a widget asked for from inside the app has
+          landed, and writes onto it what it was asked to hold. Pinning skips the
+          setting screen, so this is the only moment that choice can be recorded.
+        -->
         <receiver
-            android:name=".widget.Gallery01DateSilkReceiver"
+            android:name=".widget.WidgetPinnedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="app.visionov.visionwidget.WIDGET_PINNED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          One provider per size, and nothing in the manifest about what goes in them.
+          Fifty-six used to be declared here, one per design, because the design was
+          carried by the receiver class; it is carried by each widget's own state now.
+          That is what collapsed the launcher's picker down to the three entries it is
+          meant to show.
+        -->
+        <receiver
+            android:name=".widget.SmallSlotReceiver"
             android:exported="false"
-            android:label="@string/gallery_label_01_date_silk">
+            android:label="@string/widget_label_small">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_01_date_silk_widget_info" />
+                android:resource="@xml/slot_small_widget_info" />
         </receiver>
         <receiver
-            android:name=".widget.Gallery05DateSparkleReceiver"
+            android:name=".widget.MediumSlotReceiver"
             android:exported="false"
-            android:label="@string/gallery_label_05_date_sparkle">
+            android:label="@string/widget_label_medium">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_05_date_sparkle_widget_info" />
+                android:resource="@xml/slot_medium_widget_info" />
         </receiver>
         <receiver
-            android:name=".widget.GalleryC209BlushGlowReceiver"
+            android:name=".widget.LargeSlotReceiver"
             android:exported="false"
-            android:label="@string/gallery_label_c2_09_blush_glow">
+            android:label="@string/widget_label_large">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_09_blush_glow_widget_info" />
+                android:resource="@xml/slot_large_widget_info" />
         </receiver>
-        <receiver
-            android:name=".widget.GalleryC201SkyCloudReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_01_sky_cloud">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_01_sky_cloud_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery25TimeCoffeeEspressoGoldReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_25_time_coffee_espresso_gold">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_25_time_coffee_espresso_gold_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery28TimeCoffeeFloralLatteReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_28_time_coffee_floral_latte">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_28_time_coffee_floral_latte_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery24TimeFlipBlackReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_24_time_flip_black">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_24_time_flip_black_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery23TimeFlipIvoryReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_23_time_flip_ivory">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_23_time_flip_ivory_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery22TimeAnalogIvoryReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_22_time_analog_ivory">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_22_time_analog_ivory_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery21TimeAnalogGlassReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_21_time_analog_glass">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_21_time_analog_glass_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery02TimeCloudOrbitReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_02_time_cloud_orbit">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_02_time_cloud_orbit_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery13TimeOrbitIvoryReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_13_time_orbit_ivory">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_13_time_orbit_ivory_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery20CalendarLilacReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_20_calendar_lilac">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_20_calendar_lilac_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery03CalendarIvoryReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_03_calendar_ivory">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_03_calendar_ivory_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC207TornPaperReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_07_torn_paper">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_07_torn_paper_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC206GlassDropReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_06_glass_drop">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_06_glass_drop_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery29TimeCoffeeIcedAmericanoReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_29_time_coffee_iced_americano">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_29_time_coffee_iced_americano_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery27TimeCoffeeDarkStoneReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_27_time_coffee_dark_stone">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_27_time_coffee_dark_stone_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery19DateSkyCloudReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_19_date_sky_cloud">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_19_date_sky_cloud_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery16DateNightMoonReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_16_date_night_moon">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_16_date_night_moon_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC205TrioSkyReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_05_trio_sky">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_05_trio_sky_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC205TrioPeachReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_05_trio_peach">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_05_trio_peach_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery12CalendarTaupeReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_12_calendar_taupe">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_12_calendar_taupe_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery14CalendarLinenReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_14_calendar_linen">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_14_calendar_linen_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery17TimeSparkleReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_17_time_sparkle">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_17_time_sparkle_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery09TimeDuskMoonReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_09_time_dusk_moon">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_09_time_dusk_moon_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery30DateCoffeeMatchaReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_30_date_coffee_matcha">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_30_date_coffee_matcha_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery26TimeCoffeeLatteCocoaReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_26_time_coffee_latte_cocoa">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_26_time_coffee_latte_cocoa_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery04TimePeonyWhiteReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_04_time_peony_white">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_04_time_peony_white_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery06TimeShoreReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_06_time_shore">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_06_time_shore_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery11TimePeonyBlushReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_11_time_peony_blush">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_11_time_peony_blush_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery18TimeOceanGlintReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_18_time_ocean_glint">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_18_time_ocean_glint_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC204OceanSplitReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_04_ocean_split">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_04_ocean_split_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC2032BlushReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_03_2_blush">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_03_2_blush_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC2036LavenderReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_03_6_lavender">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_03_6_lavender_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC2035PeachReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_03_5_peach">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_03_5_peach_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery08DateLeafShadowReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_08_date_leaf_shadow">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_08_date_leaf_shadow_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery10DatePeonyMistReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_10_date_peony_mist">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_10_date_peony_mist_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC208TulipSageReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_08_tulip_sage">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_08_tulip_sage_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC202RibbonBlushReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_02_ribbon_blush">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_02_ribbon_blush_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC203CloudLineReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_03_cloud_line">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_03_cloud_line_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.GalleryC20310CreamReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_c2_03_10_cream">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_c2_03_10_cream_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery15TimeLeafShadowDimReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_15_time_leaf_shadow_dim">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_15_time_leaf_shadow_dim_widget_info" />
-        </receiver>
-        <receiver
-            android:name=".widget.Gallery31DateCoffeeIcedLatteReceiver"
-            android:exported="false"
-            android:label="@string/gallery_label_31_date_coffee_iced_latte">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gallery_31_date_coffee_iced_latte_widget_info" />
-        </receiver>
-        <!-- GALLERY-WIDGETS:END -->
 
     </application>
 

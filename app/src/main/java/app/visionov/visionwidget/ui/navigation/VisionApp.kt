@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,10 +27,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -37,7 +41,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.visionov.visionwidget.data.VisionAppViewModel
 import app.visionov.visionwidget.data.tallyBetween
 import app.visionov.visionwidget.data.topThreeStats
+import app.visionov.visionwidget.ui.gallery.LibraryScreen
 import app.visionov.visionwidget.ui.home.TodayScreen
+import app.visionov.visionwidget.widget.requestPinWidget
 import app.visionov.visionwidget.ui.home.nextWisdomIndex
 import app.visionov.visionwidget.ui.home.randomWisdomIndex
 import app.visionov.visionwidget.ui.home.wisdomIndices
@@ -106,6 +112,14 @@ fun VisionApp(
     // it stays here rather than in the database.
     var selectedVisionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
+    // Whether My Library is up over the tabs. An overlay rather than a fifth tab: it is
+    // reached from the Gallery shelf and from the launcher's own setting screen, and
+    // belongs under Studio rather than beside it. Navigation state, as above.
+    var showLibrary by rememberSaveable { mutableStateOf(false) }
+
+    /** A launcher that won't be asked to place a widget, which has to be said out loud. */
+    var pinRefused by rememberSaveable { mutableStateOf(false) }
+
     // A process can sit in the background through a midnight, and a widget can turn the
     // daily line over while it does, so the day is checked on every return to the front
     // rather than at launch alone.
@@ -113,6 +127,8 @@ fun VisionApp(
         viewModel.refreshWisdomForToday()
         onPauseOrDispose { }
     }
+
+    val libraryDesignIds by viewModel.libraryDesignIds.collectAsStateWithLifecycle()
 
     val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
 
@@ -245,6 +261,9 @@ fun VisionApp(
                 topThreeChecked = topThreeChecked,
                 wisdomIndex = wisdomIndex,
                 startOnGallery = openGallery,
+                libraryIds = libraryDesignIds,
+                onSaveToLibrary = viewModel::saveToLibrary,
+                onOpenLibrary = { showLibrary = true },
                 leaveRequested = pendingTab != null,
                 onLeaveResolved = { allowed ->
                     if (allowed) pendingTab?.let { selectedTab = it }
@@ -258,22 +277,63 @@ fun VisionApp(
             )
         }
 
-        BottomNav(
-            selected = selectedTab,
-            // Leaving Studio is asked of Studio rather than done to it. Every other move
-            // is immediate — there is nothing anywhere else that a tab change would lose.
-            onSelect = { tab ->
-                if (selectedTab == VisionTab.Studio && tab != VisionTab.Studio) {
-                    pendingTab = tab
-                } else {
-                    selectedTab = tab
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(vertical = NavBarMargin)
-        )
+        // Over the tabs rather than beside them, so the nav bar goes with them — the
+        // library has its own way back and nothing below it to reach for.
+        if (showLibrary) {
+            val context = LocalContext.current
+            LibraryScreen(
+                designIds = libraryDesignIds,
+                onRemove = viewModel::removeFromLibrary,
+                // A handful of launchers refuse to be asked. Saying so beats a tap that
+                // looks like it worked and left nothing on the screen.
+                onPlace = { size, slot ->
+                    if (!requestPinWidget(context, size, slot)) pinRefused = true
+                },
+                onBrowse = {
+                    showLibrary = false
+                    selectedTab = VisionTab.Studio
+                },
+                onBack = { showLibrary = false },
+                contentPadding = screenPadding
+            )
+            BackHandler { showLibrary = false }
+
+            if (pinRefused) {
+                AlertDialog(
+                    onDismissRequest = { pinRefused = false },
+                    confirmButton = {
+                        TextButton(onClick = { pinRefused = false }) { Text("OK") }
+                    },
+                    title = { Text("Add it from the home screen") },
+                    text = {
+                        Text(
+                            "This launcher won't let an app place a widget for you. " +
+                                "Press and hold the home screen, find Vision Widget, " +
+                                "and pick the size you want."
+                        )
+                    },
+                    containerColor = Canvas
+                )
+            }
+        } else {
+            BottomNav(
+                selected = selectedTab,
+                // Leaving Studio is asked of Studio rather than done to it. Every other
+                // move is immediate — there is nothing anywhere else that a tab change
+                // would lose.
+                onSelect = { tab ->
+                    if (selectedTab == VisionTab.Studio && tab != VisionTab.Studio) {
+                        pendingTab = tab
+                    } else {
+                        selectedTab = tab
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(vertical = NavBarMargin)
+            )
+        }
     }
 }
 

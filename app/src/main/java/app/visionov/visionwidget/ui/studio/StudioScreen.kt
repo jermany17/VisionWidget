@@ -101,12 +101,20 @@ import kotlin.math.roundToInt
 import app.visionov.visionwidget.R
 import app.visionov.visionwidget.data.BASE_TOP_THREE_TASKS
 import app.visionov.visionwidget.ui.ContentWidthFraction
-import app.visionov.visionwidget.ui.gallery.DesignPreview
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import app.visionov.visionwidget.ui.gallery.DesignFace
+import app.visionov.visionwidget.ui.gallery.DesignTile
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.ui.gallery.GalleryCategory
+import app.visionov.visionwidget.ui.gallery.GalleryColumns
+import app.visionov.visionwidget.ui.gallery.GalleryGutter
+import app.visionov.visionwidget.ui.gallery.GalleryMeta
 import app.visionov.visionwidget.ui.gallery.GallerySort
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
 import app.visionov.visionwidget.ui.gallery.arrange
+import app.visionov.visionwidget.ui.gallery.galleryName
 import app.visionov.visionwidget.ui.home.DEFAULT_WISDOM_THEME
 import app.visionov.visionwidget.ui.components.PromptDialog
 import app.visionov.visionwidget.ui.components.SettingsButton
@@ -153,10 +161,8 @@ import app.visionov.visionwidget.ui.theme.WidgetTarget
 import app.visionov.visionwidget.ui.vision.Vision
 import app.visionov.visionwidget.ui.vision.formatTargetDate
 import app.visionov.visionwidget.ui.vision.formatWeeksLeft
-import app.visionov.visionwidget.widget.receiverFor
-import app.visionov.visionwidget.widget.TopThreeWidgetReceiver
-import app.visionov.visionwidget.widget.VisionCardWidgetReceiver
-import app.visionov.visionwidget.widget.WisdomWidgetReceiver
+import app.visionov.visionwidget.widget.Slot
+import app.visionov.visionwidget.widget.WidgetSize
 import app.visionov.visionwidget.widget.requestPinWidget
 
 /** The panel the mock phone sits on — a warm neutral, distinct from the white canvas. */
@@ -314,47 +320,8 @@ private fun presetName() = TextStyle(
     lineHeight = 16.sp
 )
 
-/** Two faces across, with room between them for the shelf to read as a grid. */
-private val GalleryGutter = 14.dp
-private const val GalleryColumns = 2
-
-// Every tile is the same square whatever shape the design inside it is. The inset is
-// what keeps the backdrop reading as a frame rather than as a strip down either side of
-// a design that has covered it.
-private val TileShape = RoundedCornerShape(20.dp)
-private const val TileInset = 0.84f
-
-/**
- * The washes a tile is backed with, cycled by name.
- *
- * Muted and close in weight, so forty of them down a shelf read as one surface the
- * designs are laid on rather than as a set of colours competing with them.
- */
-private val TileBackdrops = listOf(
-    listOf(Color(0xFF6F7A64), Color(0xFF3E4A38)),
-    listOf(Color(0xFFD3C7C1), Color(0xFF8C7F79)),
-    listOf(Color(0xFFBFC4C9), Color(0xFF6E757C)),
-    listOf(Color(0xFFD8CDBA), Color(0xFF978970)),
-    listOf(Color(0xFFC9BCC6), Color(0xFF7C6E79)),
-    listOf(Color(0xFFBCC6C3), Color(0xFF6B7975))
-)
-
-/** A face's name. The app's own serif, as the labels on the Design shelf are. */
-private fun galleryName() = TextStyle(
-    fontFamily = InstrumentSerif,
-    fontWeight = FontWeight.Normal,
-    fontSize = 15.sp,
-    lineHeight = 19.sp
-)
-
-/** What the face is, under its name — size and grid, set like every other eyebrow. */
-private val GalleryMeta = TextStyle(
-    fontFamily = DMMono,
-    fontWeight = FontWeight.Normal,
-    fontSize = 8.sp,
-    lineHeight = 12.sp,
-    letterSpacing = 1.2.sp
-)
+// The grid, the tile and its two labels are shared with My Library and with the setting
+// screen the launcher opens, so they live in ui/gallery/GalleryTiles.kt rather than here.
 
 /** How many colours sit across their picker — smaller cells, so more of them. */
 private const val ThemeColumns = 6
@@ -442,6 +409,10 @@ fun StudioScreen(
     onApplyWisdom: (category: String, index: Int, ownText: String) -> Unit = { _, _, _ -> },
     /** Opens on Gallery rather than Design — a Gallery widget's own tap asks for this. */
     startOnGallery: Boolean = false,
+    /** The designs already kept, so the shelf can say which of them are. */
+    libraryIds: List<String> = emptyList(),
+    onSaveToLibrary: (String) -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
     /**
      * Somewhere else in the app has been asked for and is waiting on an answer.
      *
@@ -464,8 +435,11 @@ fun StudioScreen(
 
     // The launcher does the asking and the placing; all this can do is start it, and
     // say so on the rare launcher that won't be asked.
-    val pin = { receiver: Class<*> ->
-        if (!requestPinWidget(context, receiver)) showPinUnsupported = true
+    //
+    // What the widget is to hold travels with the ask. A pinned widget never sees the
+    // setting screen the picker would have opened, so this is the only chance to say.
+    val pin = { size: WidgetSize, slot: Slot ->
+        if (!requestPinWidget(context, size, slot)) showPinUnsupported = true
     }
 
     var scope by rememberSaveable { mutableStateOf(StyleScope.All) }
@@ -853,7 +827,12 @@ fun StudioScreen(
                 contentPadding = contentPadding
             )
 
-            StudioTab.Gallery -> GalleryTab(pin = pin, contentPadding = contentPadding)
+            StudioTab.Gallery -> GalleryTab(
+                libraryIds = libraryIds,
+                onSaveToLibrary = onSaveToLibrary,
+                onOpenLibrary = onOpenLibrary,
+                contentPadding = contentPadding
+            )
         }
     }
 
@@ -997,7 +976,7 @@ private fun ColumnScope.DesignTab(
     onWriteOwnWisdom: () -> Unit,
     /** How the Wisdom widget is dressed — what the daily line is previewed on. */
     wisdomLook: ResolvedLook,
-    onAddWidget: (Class<*>) -> Unit,
+    onAddWidget: (WidgetSize, Slot) -> Unit,
     contentPadding: PaddingValues
 ) {
     // Full-bleed rather than held to the content column: the panel is the backdrop
@@ -1123,10 +1102,12 @@ private fun ColumnScope.DesignTab(
         Spacer(Modifier.height(30.dp))
         Text(text = "ADD TO YOUR SCREEN", style = VisionType.eyebrow, color = OnCanvas)
         Spacer(Modifier.height(14.dp))
+        // The wide cell, which is the one the phone above is showing. The other two
+        // sizes are reached from the launcher's own picker, where all three are offered.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AddWidgetChip("Vision", Modifier.weight(1f)) { onAddWidget(VisionCardWidgetReceiver::class.java) }
-            AddWidgetChip("Top 3", Modifier.weight(1f)) { onAddWidget(TopThreeWidgetReceiver::class.java) }
-            AddWidgetChip("Wisdom", Modifier.weight(1f)) { onAddWidget(WisdomWidgetReceiver::class.java) }
+            AddWidgetChip("Vision", Modifier.weight(1f)) { onAddWidget(WidgetSize.Medium, Slot.Vision) }
+            AddWidgetChip("Top 3", Modifier.weight(1f)) { onAddWidget(WidgetSize.Medium, Slot.TopThree) }
+            AddWidgetChip("Wisdom", Modifier.weight(1f)) { onAddWidget(WidgetSize.Medium, Slot.Wisdom) }
         }
         Spacer(Modifier.height(contentPadding.calculateBottomPadding()))
     }
@@ -1341,16 +1322,21 @@ private fun OwnWisdomDialog(
  */
 @Composable
 private fun ColumnScope.GalleryTab(
-    pin: (Class<*>) -> Unit,
+    libraryIds: List<String>,
+    onSaveToLibrary: (String) -> Unit,
+    onOpenLibrary: () -> Unit,
     contentPadding: PaddingValues
 ) {
     val context = LocalContext.current
     val catalog = remember { GalleryCatalog.load(context) }
-    val scope = rememberCoroutineScope()
 
     var category by rememberSaveable { mutableStateOf(GalleryCategory.All) }
     var sort by rememberSaveable { mutableStateOf(GallerySort.Default) }
     val shown = remember(catalog, category, sort) { catalog.arrange(category, sort) }
+
+    // The design being looked at, or none. Not saved across a rebuild: the sheet is a
+    // moment's decision, and coming back to the app with one still open would be odd.
+    var looking by remember { mutableStateOf<GalleryWidget?>(null) }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(GalleryColumns),
@@ -1373,10 +1359,113 @@ private fun ColumnScope.GalleryTab(
         }
 
         items(shown, key = { it.id }) { widget ->
-            // Each design has a widget of its own, so putting one up says which design
-            // and nothing else — and two of them can sit on the home screen together
-            // showing different faces.
-            GalleryTile(widget) { pin(receiverFor(widget)) }
+            // A tap opens the design rather than putting it up. Nothing reaches the
+            // home screen straight from the shelf any more: a design is saved to the
+            // library first, and the library is what the launcher's setting screen
+            // offers. Forty-four designs in that screen would be a list nobody reads.
+            GalleryTile(
+                widget = widget,
+                saved = widget.id in libraryIds,
+                onOpen = { looking = widget }
+            )
+        }
+    }
+
+    looking?.let { design ->
+        GallerySheet(
+            design = design,
+            saved = design.id in libraryIds,
+            onSave = {
+                onSaveToLibrary(design.id)
+                looking = null
+            },
+            onOpenLibrary = {
+                looking = null
+                onOpenLibrary()
+            },
+            onDismiss = { looking = null }
+        )
+    }
+}
+
+/**
+ * One design, opened.
+ *
+ * The decision here is whether to keep the design, not where to put it — putting it
+ * somewhere comes later, from the library or from the launcher's own picker. So there
+ * is one action on a design that isn't kept yet, and a way through to the library on
+ * one that is.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GallerySheet(
+    design: GalleryWidget,
+    saved: Boolean,
+    onSave: () -> Unit,
+    onOpenLibrary: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val userFont = UserFonts[UserFonts.DEFAULT_ID]
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Canvas
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            DesignFace(design, modifier = Modifier.fillMaxWidth(0.72f))
+
+            Spacer(Modifier.height(16.dp))
+            Text(text = design.name, style = VisionType.modalTitle(userFont), color = OnCanvas)
+            Spacer(Modifier.height(5.dp))
+            Text(text = design.meta, style = GalleryMeta, color = OnCanvasMuted)
+
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = if (saved) {
+                    "Already in your library. Add it from there, or from your home screen."
+                } else {
+                    "Save it to your library, then add it from your home screen."
+                },
+                style = VisionType.modalBody(userFont),
+                color = OnCanvasMuted,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(22.dp))
+            Button(
+                onClick = if (saved) onOpenLibrary else onSave,
+                shape = RoundedCornerShape(percent = 50),
+                colors = ButtonDefaults.buttonColors(containerColor = OnCanvas, contentColor = Canvas),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+            ) {
+                Text(
+                    text = if (saved) "Open my library" else "Save widget",
+                    style = VisionType.modalButton(userFont)
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Cancel", style = VisionType.modalButton(userFont), color = OnCanvasMuted)
+            }
+
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
@@ -1501,62 +1590,31 @@ private fun CategoryPill(label: String, isSelected: Boolean, onClick: () -> Unit
  * backdrop still frames it rather than being covered over.
  */
 @Composable
-private fun GalleryTile(widget: GalleryWidget, onAdd: () -> Unit) {
-    Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(TileShape)
-                .background(Brush.linearGradient(backdropFor(widget.id))),
-            contentAlignment = Alignment.Center
-        ) {
-            // Left unclipped: each design draws its own corner, and a second one over
-            // the top of it would cut the first.
-            DesignPreview(
-                widget = widget,
-                modifier = Modifier
-                    .fillMaxWidth(TileInset)
-                    .aspectRatio(widget.ratio)
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(text = widget.name, style = galleryName(), color = OnCanvas, maxLines = 1)
-        Spacer(Modifier.height(3.dp))
-        Text(text = widget.meta, style = GalleryMeta, color = OnCanvasMuted)
+private fun GalleryTile(widget: GalleryWidget, saved: Boolean, onOpen: () -> Unit) {
+    Column(Modifier.clickable(onClick = onOpen)) {
+        DesignTile(widget)
 
-        // Puts the design up without sending anyone off to hunt through the launcher's
-        // own picker for it. Nothing is said about whether one is already up: the same
-        // design can sit in as many places as the user likes.
+        // Says where the design stands rather than offering to place it. Both states
+        // open the same sheet — this is a label with a tap target around it, not a
+        // second decision beside the tile's own.
         Spacer(Modifier.height(10.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(CircleShape)
                 .border(1.dp, Rule, CircleShape)
-                .clickable(onClick = onAdd)
                 .padding(vertical = 9.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Add widget",
+                text = if (saved) "In your library" else "Save widget",
                 style = fontChipLabel(UserFonts[UserFonts.DEFAULT_ID]),
-                color = OnCanvas,
+                color = if (saved) OnCanvasMuted else OnCanvas,
                 maxLines = 1
             )
         }
     }
 }
-
-/**
- * The wash behind a design.
- *
- * Picked by name rather than chosen per design: there are forty of these and the
- * backdrop is only there to set the design off the page. Taken from the name's own hash
- * so a design keeps the same backdrop between runs, and neighbours on the shelf differ.
- */
-private fun backdropFor(id: String): List<Color> =
-    TileBackdrops[(id.hashCode().absoluteValue) % TileBackdrops.size]
 
 /** Two halves of the screen, the selected one carrying a heavier rule beneath it. */
 @Composable

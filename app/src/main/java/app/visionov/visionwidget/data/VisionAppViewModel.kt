@@ -68,6 +68,40 @@ class VisionAppViewModel(application: Application) : AndroidViewModel(applicatio
         }
     )
 
+    private val _libraryDesignIds = MutableStateFlow(preferences.libraryDesignIds)
+
+    /**
+     * The Gallery designs kept for the home screen, in the order they were kept.
+     *
+     * What the launcher's setting screen offers, and what My Library shows. The screen
+     * reads it from preferences itself — it runs in its own activity, outside this
+     * view model — so this flow is only for the app's own screens.
+     */
+    val libraryDesignIds: StateFlow<List<String>> = _libraryDesignIds.asStateFlow()
+
+    /** Keeps [designId], or leaves the library alone if it is already there. */
+    fun saveToLibrary(designId: String) {
+        if (designId in _libraryDesignIds.value) return
+        // Appended, so the library reads in the order things were put in it.
+        val kept = _libraryDesignIds.value + designId
+        preferences.libraryDesignIds = kept
+        _libraryDesignIds.value = kept
+    }
+
+    /**
+     * Drops [designId] from the library.
+     *
+     * Widgets already on the home screen showing it are left alone. The library is what
+     * can be placed from, not a list of what is placed — reaching onto the home screen
+     * to take something away is the launcher's business, and the user's.
+     */
+    fun removeFromLibrary(designId: String) {
+        val kept = _libraryDesignIds.value - designId
+        if (kept.size == _libraryDesignIds.value.size) return
+        preferences.libraryDesignIds = kept
+        _libraryDesignIds.value = kept
+    }
+
     private val _wisdomCategory = MutableStateFlow(preferences.wisdomCategory)
 
     /** The theme the daily line is drawn from. */

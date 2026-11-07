@@ -2,12 +2,9 @@ package app.visionov.visionwidget.widget
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import androidx.glance.appwidget.updateAll
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
@@ -24,7 +21,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Keeps the Gallery clocks running.
@@ -32,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * A widget is only redrawn when something asks it to, and the schedule a provider can
  * declare for itself bottoms out at half an hour — which is no use to a clock showing
  * minutes. So one is driven from here: an alarm a minute out, rescheduled each time it
- * lands, running only while there is a Gallery widget on the screen to redraw.
+ * lands, running only while there is a Gallery design on the screen to redraw.
  *
  * The alarm is inexact, which needs no permission and is accurate to a few seconds. The
  * clocks show minutes, so that is close enough; an exact alarm every minute would be
@@ -41,6 +37,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Only the clocks ride it. A calendar changes once a day, and waking twenty of those
  * every minute to redraw the same picture would be a waste of the battery — they follow
  * the day instead, which the system announces.
+ *
+ * Which designs are up is read from the widgets' own state ([placedSlots]) rather than
+ * by asking the widget manager about each design in turn. There are three providers now
+ * instead of one per design, so that is three calls across rather than forty-four.
  */
 object GalleryTicker {
 
@@ -85,22 +85,23 @@ object GalleryTicker {
      */
     private val inFlight = ConcurrentHashMap<String, Deferred<Boolean>>()
 
-
     /**
      * Sets the next tick, if there is anything on the screen that wants one.
      *
-     * [known] says the caller has already seen a widget — which the update of one has,
-     * by definition. Asking again would mean a scan of every design, and with one widget
-     * per design that scan would run once per design per round of updates: some two
-     * thousand calls across to the widget service, on the thread a broadcast is given to
-     * answer in. That is enough to stall the system, and it did.
+     * Reading what is up means reading each widget's state, which is a suspending read,
+     * so the work is handed to the ticker's own scope. Callers are broadcast receivers
+     * with a deadline — none of them can afford to wait on it, and none of them need to.
      */
-    fun schedule(context: Context, known: Boolean = false) {
-        val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+    fun schedule(context: Context) {
         val app = context.applicationContext
+        scope.launch { scheduleNow(app) }
+    }
 
-        if (!known && !hasGalleryWidget(app)) {
-            alarms.cancel(pendingIntent(app))
+    private suspend fun scheduleNow(context: Context) {
+        val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+
+        if (liveDesigns(context).isEmpty()) {
+            alarms.cancel(pendingIntent(context))
             return
         }
 
@@ -114,7 +115,7 @@ object GalleryTicker {
             AlarmManager.RTC,
             at,
             WINDOW_MS,
-            pendingIntent(app)
+            pendingIntent(context)
         )
         android.util.Log.i("VisionGallery", "next tick in ${at - now}ms")
     }
@@ -148,7 +149,9 @@ object GalleryTicker {
                 }
 
                 flipOn(app, target)
-                schedule(app)
+                // Booked here rather than through [schedule], which would hand it to the
+                // scope and let the broadcast finish before the alarm was actually set.
+                scheduleNow(app)
             } finally {
                 done()
             }
@@ -172,14 +175,14 @@ object GalleryTicker {
 
         val moment = at(target)
         val stamp = moment.third
-        val up = onScreen(context)
-        val designs = up.filter { moves(context, it, target) }
+        val up = liveDesigns(context)
+        val designs = up.filterKeys { moves(context, it, target) }
         android.util.Log.i(
             "VisionGallery",
-            "flip for ${moment.second} — up=${up.map { it.id }} moving=${designs.map { it.id }}"
+            "flip for ${moment.second} — up=${up.keys.map { it.id }} moving=${designs.keys.map { it.id }}"
         )
 
-        designs.forEach { design ->
+        designs.keys.forEach { design ->
             // No point starting one that cannot land before the minute does; it would
             // only hold the broadcast open past its welcome. The ones left behind are
             // caught by the fallback below.
@@ -201,14 +204,14 @@ object GalleryTicker {
         if (wait > 0) delay(wait)
         shownMinute = target
 
-        designs.forEach { design ->
+        designs.forEach { (design, widgets) ->
             val promoted = DesignRenderer.promote(context, design, stamp)
             android.util.Log.i(
                 "VisionGallery",
                 "flipped ${design.id} promoted=$promoted late=${System.currentTimeMillis() - target}ms"
             )
             if (promoted) {
-                runCatching { widgetFor(design).updateAll(context) }
+                redraw(context, widgets)
             } else {
                 // It never got drawn in time. Asked for in the background rather than
                 // here, so a slow design holds up the broadcast no further than this.
@@ -218,9 +221,9 @@ object GalleryTicker {
     }
 
     /** Puts the minute that is already showing right, without waiting on anything. */
-    private fun catchUp(context: Context, minute: Long) {
+    private suspend fun catchUp(context: Context, minute: Long) {
         shownMinute = minute
-        onScreen(context)
+        liveDesigns(context).keys
             .filter { moves(context, it, minute) }
             .forEach { requestPaint(context, it) }
     }
@@ -252,13 +255,36 @@ object GalleryTicker {
         )
     }
 
-    /** The designs with a widget of their own actually on a screen. */
-    private fun onScreen(context: Context): List<GalleryWidget> {
-        val manager = AppWidgetManager.getInstance(context) ?: return emptyList()
-        return GalleryCatalog.load(context).filter { design ->
-            runCatching {
-                manager.getAppWidgetIds(ComponentName(context, receiverFor(design))).isNotEmpty()
-            }.getOrDefault(false)
+    /**
+     * The designs actually on a screen, each with the widgets showing it.
+     *
+     * A design can be up more than once — two clocks of the same face, in different
+     * cells — so the widgets are kept rather than counted: each is redrawn by name, and
+     * by the widget of its own size.
+     */
+    private suspend fun liveDesigns(context: Context): Map<GalleryWidget, List<PlacedWidget>> {
+        val placed = placedSlots(context)
+        if (placed.isEmpty()) return emptyMap()
+
+        val byId = GalleryCatalog.load(context).associateBy { it.id }
+        return placed
+            .mapNotNull { widget ->
+                (widget.slot as? Slot.Design)?.let { byId[it.designId]?.to(widget) }
+            }
+            .groupBy({ it.first }, { it.second })
+    }
+
+    /**
+     * Asks each of [widgets] to pick up the picture that was just painted.
+     *
+     * By id and by size, rather than by class. The whole of a class used to be redrawn
+     * at once because a class was a design; now a class is a size, and redrawing all of
+     * one would reach every widget of that size whatever it happens to be holding.
+     */
+    private suspend fun redraw(context: Context, widgets: List<PlacedWidget>) {
+        widgets.forEach { widget ->
+            runCatching { SlotWidgets.of(widget.size).update(context, widget.id) }
+                .onFailure { android.util.Log.w("VisionGallery", "redraw failed", it) }
         }
     }
 
@@ -285,7 +311,9 @@ object GalleryTicker {
                     // Only when there is something new to show. A design that would not
                     // settle leaves the widget as it was rather than asking it to redraw
                     // the same nothing.
-                    if (painted) runCatching { widgetFor(design).updateAll(app) }
+                    if (painted) {
+                        runCatching { redraw(app, liveDesigns(app)[design].orEmpty()) }
+                    }
                     painted
                 } finally {
                     inFlight.remove(design.id)
@@ -314,13 +342,12 @@ object GalleryTicker {
         return withTimeoutOrNull(timeoutMs) { job.await() } ?: false
     }
 
-
     /** Repaints everything — the day has turned, so the calendars have moved too. */
     fun redrawAll(context: Context, done: () -> Unit = {}) {
         val app = context.applicationContext
         scope.launch {
             try {
-                repaint(app) { true }
+                repaint(app)
             } finally {
                 done()
             }
@@ -328,20 +355,14 @@ object GalleryTicker {
     }
 
     /**
-     * Paints each design that is on a screen, then tells its widget to pick the picture
+     * Paints each design that is on a screen, then tells its widgets to pick the picture
      * up.
      *
      * The painting is done here rather than inside the widget's own update because that
      * update is a broadcast with a deadline it cannot afford to spend on a web view.
      */
-    private suspend fun repaint(context: Context, wanted: (GalleryWidget) -> Boolean) {
-        val manager = AppWidgetManager.getInstance(context) ?: return
-        GalleryCatalog.load(context).filter(wanted).forEach { design ->
-            val component = ComponentName(context, receiverFor(design))
-            val ids = runCatching { manager.getAppWidgetIds(component) }
-                .getOrDefault(IntArray(0))
-            if (ids.isEmpty()) return@forEach
-
+    private suspend fun repaint(context: Context) {
+        liveDesigns(context).forEach { (design, widgets) ->
             runCatching {
                 val painted = DesignRenderer.refresh(
                     context,
@@ -349,33 +370,13 @@ object GalleryTicker {
                     design.widgetWidthPx(context),
                     design.widgetHeightPx(context)
                 )
-                android.util.Log.i("GalleryTick", "${design.id} painted=$painted ids=${ids.size}")
-
-                // Asked of the design's own widget class, which is how the clock that
-                // worked before any of this always did it. Glance goes by the class, so
-                // this reaches that design's widgets and no others.
-                widgetFor(design).updateAll(context)
+                android.util.Log.i(
+                    "GalleryTick",
+                    "${design.id} painted=$painted widgets=${widgets.size}"
+                )
+                redraw(context, widgets)
             }
         }
-    }
-
-    /**
-     * Whether any Gallery design is actually on a screen.
-     *
-     * Asked of the widget manager rather than remembered: a widget can be dropped in the
-     * bin without the app hearing about it in any way it could rely on.
-     */
-    private fun hasGalleryWidget(context: Context): Boolean {
-        val manager = AppWidgetManager.getInstance(context) ?: return false
-        return runCatching {
-            // Stops at the first one found. The whole list is only walked when there are
-            // none left, which is exactly when the answer is that the tick should stop.
-            GalleryCatalog.load(context).any { design ->
-                manager.getAppWidgetIds(
-                    ComponentName(context, receiverFor(design))
-                ).isNotEmpty()
-            }
-        }.getOrDefault(false)
     }
 
     private fun pendingIntent(context: Context): PendingIntent =

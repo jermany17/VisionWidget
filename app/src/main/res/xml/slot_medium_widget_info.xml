@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The 4x2 cell. See slot_small_widget_info.xml for why there is one of these per size
+  rather than one per design.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:configure="app.visionov.visionwidget.widget.config.WidgetConfigActivity"
+    android:previewImage="@drawable/preview_vision_medium"
+    android:initialLayout="@layout/vision_widget_loading" />

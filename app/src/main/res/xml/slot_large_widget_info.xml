@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The 4x4 cell. See slot_small_widget_info.xml for why there is one of these per size
+  rather than one per design.
+
+  Nothing of the Gallery fits here — every design is drawn at 2x2 or 4x2 — so the
+  setting screen offers this size the three dressed cards and nothing else.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:configure="app.visionov.visionwidget.widget.config.WidgetConfigActivity"
+    android:previewImage="@drawable/preview_vision_large"
+    android:initialLayout="@layout/vision_widget_loading" />

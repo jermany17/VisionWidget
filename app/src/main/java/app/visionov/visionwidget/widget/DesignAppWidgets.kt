@@ -1,10 +1,8 @@
 package app.visionov.visionwidget.widget
 
 import android.content.Context
-import android.util.Log
 import android.util.DisplayMetrics
 import androidx.compose.runtime.Composable
-import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -13,11 +11,6 @@ import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
 import androidx.glance.action.actionStartActivity
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
@@ -33,11 +26,10 @@ import app.visionov.visionwidget.data.checkedAt
 import app.visionov.visionwidget.data.rowOrder
 import app.visionov.visionwidget.data.taskAt
 import app.visionov.visionwidget.data.topThreeLeads
-import app.visionov.visionwidget.data.checksOf
-import app.visionov.visionwidget.data.tasksOf
 import app.visionov.visionwidget.ui.home.Wisdom
 import app.visionov.visionwidget.ui.home.wisdomFor
 import app.visionov.visionwidget.ui.home.wisdomIndices
+import app.visionov.visionwidget.ui.theme.WidgetStyle
 import app.visionov.visionwidget.ui.theme.WidgetTarget
 import app.visionov.visionwidget.ui.vision.formatShortDate
 import app.visionov.visionwidget.ui.vision.formatTargetDate
@@ -49,7 +41,7 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.sqrt
 
 /**
- * The three cards Studio dresses, as home screen widgets.
+ * The three cards Studio dresses, as they are painted into a widget.
  *
  * Each reads what was applied to it and the user's own words, paints the card, and
  * shows it as a single image. Studio's own preview is the same drawing at another size,
@@ -59,6 +51,11 @@ import kotlin.math.sqrt
  * fixed-size card has no room to show which row was hit, so every tap now just opens the
  * app instead. Only the card is painted; everything around it on Today — the section
  * labels, the counts — belongs to the screen rather than to the widget.
+ *
+ * There are no widget classes here any more. A card is one of the things a [Slot] can
+ * hold, and [SlotWidget] is what holds it — so what a card needs is gathered by a
+ * payload function and drawn by a content composable, both taking the [WidgetSize] of
+ * the cell they are headed for. That is what used to be nine near-identical classes.
  */
 
 /**
@@ -92,7 +89,7 @@ const val OpenVisionExtra = "open_vision"
 private val OpenVisionParams = actionParametersOf(ActionParameters.Key<Boolean>(OpenVisionExtra) to true)
 
 /** What a widget needs to paint itself, gathered before any of it is drawn. */
-private suspend fun lookOf(context: Context, target: WidgetTarget) =
+private fun lookOf(context: Context, target: WidgetTarget) =
     AppPreferences(context).let { it.widgetStyle(target) to it.widgetPhotoUri(target) }
 
 /**
@@ -113,7 +110,7 @@ private fun settledWisdom(preferences: AppPreferences): Wisdom {
 }
 
 @Composable
-private fun CardImage(bitmap: android.graphics.Bitmap, openVision: Boolean = false) {
+internal fun CardImage(bitmap: android.graphics.Bitmap, openVision: Boolean = false) {
     Image(
         provider = ImageProvider(bitmap),
         contentDescription = null,
@@ -157,356 +154,238 @@ private fun cardSidePx(): Int {
     return minOf(width, height)
 }
 
-class VisionAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+// ---------------------------------------------------------------- Vision
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Vision)
-        val visions = AppDatabase.getInstance(context).visionDao()
-            .visionsWithMilestones()
-        // The main one, the same one Today follows — it's what the widgets are bound to.
-        val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
+/** The main vision's words, read once before the card is drawn. */
+internal class VisionPayload(
+    val style: WidgetStyle,
+    val photo: String?,
+    val goal: String?,
+    val why: String?,
+    val targetLine: String,
+    val weeksLine: String,
+    val milestones: List<MilestoneLine>
+)
 
-        provideContent {
-            val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                bitmap = renderVisionCard(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    goal = main?.vision?.goal,
-                    why = main?.vision?.why,
-                    targetLine = main?.let { formatTargetDate(it.vision.targetDateMillis).uppercase() }.orEmpty(),
-                    weeksLine = main?.let { formatWeeksLeft(it.vision.targetDateMillis) }.orEmpty()
-                ),
-                openVision = true
-            )
-        }
-    }
-}
+internal suspend fun visionPayload(context: Context, size: WidgetSize): VisionPayload {
+    val (style, photo) = lookOf(context, WidgetTarget.Vision)
+    val visions = AppDatabase.getInstance(context).visionDao().visionsWithMilestones()
+    // The main one, the same one Today follows — it's what the widgets are bound to.
+    val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
 
-class WisdomAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Wisdom)
-        val preferences = AppPreferences(context)
-
-        // The line the app settled on, not one picked here. Shuffling is a thing the
-        // user does, and the card on the home screen is the same card.
-        val wisdom = settledWisdom(preferences)
-
-        provideContent {
-            val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                renderWisdomCard(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    quote = wisdom.text,
-                    category = wisdom.category
+    return VisionPayload(
+        style = style,
+        photo = photo,
+        goal = main?.vision?.goal,
+        why = main?.vision?.why,
+        targetLine = main?.let { formatTargetDate(it.vision.targetDateMillis).uppercase() }.orEmpty(),
+        weeksLine = main?.let { formatWeeksLeft(it.vision.targetDateMillis) }.orEmpty(),
+        // Only the tall card has anywhere to put the steps, so only it pays to build them.
+        milestones = if (size != WidgetSize.Large) emptyList() else {
+            main?.milestones.orEmpty().map {
+                MilestoneLine(
+                    step = it.step,
+                    checked = it.checked,
+                    due = formatShortDate(it.dueDateMillis).uppercase()
                 )
-            )
+            }
         }
-    }
+    )
 }
 
-/** Today's three. A tap opens Today rather than ticking a row — see the file doc. */
-class TopThreeAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+@Composable
+internal fun VisionCardContent(payload: VisionPayload, size: WidgetSize) {
+    val context = LocalContext.current
+    val bitmap = when (size) {
+        WidgetSize.Small -> renderVisionCardSmall(
+            context = context,
+            sidePx = cardSidePx(),
+            style = payload.style,
+            photoUri = payload.photo,
+            goal = payload.goal,
+            weeksLine = payload.weeksLine
+        )
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.TopThree)
-        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        // Whichever set is in front, which is the one with work left in it. A widget is
-        // read at a glance and has room for three, so it shows what is being got on with
-        // rather than the half of the day that happens to be written first.
-        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
-        val order = slots.rowOrder(set)
-        val tasks = order.map { slots.taskAt(it) }
-        val checked = order.map { slots.checkedAt(it) }
-
-        provideContent {
+        WidgetSize.Medium -> {
             val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                renderTopThreeCard(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    tasks = tasks,
-                    checked = checked
-                )
-            )
-        }
-    }
-}
-
-/**
- * The same three, at a fixed 4x4.
- *
- * Twice the height of the 4x2, which is where the things the wide card has to leave out
- * go: the steps toward a vision, and a foot reading how the week has gone.
- */
-class VisionCardLargeAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Vision)
-        val visions = AppDatabase.getInstance(context).visionDao()
-            .visionsWithMilestones()
-        val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
-        val milestones = main?.milestones.orEmpty().map {
-            MilestoneLine(
-                step = it.step,
-                checked = it.checked,
-                due = formatShortDate(it.dueDateMillis).uppercase()
+            renderVisionCard(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                goal = payload.goal,
+                why = payload.why,
+                targetLine = payload.targetLine,
+                weeksLine = payload.weeksLine
             )
         }
 
-        provideContent {
+        WidgetSize.Large -> {
             val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                bitmap = renderVisionCardLarge(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    goal = main?.vision?.goal,
-                    why = main?.vision?.why,
-                    milestones = milestones,
-                    targetLine = main?.let { formatTargetDate(it.vision.targetDateMillis).uppercase() }.orEmpty(),
-                    weeksLine = main?.let { formatWeeksLeft(it.vision.targetDateMillis) }.orEmpty()
-                ),
-                openVision = true
+            renderVisionCardLarge(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                goal = payload.goal,
+                why = payload.why,
+                milestones = payload.milestones,
+                targetLine = payload.targetLine,
+                weeksLine = payload.weeksLine
             )
         }
     }
+    CardImage(bitmap, openVision = true)
 }
 
-class WisdomLargeAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+// ---------------------------------------------------------------- Top 3
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Wisdom)
-        val preferences = AppPreferences(context)
-        val wisdom = settledWisdom(preferences)
+internal class TopThreePayload(
+    val style: WidgetStyle,
+    val photo: String?,
+    val tasks: List<String?>,
+    val checked: List<Boolean>,
+    /** Only the tall card has a foot; null for the other two. */
+    val streakLine: String?,
+    val weekLine: String?
+)
 
-        provideContent {
-            val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                renderWisdomCardLarge(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    quote = wisdom.text,
-                    category = wisdom.category
-                )
-            )
-        }
-    }
-}
+internal suspend fun topThreePayload(context: Context, size: WidgetSize): TopThreePayload {
+    val (style, photo) = lookOf(context, WidgetTarget.TopThree)
+    val dao = AppDatabase.getInstance(context).ruleOfThreeDao()
+    val slots = dao.slots()
+    // Whichever set is in front, which is the one with work left in it. A widget is
+    // read at a glance and has room for three, so it shows what is being got on with
+    // rather than the half of the day that happens to be written first.
+    val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
+    val order = slots.rowOrder(set)
 
-class TopThreeLargeAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.TopThree)
-        val dao = AppDatabase.getInstance(context).ruleOfThreeDao()
-        val slots = dao.slots()
-        // Whichever set is in front, which is the one with work left in it. A widget is
-        // read at a glance and has room for three, so it shows what is being got on with
-        // rather than the half of the day that happens to be written first.
-        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
-        val order = slots.rowOrder(set)
-        val tasks = order.map { slots.taskAt(it) }
-        val checked = order.map { slots.checkedAt(it) }
-
-        // The foot reads the same figures Today's own header does, built from the same
-        // records the Insights tab reads rather than counted a second way here.
+    // The foot reads the same figures Today's own header does, built from the same
+    // records the Insights tab reads rather than counted a second way here. Only the
+    // tall card shows them, and the history read is the dearest thing on this path.
+    var streakLine: String? = null
+    var weekLine: String? = null
+    if (size == WidgetSize.Large) {
         val today = LocalDate.now()
         val records = buildDayRecords(dao.observeHistory().first(), slots, dao.liveDate())
         val streak = topThreeStats(records, today.toEpochDay()).streak
         val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
         val week = tallyBetween(records, weekStart.toEpochDay(), weekStart.plusDays(6).toEpochDay())
+        streakLine = "STREAK $streak ${if (streak == 1) "DAY" else "DAYS"}"
+        weekLine = "THIS WEEK ${week.done} / ${week.total}"
+    }
 
-        provideContent {
+    return TopThreePayload(
+        style = style,
+        photo = photo,
+        tasks = order.map { slots.taskAt(it) },
+        checked = order.map { slots.checkedAt(it) },
+        streakLine = streakLine,
+        weekLine = weekLine
+    )
+}
+
+@Composable
+internal fun TopThreeCardContent(payload: TopThreePayload, size: WidgetSize) {
+    val context = LocalContext.current
+    val bitmap = when (size) {
+        WidgetSize.Small -> renderTopThreeCardSmall(
+            context = context,
+            sidePx = cardSidePx(),
+            style = payload.style,
+            photoUri = payload.photo,
+            tasks = payload.tasks,
+            checked = payload.checked
+        )
+
+        WidgetSize.Medium -> {
             val (widthPx, heightPx) = cardSizePx()
-            CardImage(
-                renderTopThreeCardLarge(
-                    context = LocalContext.current,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
-                    style = style,
-                    photoUri = photo,
-                    tasks = tasks,
-                    checked = checked,
-                    streakLine = "STREAK $streak ${if (streak == 1) "DAY" else "DAYS"}",
-                    weekLine = "THIS WEEK ${week.done} / ${week.total}"
-                )
+            renderTopThreeCard(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                tasks = payload.tasks,
+                checked = payload.checked
+            )
+        }
+
+        WidgetSize.Large -> {
+            val (widthPx, heightPx) = cardSizePx()
+            renderTopThreeCardLarge(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                tasks = payload.tasks,
+                checked = payload.checked,
+                streakLine = payload.streakLine.orEmpty(),
+                weekLine = payload.weekLine.orEmpty()
             )
         }
     }
+    CardImage(bitmap)
 }
 
-/**
- * The same three, at a fixed 2x2 instead of 4x2.
- *
- * Studio's own preview only ever shows the 4x2 — there's no square slot on the phone
- * mockup to put these in — but they're their own widgets all the same, offered wherever
- * the launcher's own picker lists one.
- */
-class VisionCardSmallAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
+// ---------------------------------------------------------------- Wisdom
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Vision)
-        val visions = AppDatabase.getInstance(context).visionDao()
-            .visionsWithMilestones()
-        val main = visions.firstOrNull { it.vision.isMain } ?: visions.firstOrNull()
+internal class WisdomPayload(
+    val style: WidgetStyle,
+    val photo: String?,
+    val quote: String,
+    val category: String
+)
 
-        provideContent {
-            CardImage(
-                bitmap = renderVisionCardSmall(
-                    context = LocalContext.current,
-                    sidePx = cardSidePx(),
-                    style = style,
-                    photoUri = photo,
-                    goal = main?.vision?.goal,
-                    weeksLine = main?.let { formatWeeksLeft(it.vision.targetDateMillis) }.orEmpty()
-                ),
-                openVision = true
+internal suspend fun wisdomPayload(context: Context): WisdomPayload {
+    val (style, photo) = lookOf(context, WidgetTarget.Wisdom)
+    // The line the app settled on, not one picked here. Shuffling is a thing the user
+    // does, and the card on the home screen is the same card.
+    val wisdom = settledWisdom(AppPreferences(context))
+    return WisdomPayload(style, photo, wisdom.text, wisdom.category)
+}
+
+@Composable
+internal fun WisdomCardContent(payload: WisdomPayload, size: WidgetSize) {
+    val context = LocalContext.current
+    val bitmap = when (size) {
+        WidgetSize.Small -> renderWisdomCardSmall(
+            context = context,
+            sidePx = cardSidePx(),
+            style = payload.style,
+            photoUri = payload.photo,
+            quote = payload.quote,
+            category = payload.category
+        )
+
+        WidgetSize.Medium -> {
+            val (widthPx, heightPx) = cardSizePx()
+            renderWisdomCard(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                quote = payload.quote,
+                category = payload.category
+            )
+        }
+
+        WidgetSize.Large -> {
+            val (widthPx, heightPx) = cardSizePx()
+            renderWisdomCardLarge(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                style = payload.style,
+                photoUri = payload.photo,
+                quote = payload.quote,
+                category = payload.category
             )
         }
     }
-}
-
-class WisdomSmallAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.Wisdom)
-        val preferences = AppPreferences(context)
-        val wisdom = settledWisdom(preferences)
-
-        provideContent {
-            CardImage(
-                renderWisdomCardSmall(
-                    context = LocalContext.current,
-                    sidePx = cardSidePx(),
-                    style = style,
-                    photoUri = photo,
-                    quote = wisdom.text,
-                    category = wisdom.category
-                )
-            )
-        }
-    }
-}
-
-class TopThreeSmallAppWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (style, photo) = lookOf(context, WidgetTarget.TopThree)
-        val slots = AppDatabase.getInstance(context).ruleOfThreeDao().slots()
-        // Whichever set is in front, which is the one with work left in it. A widget is
-        // read at a glance and has room for three, so it shows what is being got on with
-        // rather than the half of the day that happens to be written first.
-        val set = if (slots.topThreeLeads()) TOP_THREE_SLOTS else AFTER_THREE_SLOTS
-        val order = slots.rowOrder(set)
-        val tasks = order.map { slots.taskAt(it) }
-        val checked = order.map { slots.checkedAt(it) }
-
-        provideContent {
-            CardImage(
-                renderTopThreeCardSmall(
-                    context = LocalContext.current,
-                    sidePx = cardSidePx(),
-                    style = style,
-                    photoUri = photo,
-                    tasks = tasks,
-                    checked = checked
-                )
-            )
-        }
-    }
-}
-
-class VisionCardWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = VisionAppWidget()
-}
-
-class TopThreeWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = TopThreeAppWidget()
-}
-
-class WisdomWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = WisdomAppWidget()
-}
-
-class VisionCardLargeWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = VisionCardLargeAppWidget()
-}
-
-class TopThreeLargeWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = TopThreeLargeAppWidget()
-}
-
-class WisdomLargeWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = WisdomLargeAppWidget()
-}
-
-class VisionCardSmallWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = VisionCardSmallAppWidget()
-}
-
-class TopThreeSmallWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = TopThreeSmallAppWidget()
-}
-
-class WisdomSmallWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = WisdomSmallAppWidget()
-}
-
-/**
- * Redraws every dressed card.
- *
- * Applying in Studio changes what these are meant to look like, and nothing else would
- * tell them — a widget is only asked to redraw on its own schedule otherwise, which is
- * half an hour away at best.
- */
-suspend fun updateDesignWidgets(context: Context) {
-    // One after another, not all at once. Running them together was quicker on paper
-    // and is not worth it: they all reach for the same store Glance keeps its widget
-    // state in, and a card that loses that race is a card left showing the old thing
-    // with nothing said about it. The pause they were meant to cut is gone anyway —
-    // each of these now asks the database once instead of subscribing to it.
-    listOf(
-        VisionAppWidget(),
-        TopThreeAppWidget(),
-        WisdomAppWidget(),
-        VisionCardSmallAppWidget(),
-        TopThreeSmallAppWidget(),
-        WisdomSmallAppWidget(),
-        VisionCardLargeAppWidget(),
-        TopThreeLargeAppWidget(),
-        WisdomLargeAppWidget()
-    ).forEach { widget ->
-        // One that fails is one card left as it was, not eight others abandoned — but
-        // it is said out loud, because a card that quietly keeps the picture it had
-        // looks exactly like one nobody asked to redraw.
-        runCatching { widget.updateAll(context) }
-            .onFailure {
-                Log.w("VisionWidget", "${widget.javaClass.simpleName} redraw failed", it)
-            }
-    }
+    CardImage(bitmap)
 }

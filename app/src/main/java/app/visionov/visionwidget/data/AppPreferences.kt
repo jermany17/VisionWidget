@@ -142,6 +142,25 @@ class AppPreferences(context: Context) {
             .apply()
     }
 
+    /**
+     * The Gallery designs the user has put in their library, in the order they put them
+     * there.
+     *
+     * The library is what the launcher's picker offers: a size is chosen there, and the
+     * setting screen that follows shows the three dressed cards and nothing else of the
+     * Gallery but these. Forty-four designs would be a list nobody reads, so a design
+     * reaches the home screen only once it has been asked for here.
+     *
+     * Held in preferences for the reason [plannedTasks] is, and joined the same way — a
+     * design id is a slug with no newline in it.
+     */
+    var libraryDesignIds: List<String>
+        get() = prefs.getString(KEY_LIBRARY, "")
+            .orEmpty()
+            .split('\n')
+            .let { if (it.size == 1 && it.first().isEmpty()) emptyList() else it }
+        set(value) = prefs.edit().putString(KEY_LIBRARY, value.joinToString("\n")).apply()
+
 
     /**
      * How one widget renders the user's own words — face, colour, layout, fill and
@@ -227,6 +246,7 @@ class AppPreferences(context: Context) {
         const val KEY_WISDOM_DAY = "wisdom_day"
         const val KEY_PLANNED_DAY = "planned_day"
         const val KEY_PLANNED_TASKS = "planned_tasks"
+        const val KEY_LIBRARY = "library_design_ids"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"

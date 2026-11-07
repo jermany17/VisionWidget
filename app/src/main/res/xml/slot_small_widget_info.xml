@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The 2x2 cell.
+
+  One provider for the size, not for what goes in it. android:configure is what makes
+  that work: the launcher places the widget and then opens WidgetConfigActivity, which
+  is where the user picks between the three dressed cards and whatever their library
+  holds at this size. The choice is written onto the widget itself, so two of these can
+  sit side by side showing different things.
+
+  Not resizable, like the rest: a card and a design are both drawn at a proportion of
+  their own, and dragging one about can only take it further from what was picked.
+
+  The preview is what the picker shows before the widget is placed, and it has to be a
+  static image — so it is the Vision card at this size, which is what the cell most
+  often ends up holding.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:configure="app.visionov.visionwidget.widget.config.WidgetConfigActivity"
+    android:previewImage="@drawable/preview_vision_small"
+    android:initialLayout="@layout/vision_widget_loading" />
