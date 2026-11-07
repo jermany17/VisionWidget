@@ -10,8 +10,15 @@ import java.util.Locale
 /** How many visions can exist at once. Three is the whole point of the screen. */
 const val MAX_VISIONS = 3
 
-/** How many milestones one vision can hold. Four keeps the list a glance, not a scroll. */
-const val MAX_MILESTONES_PER_VISION = 4
+/**
+ * How many milestones one vision can hold.
+ *
+ * Six rather than the four it started on: four is a glance, but a vision years out has
+ * more than four steps worth naming, and the ones that didn't fit were being left out
+ * of the plan rather than off the screen. The Vision tab scrolls, so the list has the
+ * room; the large widget still draws the first four and counts the rest.
+ */
+const val MAX_MILESTONES_PER_VISION = 6
 
 /**
  * How long a vision's own words can run.

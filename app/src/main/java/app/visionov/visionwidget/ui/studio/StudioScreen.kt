@@ -361,8 +361,17 @@ private val SwatchPlus = TextStyle(
 /** One wording for both apply controls: they do the same thing, so they read the same. */
 private const val ApplyLabelText = "Apply to my widgets"
 
-// The applied state's own colours. Fixed rather than taken from the surface behind
-// them, so the control looks the same on the wallpaper and on the white canvas.
+// The apply control's own colours. Fixed rather than taken from the surface behind
+// them, so it looks the same on the wallpaper and on the white canvas.
+//
+// White with black on it, which on the wallpaper under the widgets is the one thing
+// brighter than the cards it commits. It carries a hairline for the other place it
+// appears — at the foot of the picker, on the white canvas, where a white pill with
+// no edge is no pill at all.
+private val ApplyFill = Color.White
+private val ApplyBorder = Color(0xFF12110F).copy(alpha = 0.14f)
+private val ApplyInk = Color(0xFF12110F)
+
 private val AppliedFill = Color(0xFF3B3733)
 private val AppliedBorder = Color.White.copy(alpha = 0.28f)
 private val AppliedInk = Color.White.copy(alpha = 0.65f)
@@ -1826,10 +1835,8 @@ private fun ApplyButton(isApplied: Boolean, userFont: UserFontChoice, onApply: (
         modifier = Modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .background(if (isApplied) AppliedFill else NavBar)
-            .then(
-                if (isApplied) Modifier.border(1.dp, AppliedBorder, CircleShape) else Modifier
-            )
+            .background(if (isApplied) AppliedFill else ApplyFill)
+            .border(1.dp, if (isApplied) AppliedBorder else ApplyBorder, CircleShape)
             .clickable(enabled = !isApplied, onClick = onApply)
             .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center
@@ -1837,7 +1844,7 @@ private fun ApplyButton(isApplied: Boolean, userFont: UserFontChoice, onApply: (
         Text(
             text = if (isApplied) "Applied" else ApplyLabelText,
             style = applyLabel(userFont),
-            color = if (isApplied) AppliedInk else OnNavBar
+            color = if (isApplied) AppliedInk else ApplyInk
         )
     }
 }

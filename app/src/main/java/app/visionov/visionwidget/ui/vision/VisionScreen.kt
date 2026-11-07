@@ -230,8 +230,8 @@ fun VisionScreen(
 
     if (showMilestoneLimitAlert) {
         LimitAlert(
-            title = "FOUR IS THE LIMIT",
-            message = "This vision already has four milestones. " +
+            title = "SIX IS THE LIMIT",
+            message = "This vision already has six milestones. " +
                 "Remove one before adding another.",
             userFont = userFont,
             onDismiss = { showMilestoneLimitAlert = false }
@@ -767,7 +767,7 @@ private fun MilestoneRow(
             Column {
                 Text(
                     text = milestone.step,
-                    // A size down from cardTitle — four of these share the screen with
+                    // A size down from cardTitle — six of these share the screen with
                     // the ring, the WHY text, and the vision actions, so none of them
                     // can afford to read as a headline.
                     style = VisionType.cardTitle(userFont).copy(
