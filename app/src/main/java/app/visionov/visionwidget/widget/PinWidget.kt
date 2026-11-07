@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.RemoteViews
 import androidx.core.os.bundleOf
 import app.visionov.visionwidget.R
@@ -71,14 +72,22 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
     // the ticker's scope rather than on the caller's thread. The answer the caller wants
     // is whether the launcher can be asked at all, which is already known.
     pinScope.launch {
-        val extras = runCatching { previewOf(app, slot, size) }.getOrNull()
+        // Said out loud when it fails. A preview that cannot be drawn is not worth
+        // refusing the pin over — the dialog falls back to the provider's own picture
+        // and the widget still lands — but it is exactly the failure that looks like
+        // the launcher ignoring us, and the two want telling apart.
+        val extras = runCatching { previewOf(app, slot, size) }
+            .onFailure { Log.w("VisionPin", "preview for ${slot.encode()} failed", it) }
+            .getOrNull()
+        if (extras == null) Log.w("VisionPin", "no preview for ${slot.encode()}")
+
         runCatching {
             manager.requestPinAppWidget(
                 ComponentName(app, SlotWidgets.receiverOf(size)),
                 extras,
                 callback
             )
-        }
+        }.onFailure { Log.w("VisionPin", "pin request for ${slot.encode()} failed", it) }
     }
     return true
 }
@@ -97,37 +106,55 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
 private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): Bundle? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
 
+    val ratio = when (slot) {
+        is Slot.Design -> GalleryCatalog.load(context)
+            .firstOrNull { it.id == slot.designId }
+            ?.let { it.widgetWidthPx(context).toFloat() / it.widgetHeightPx(context) }
+            ?: return null
+
+        else -> if (size == WidgetSize.Medium) 2f else 1f
+    }
+    val (widthPx, heightPx) = previewSize(ratio)
+
     val bitmap = when (slot) {
         is Slot.Design -> {
             val design = GalleryCatalog.load(context).firstOrNull { it.id == slot.designId }
             // Frozen, so the dialog agrees with the tile it was picked from rather than
             // showing a clock a minute out from the one beside it.
-            design?.let {
-                DesignRenderer.render(
-                    context,
-                    it,
-                    it.widgetWidthPx(context),
-                    it.widgetHeightPx(context),
-                    frozen = true
-                )
-            }
+            design?.let { DesignRenderer.render(context, it, widthPx, heightPx, frozen = true) }
         }
 
-        else -> {
-            val widthPx = PREVIEW_WIDTH_PX
-            val heightPx = if (size == WidgetSize.Medium) widthPx / 2 else widthPx
-            renderCardPreview(context, slot, size, widthPx, heightPx)
-        }
+        else -> renderCardPreview(context, slot, size, widthPx, heightPx)
     } ?: return null
 
     val views = RemoteViews(context.packageName, R.layout.widget_pin_preview).apply {
         setImageViewBitmap(R.id.preview, bitmap)
     }
+    Log.i("VisionPin", "preview for ${slot.encode()} at ${widthPx}x$heightPx")
     return bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to views)
 }
 
-/** Wide enough for the dialog, which draws it larger than a cell. */
-private const val PREVIEW_WIDTH_PX = 640
+/**
+ * How large the dialog's picture may be drawn.
+ *
+ * Not a width but a budget, because what matters is the bytes. A picture handed to the
+ * launcher travels inside a Binder transaction with about a megabyte to spend on
+ * everything in it, and RemoteViews keeps its own ceiling besides. Drawn at a flat six
+ * hundred and forty across, a square design came to over a megabyte on its own — the
+ * launcher could not inflate it, fell back to the provider's one picture per size, and
+ * put up the Vision card for a calendar. It said nothing about why.
+ *
+ * Half a megabyte leaves room for the rest of the transaction and is still sharper than
+ * the dialog draws it.
+ */
+private const val PREVIEW_BUDGET_BYTES = 500_000
+
+private fun previewSize(ratio: Float): Pair<Int, Int> {
+    // Four bytes a pixel at ARGB_8888, which is what both renderers draw into.
+    val pixels = PREVIEW_BUDGET_BYTES / 4
+    val width = kotlin.math.sqrt(pixels * ratio)
+    return width.toInt().coerceAtLeast(1) to (width / ratio).toInt().coerceAtLeast(1)
+}
 
 /**
  * Takes the launcher's word that a widget asked for from inside the app has landed, and
