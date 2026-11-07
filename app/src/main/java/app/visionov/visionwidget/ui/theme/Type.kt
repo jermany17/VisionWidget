@@ -222,11 +222,17 @@ object VisionType {
     /** A date, once chosen. Read as a figure to agree with rather than as prose. */
     fun sheetDateField(font: UserFontChoice) = sheetGoalField(font)
 
-    /** A line in a list — a milestone, a task on tomorrow's plan. */
+    /**
+     * A line in a list — a milestone, a task on tomorrow's plan.
+     *
+     * Two under the field it is cousin to. Three of these stack one above another with
+     * a rule between each, and at the goal's size the stack reads as three headlines
+     * rather than as a list of three things.
+     */
     fun sheetRowField(font: UserFontChoice) = sheetGoalField(font).copy(
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-        letterSpacing = (-0.16).sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = (-0.14).sp
     )
 
     /** The label in a sheet's buttons, whichever of the two answers it carries. */
@@ -268,8 +274,8 @@ object VisionType {
     fun modalBody(font: UserFontChoice) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
-        fontSize = 14.5.sp,
-        lineHeight = 20.5.sp
+        fontSize = 12.5.sp,
+        lineHeight = 18.sp
     )
 
     fun modalButton(font: UserFontChoice) = TextStyle(
