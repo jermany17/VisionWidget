@@ -6,6 +6,13 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.widget.RemoteViews
+import androidx.core.os.bundleOf
+import app.visionov.visionwidget.R
+import app.visionov.visionwidget.ui.gallery.DesignRenderer
+import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +47,7 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
     val manager = AppWidgetManager.getInstance(context) ?: return false
     if (!manager.isRequestPinAppWidgetSupported) return false
 
+    val app = context.applicationContext
     val callback = PendingIntent.getBroadcast(
         context,
         // One per slot, so asking for a second design while the first is still pending
@@ -55,14 +63,67 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
     )
 
-    return runCatching {
-        manager.requestPinAppWidget(
-            ComponentName(context, SlotWidgets.receiverOf(size)),
-            null,
-            callback
-        )
-    }.getOrDefault(false)
+    // Painting the picture the dialog shows is a second's work, so the ask is made from
+    // the ticker's scope rather than on the caller's thread. The answer the caller wants
+    // is whether the launcher can be asked at all, which is already known.
+    pinScope.launch {
+        val extras = runCatching { previewOf(app, slot, size) }.getOrNull()
+        runCatching {
+            manager.requestPinAppWidget(
+                ComponentName(app, SlotWidgets.receiverOf(size)),
+                extras,
+                callback
+            )
+        }
+    }
+    return true
 }
+
+/**
+ * The picture the launcher's own dialog shows while it asks.
+ *
+ * Without one it falls back to the provider's `previewImage`, and there is a single
+ * image per size now — so picking a date design out of the library and asking for it
+ * put up a dialog showing the Vision card. This hands over the thing actually being
+ * placed, drawn the same way the library tile beside it was.
+ *
+ * Only from Android 12, which is where the extra was added. Below that the dialog shows
+ * the provider's picture and there is nothing to be done about it.
+ */
+private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): Bundle? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+
+    val bitmap = when (slot) {
+        is Slot.Design -> {
+            val design = GalleryCatalog.load(context).firstOrNull { it.id == slot.designId }
+            // Frozen, so the dialog agrees with the tile it was picked from rather than
+            // showing a clock a minute out from the one beside it.
+            design?.let {
+                DesignRenderer.render(
+                    context,
+                    it,
+                    it.widgetWidthPx(context),
+                    it.widgetHeightPx(context),
+                    frozen = true
+                )
+            }
+        }
+
+        else -> {
+            val widthPx = PREVIEW_WIDTH_PX
+            val heightPx = if (size == WidgetSize.Medium) widthPx / 2 else widthPx
+            renderCardPreview(context, slot, size, widthPx, heightPx)
+        }
+    } ?: return null
+
+    val views = RemoteViews(context.packageName, R.layout.widget_pin_preview).apply {
+        setImageViewBitmap(R.id.preview, bitmap)
+    }
+    return bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to views)
+}
+
+/** Wide enough for the dialog, which draws it larger than a cell. */
+private const val PREVIEW_WIDTH_PX = 640
 
 /**
  * Takes the launcher's word that a widget asked for from inside the app has landed, and

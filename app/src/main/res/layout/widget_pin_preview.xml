@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the launcher's "add to home screen" dialog shows while it asks.
+
+  Only ever handed a bitmap of the thing actually being placed — see PinWidget. Without
+  it the dialog falls back to the provider's own previewImage, which is one picture per
+  size and so showed the Vision card whatever design had been picked.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:contentDescription="@null" />
+
+</FrameLayout>
