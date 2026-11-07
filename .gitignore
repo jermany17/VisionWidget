@@ -24,3 +24,10 @@ local.properties
 .screenshots/
 .tmp_screens/
 /vw*.png
+
+# The upload key and the passwords to it. Play checks every update against this key,
+# so whoever holds it holds the app — and unlike the rest of this, it can't be rotated
+# quietly. See keystore.properties.example for the shape of the file.
+keystore.properties
+*.jks
+*.keystore

@@ -4,6 +4,13 @@
     <!-- The Gallery clocks pick their tick back up after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!--
+        Lets the app talk to Play's billing service, and is how Play knows to offer this
+        app's subscriptions to it at all. Nothing is asked of the user for it: it grants
+        no access to anything of theirs, so no prompt is ever shown.
+    -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

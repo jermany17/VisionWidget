@@ -1,8 +1,33 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+/**
+ * Where the upload key and its passwords are named, kept out of the repository.
+ *
+ * A signing key is the one secret here that can't be rotated quietly: it is what Play
+ * checks every update against, so anyone holding it holds the app. The keystore and the
+ * passwords to it therefore live beside the project rather than in it, in a
+ * keystore.properties at the project root holding four lines:
+ *
+ *     storeFile=upload-keystore.jks
+ *     storePassword=...
+ *     keyAlias=upload
+ *     keyPassword=...
+ *
+ * Absent, everything still builds. Only a signed release can't be produced, which is
+ * the one thing a fresh clone has no business producing.
+ */
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) FileInputStream(file).use { load(it) }
+}
+val canSignRelease = keystoreProperties.getProperty("storeFile") != null
 
 android {
     // The package the source is written under, and the one R and BuildConfig are
@@ -22,8 +47,25 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (canSignRelease) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Left unsigned when there are no credentials to sign with, rather than
+            // falling back to the debug key: a debug-signed bundle is one Play rejects,
+            // and it should be obvious which of the two came out.
+            if (canSignRelease) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
