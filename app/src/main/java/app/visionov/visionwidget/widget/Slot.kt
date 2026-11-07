@@ -1,9 +1,16 @@
 package app.visionov.visionwidget.widget
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
 
 /**
@@ -14,13 +21,9 @@ import app.visionov.visionwidget.ui.gallery.GalleryWidget
  * is what the picker is meant to show, and which design a particular widget draws is
  * then settled in a setting screen of our own.
  *
- * That only works because the choice is kept per widget rather than per class. Glance
- * hands [androidx.glance.appwidget.GlanceAppWidget.provideGlance] the [GlanceId] of the
- * one widget being drawn, and the choice is stored against that widget's own id — so
- * two clocks placed side by side are two entries in the same store, and each is drawn
- * as itself. The earlier arrangement put the design in the class and redrew with
- * `updateAll`, which dispatches on the class: that is why a design could only ever have
- * a provider to itself, and why the second one placed used to change the first.
+ * The choice lives in Glance's own per-widget state, and is read from inside the
+ * composition rather than before it. That is the whole of why this works, and it took
+ * three attempts to get right — see [SlotKey].
  */
 sealed interface Slot {
 
@@ -46,7 +49,7 @@ sealed interface Slot {
         private const val WISDOM = "wisdom"
         private const val DESIGN_PREFIX = "gallery:"
 
-        /** Null for anything unreadable, which a widget draws as empty rather than guessing. */
+        /** Null for anything unreadable, which a widget draws as a prompt rather than guessing. */
         fun decode(raw: String?): Slot? = when {
             raw == null -> null
             raw == VISION -> Vision
@@ -79,156 +82,96 @@ enum class WidgetSize(
 }
 
 /**
- * Where each placed widget's choice is kept, against the launcher's own id for it.
+ * Where a widget's choice is written, in Glance's own per-widget store.
  *
- * Deliberately not Glance's own per-widget state, which is the obvious home for this.
- * Writing to that needs a [GlanceId], and the only way to get one from the id a
- * configuration activity is handed is [GlanceAppWidgetManager.getGlanceIdBy], which
- * throws unless the widget is already bound. It is not reliably bound while its own
- * setting screen is open — so the write was being skipped and every widget arrived
- * holding nothing at all, which is what an empty cell on the home screen was.
+ * It has to be here rather than anywhere of our own, and it has to be read from inside
+ * the composition. Glance says so plainly: "update and updateAll do not restart
+ * provideGlance if it is already running... observe your sources of data within the
+ * composition." A session lives about forty-five seconds past its first draw, and
+ * anything read before `provideContent` is captured for the whole of it.
  *
- * Plain preferences have none of that: the id is an Int the activity already has, and
- * the write is done before anything else is attempted. Reading back needs only
- * [GlanceAppWidgetManager.getAppWidgetId], which unwraps the id it is given and cannot
- * fail.
+ * Every widget fault so far has been that sentence being ignored. A cell read its
+ * choice in `provideGlance`, found none because the launcher composes it while its
+ * setting screen is still open, and then kept the placeholder no matter what was
+ * chosen — the redraws arrived, but they recomposed a tree holding the old answer. The
+ * same capture is why a clock stood still: its picture was loaded once and the minute's
+ * redraw had nothing new to show.
+ *
+ * Read through [androidx.glance.currentState] instead, a redraw genuinely redraws:
+ * `update` sends the session an UpdateGlanceState event, which re-reads this store and
+ * recomposes against it.
  */
-private object SlotStore {
-    private const val NAME = "vision_widget_slots"
-
-    private const val PENDING_SLOT = "pending_slot"
-    private const val PENDING_AT = "pending_at"
-
-    /**
-     * How long an unclaimed answer stays on offer.
-     *
-     * Long enough to cover a launcher taking its time to bind the cell, short enough
-     * that an answer nobody came for cannot be picked up by an unrelated widget placed
-     * later. A minute is several times the former and a small fraction of the latter.
-     */
-    private const val PENDING_TTL_MS = 60_000L
-
-    private fun prefs(context: Context) =
-        context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
-
-    fun read(context: Context, appWidgetId: Int): Slot? =
-        Slot.decode(prefs(context).getString(appWidgetId.toString(), null))
-
-    /**
-     * Committed rather than applied: the caller is a setting screen about to finish,
-     * and the widget is composed the moment it does. An asynchronous write can still be
-     * in flight then, which is the same empty cell by another route.
-     */
-    fun write(context: Context, appWidgetId: Int, slot: Slot) {
-        prefs(context).edit().putString(appWidgetId.toString(), slot.encode()).commit()
-    }
-
-    fun forget(context: Context, appWidgetId: Int) {
-        prefs(context).edit().remove(appWidgetId.toString()).apply()
-    }
-
-    /** Leaves the answer where a cell that has none can find it. */
-    fun offer(context: Context, slot: Slot) {
-        prefs(context).edit()
-            .putString(PENDING_SLOT, slot.encode())
-            .putLong(PENDING_AT, System.currentTimeMillis())
-            .commit()
-    }
-
-    /**
-     * Takes the offered answer, whatever size asks for it, and spends it.
-     *
-     * Not matched against the size it was offered for, because that size is the least
-     * reliable thing to hand. A setting screen asks the system what size its own widget
-     * is before the widget is bound, and gets nothing — so it falls back to a guess, and
-     * a wrong guess here would be a match that never happens and a fallback that never
-     * fires. Which is the bug this exists to fix, kept alive by the guard against it.
-     *
-     * What is left guarding it is enough: the answer lives a minute, and it is spent on
-     * the way out so no second cell can take the same one. Two widgets of different
-     * sizes placed inside the same minute, with the first one's id lost, is the whole of
-     * what this can get wrong — and getting it wrong shows the user the design they just
-     * picked in a cell of another shape, which is a better wrong answer than an empty
-     * cell reading Tap to set up.
-     */
-    fun claim(context: Context): Slot? {
-        val store = prefs(context)
-        val fresh = System.currentTimeMillis() - store.getLong(PENDING_AT, 0L) < PENDING_TTL_MS
-        if (!fresh) return null
-
-        val slot = Slot.decode(store.getString(PENDING_SLOT, null)) ?: return null
-        clearOffer(context)
-        return slot
-    }
-
-    fun clearOffer(context: Context) {
-        prefs(context).edit()
-            .remove(PENDING_SLOT)
-            .remove(PENDING_AT)
-            .commit()
-    }
-}
-
-/** What the widget behind [appWidgetId] is holding, or null if it was never told. */
-fun readSlot(context: Context, appWidgetId: Int): Slot? = SlotStore.read(context, appWidgetId)
-
-/** What [id] is holding, or null if it was placed without ever being told. */
-fun readSlot(context: Context, id: GlanceId): Slot? =
-    appWidgetIdOf(context, id)?.let { SlotStore.read(context, it) }
+val SlotKey = stringPreferencesKey("slot")
 
 /**
- * Writes what the widget behind [appWidgetId] is to hold.
+ * Bumped whenever what a widget draws has changed underneath it, so the composition
+ * reloads rather than recomposing to the same picture.
  *
- * Does not redraw — the caller settles that, because the two places this is called from
- * want different things. The setting screen writes before handing the widget back to
- * the launcher, which composes it itself; a pin callback writes to a widget already up,
- * and has to ask for the redraw.
+ * The slot alone is not enough. A clock holds the same slot from the moment it is
+ * placed until it is taken away, and what changes every minute is the file behind it —
+ * nothing the composition would notice. This is what it notices.
  */
-fun writeSlot(context: Context, appWidgetId: Int, slot: Slot) {
-    SlotStore.write(context, appWidgetId, slot)
-    Log.i("VisionSlot", "wrote ${slot.encode()} to widget $appWidgetId")
+val RevisionKey = longPreferencesKey("revision")
+
+/** Reads one widget's choice from outside a composition, for callers that cannot compose. */
+suspend fun readSlot(context: Context, id: GlanceId): Slot? = runCatching {
+    Slot.decode(getAppWidgetState(context, PreferencesGlanceStateDefinition, id)[SlotKey])
+}.getOrNull()
+
+/**
+ * Writes what a widget is to hold, and marks it as having changed.
+ *
+ * Both in one write, because a widget that has just been told what it is has also just
+ * had everything about it change.
+ */
+suspend fun writeSlot(context: Context, id: GlanceId, slot: Slot) {
+    runCatching {
+        updateAppWidgetState(context, PreferencesGlanceStateDefinition, id) { kept ->
+            kept.toMutablePreferences().apply {
+                this[SlotKey] = slot.encode()
+                this[RevisionKey] = System.currentTimeMillis()
+            }
+        }
+        Log.i("VisionSlot", "wrote ${slot.encode()} to ${appWidgetIdOf(context, id)}")
+    }.onFailure { Log.w("VisionSlot", "could not write ${slot.encode()}", it) }
 }
 
 /**
- * Leaves the answer somewhere a cell can find it, for when the id cannot be trusted.
+ * Says that what a widget draws has changed, without changing what it holds.
  *
- * The setting screen is handed an id before the widget is finally bound, and not every
- * launcher keeps that id: some bind the cell under a second one once the screen returns
- * OK, and at least one takes the first id away afterwards, which erases what was written
- * against it. Either way the cell composes holding nothing, and "Tap to set up" is what
- * stays on the home screen.
- *
- * So the answer is written twice — against the id, which is right when the id survives,
- * and here, which is right when it doesn't. The second copy is addressed by size rather
- * than by id, lives a minute, and is spent by the first cell of that size to come up
- * without an answer of its own.
+ * What the minute's tick does to a clock, and what applying a style in Studio does to
+ * the three cards.
  */
-fun offerSlot(context: Context, slot: Slot) {
-    SlotStore.offer(context, slot)
-    Log.i("VisionSlot", "offered ${slot.encode()} to the next cell that has none")
+suspend fun bumpRevision(context: Context, id: GlanceId) {
+    runCatching {
+        updateAppWidgetState(context, PreferencesGlanceStateDefinition, id) { kept ->
+            kept.toMutablePreferences().apply {
+                this[RevisionKey] = System.currentTimeMillis()
+            }
+        }
+    }.onFailure { Log.w("VisionSlot", "could not bump revision", it) }
 }
 
-/** Takes the offered answer, if one is waiting. */
-fun claimOfferedSlot(context: Context): Slot? = SlotStore.claim(context)
+/** The slot a composition is looking at, read out of the state it was handed. */
+fun Preferences.slot(): Slot? = Slot.decode(this[SlotKey])
 
-/** Drops the offer, once the cell it was meant for has an answer of its own. */
-fun clearOfferedSlot(context: Context) = SlotStore.clearOffer(context)
-
-/** Drops what a widget was holding, once the launcher says it has gone. */
-fun forgetSlot(context: Context, appWidgetId: Int) = SlotStore.forget(context, appWidgetId)
+/** The revision a composition is looking at; zero before anything has changed. */
+fun Preferences.revision(): Long = this[RevisionKey] ?: 0L
 
 /**
- * The launcher's own id behind a [GlanceId].
+ * The [GlanceId] for a widget being configured.
  *
- * An unwrap rather than a lookup — see [SlotStore] for why that distinction is the
- * whole of this file's design.
+ * Taken off the intent rather than looked up. The lookup — `getGlanceIdBy(Int)` —
+ * demands that the widget already be bound and throws when it is not, which is exactly
+ * the state a widget is in while its own setting screen is open. This overload is the
+ * one Glance provides for configuration activities and it only unwraps the extra.
  */
+fun glanceIdFor(context: Context, intent: Intent): GlanceId? =
+    runCatching { GlanceAppWidgetManager(context).getGlanceIdBy(intent) }.getOrNull()
+
+/** The launcher's own id behind a [GlanceId] — an unwrap, which cannot fail. */
 fun appWidgetIdOf(context: Context, id: GlanceId): Int? =
     runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrNull()
-
-/** The [GlanceId] behind a launcher's own widget id, or null if it is not bound yet. */
-fun glanceIdOf(context: Context, appWidgetId: Int): GlanceId? =
-    runCatching { GlanceAppWidgetManager(context).getGlanceIdBy(appWidgetId) }.getOrNull()
 
 /**
  * One of our widgets as it sits on a home screen.

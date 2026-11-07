@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +68,10 @@ fun LibraryScreen(
         val byId = catalog.associateBy { it.id }
         designIds.mapNotNull { byId[it] }
     }
+
+    // Which tile is offering to be placed, if any. One at a time, so the shelf does not
+    // fill with buttons as tiles are tapped past.
+    var placingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
@@ -123,6 +128,12 @@ fun LibraryScreen(
             items(designs, key = { it.id }) { design ->
                 LibraryTile(
                     design = design,
+                    // One tile at a time offers to be placed. Kept here rather than in
+                    // the tile, because a tile cannot know that another has been tapped
+                    // — held there, every tap left its own button up and the shelf
+                    // filled with them.
+                    placing = placingId == design.id,
+                    onTap = { placingId = if (placingId == design.id) null else design.id },
                     onRemove = { onRemove(design.id) },
                     onPlace = { onPlace(sizeOf(design), Slot.Design(design.id)) }
                 )
@@ -145,15 +156,15 @@ private fun sizeOf(design: GalleryWidget): WidgetSize =
 @Composable
 private fun LibraryTile(
     design: GalleryWidget,
+    placing: Boolean,
+    onTap: () -> Unit,
     onRemove: () -> Unit,
     onPlace: () -> Unit
 ) {
-    var placing by remember { mutableStateOf(false) }
-
     Column {
         DesignFace(
             widget = design,
-            modifier = Modifier.clickable { placing = !placing }
+            modifier = Modifier.clickable(onClick = onTap)
         ) {
             Box(
                 modifier = Modifier

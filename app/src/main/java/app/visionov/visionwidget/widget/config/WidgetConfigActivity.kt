@@ -69,9 +69,9 @@ import app.visionov.visionwidget.widget.GalleryTicker
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.SlotWidgets
 import app.visionov.visionwidget.widget.WidgetSize
-import app.visionov.visionwidget.widget.offerSlot
+import android.util.Log
+import app.visionov.visionwidget.widget.glanceIdFor
 import app.visionov.visionwidget.widget.renderCardPreview
-import app.visionov.visionwidget.widget.writeSlot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -128,34 +128,26 @@ class WidgetConfigActivity : ComponentActivity() {
 
     /** Writes the choice onto the widget, then hands it back to the launcher to draw. */
     private fun choose(slot: Slot) {
-        // Written first, and written synchronously, before anything that can fail or
-        // suspend. Everything below is an attempt to make the widget show it sooner;
-        // none of it is how the widget comes to know. Once this line has run, the very
-        // next composition reads the choice even if the rest of this never happens.
-        writeSlot(applicationContext, appWidgetId, slot)
-
         val size = SlotWidgets.sizeOf(applicationContext, appWidgetId) ?: requestedSize
 
-        // And again, addressed by size rather than by id. The id above is right whenever
-        // the launcher keeps the one it opened this screen with, and some do not — see
-        // [offerSlot]. This copy is what the cell falls back on, and is spent the first
-        // time a cell of this size composes without an answer of its own.
-        offerSlot(applicationContext, slot)
+        // Named off this screen's own intent rather than looked up. The lookup insists
+        // the widget already be bound, which it reliably is not while its setting
+        // screen is open — that refusal is what used to leave the choice unwritten.
+        val glanceId = glanceIdFor(applicationContext, intent)
 
-        // Handed back before the redraw rather than after, so the launcher keeps the
-        // cell whatever the redraw does.
+        if (glanceId == null) {
+            Log.w("VisionSlot", "no glance id on the configuration intent; nothing written")
+        } else {
+            // The cell composed once already, while this screen was open, and found
+            // nothing chosen. Assigning sends it round again — and because the choice
+            // is read inside the composition, this time it finds it.
+            SlotWidgets.assign(applicationContext, glanceId, size, slot)
+        }
+
         setResult(
             RESULT_OK,
             Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         )
-
-        // Asked for rather than done here. The launcher puts the widget up while this
-        // screen is still open, so it has already composed once and found no choice —
-        // and those views stay on the cell until something asks for new ones. Handing
-        // back RESULT_OK is not that something on every launcher.
-        //
-        // The ordinary broadcast is, and it needs nothing this screen might not have.
-        SlotWidgets.requestRedraw(applicationContext, appWidgetId, size)
 
         // A clock face needs the minute running; nothing else books it.
         if (slot is Slot.Design) GalleryTicker.schedule(applicationContext, known = true)

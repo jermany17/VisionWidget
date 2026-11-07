@@ -130,7 +130,10 @@ private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): B
     val views = RemoteViews(context.packageName, R.layout.widget_pin_preview).apply {
         setImageViewBitmap(R.id.preview, bitmap)
     }
-    Log.i("VisionPin", "preview for ${slot.encode()} at ${widthPx}x$heightPx")
+    Log.i(
+        "VisionPin",
+        "preview for ${slot.encode()} at ${widthPx}x$heightPx (${bitmap.byteCount} bytes)"
+    )
     return bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to views)
 }
 
@@ -147,7 +150,7 @@ private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): B
  * Half a megabyte leaves room for the rest of the transaction and is still sharper than
  * the dialog draws it.
  */
-private const val PREVIEW_BUDGET_BYTES = 500_000
+private const val PREVIEW_BUDGET_BYTES = 160_000
 
 private fun previewSize(ratio: Float): Pair<Int, Int> {
     // Four bytes a pixel at ARGB_8888, which is what both renderers draw into.
@@ -176,17 +179,19 @@ class WidgetPinnedReceiver : BroadcastReceiver() {
 
         val app = context.applicationContext
 
-        // Written straight away, before anything else. A pinned widget never saw the
-        // setting screen, so this is the only moment the choice can be recorded.
-        writeSlot(app, appWidgetId, slot)
-
         // The size the pin was asked for, since the widget may not be bound firmly
         // enough yet to be asked what it is.
         val size = SlotWidgets.sizeOf(app, appWidgetId)
             ?: WidgetSize.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_SIZE) }
             ?: return
 
-        SlotWidgets.requestRedraw(app, appWidgetId, size)
+        // The callback carries the id, which is all a GlanceId is — so it is taken off
+        // the intent, the same way the setting screen takes its own.
+        val glanceId = glanceIdFor(app, intent) ?: return
+
+        // A pinned widget never saw the setting screen, so this is the only moment the
+        // choice can be recorded.
+        SlotWidgets.assign(app, glanceId, size, slot)
 
         // A design just arrived; if it is a clock the minute has to start running.
         if (slot is Slot.Design) GalleryTicker.schedule(app, known = true)

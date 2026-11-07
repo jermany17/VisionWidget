@@ -301,6 +301,13 @@ object GalleryTicker {
      */
     private suspend fun redraw(context: Context, widgets: List<PlacedWidget>) {
         widgets.forEach { widget ->
+            // The revision moves first. A clock holds the same design from the moment
+            // it is placed until it is taken away, so nothing about the widget's state
+            // changes as the minute turns — only the file behind it does, and a
+            // composition has no way to notice that. Moving the revision is how it is
+            // told, and without it the redraw below recomposes to the same picture and
+            // the clock stands still.
+            bumpRevision(context, widget.id)
             runCatching { SlotWidgets.of(widget.size).update(context, widget.id) }
                 .onFailure { android.util.Log.w("VisionGallery", "redraw failed", it) }
         }

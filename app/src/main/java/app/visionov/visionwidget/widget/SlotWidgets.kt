@@ -3,22 +3,21 @@ package app.visionov.visionwidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
-import androidx.glance.background
-import androidx.glance.layout.Alignment
-import androidx.glance.layout.padding
-import androidx.glance.text.Text
-import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
+import androidx.glance.LocalGlanceId
 import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
@@ -28,38 +27,47 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.glance.background
+import androidx.glance.currentState
+import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.padding
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import app.visionov.visionwidget.MainActivity
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
+import app.visionov.visionwidget.widget.config.WidgetConfigActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * One widget per size, holding whatever its [Slot] says it holds.
  *
  * The launcher's picker lists providers, so this is what the user is offered there:
  * three sizes, and nothing about which design is in them. That choice belongs to the
- * setting screen the launcher opens next — see `widget/config/WidgetConfigActivity`.
+ * setting screen the launcher opens next — see [WidgetConfigActivity].
  *
- * Fifty-six providers used to be listed instead, one per design, because the design was
- * carried by the class. It is carried by the widget's own state now, so two widgets of
- * the same size can show different things; see [Slot] for why that was the sticking
- * point.
+ * Everything a cell draws is read from inside the composition and nothing before it.
+ * That is not a style: Glance keeps a session alive for about forty-five seconds past
+ * a widget's first draw, and a redraw asked for in that window recomposes the tree it
+ * already has rather than running [SlotWidget.provideGlance] again. Anything read on
+ * the way in is therefore read once and kept — which is what used to leave a cell
+ * showing "Tap to set up" after a design had been chosen for it, and a clock showing
+ * the minute it was placed on. See [SlotKey].
  */
 
 /**
- * How long a widget's own update will wait for a design that has never been drawn.
+ * How long a cell waits for a design that has never been drawn.
  *
- * Long enough for a design placed on its own to arrive as itself, and short enough to
- * leave room under the deadline a broadcast is answered within.
+ * Long enough for one placed on its own to arrive as itself, and short enough that a
+ * cell which cannot be drawn says so rather than sitting blank.
  */
 private const val FIRST_PAINT_WAIT_MS = 6_000L
 
@@ -75,144 +83,153 @@ private val NoticeInk = Color(0xFFF2EDE6)
 
 open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
 
+    override val stateDefinition = PreferencesGlanceStateDefinition
+
     override val sizeMode = SizeMode.Exact
 
+    /**
+     * Nothing is loaded here. Everything this cell shows depends on state that can
+     * change while the session is alive, and state read here would be read once.
+     */
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val appWidgetId = appWidgetIdOf(context, id)
+        provideContent { Cell() }
+    }
 
-        // Its own answer if it has one. Failing that, the one the setting screen left
-        // for whichever cell of this size came up next — see [offerSlot] for why the id
-        // alone cannot be relied on. Claimed once and written down, so this cell has an
-        // answer of its own from here on and the next one doesn't take the same.
-        val held = appWidgetId?.let { readSlot(context, it) }
-            ?: claimOfferedSlot(context)?.also { claimed ->
-                appWidgetId?.let { writeSlot(context, it, claimed) }
-                Log.i("VisionSlot", "widget=$appWidgetId claimed the offered ${claimed.encode()}")
-            }
+    @Composable
+    private fun Cell() {
+        val state = currentState<androidx.datastore.preferences.core.Preferences>()
+        val slot = state.slot()
+        val revision = state.revision()
 
-        Log.i("VisionSlot", "compose $size widget=$appWidgetId holding=${held?.encode()}")
+        when (slot) {
+            Slot.Vision -> Card(revision) { visionPayload(it, size) }
+                ?.let { VisionCardContent(it, size) } ?: Pending()
 
-        // Nothing here draws nothing. A widget that composes an empty box is
-        // indistinguishable from one that was never asked to compose at all, from one
-        // whose picture failed to paint, and from one that threw — and telling those
-        // apart from a photograph of a home screen is most of the work of fixing any
-        // of them. Each failure says which it is instead.
-        try {
-            when (val slot = held) {
-                Slot.Vision -> {
-                    val payload = visionPayload(context, size)
-                    provideContent { VisionCardContent(payload, size) }
-                }
+            Slot.TopThree -> Card(revision) { topThreePayload(it, size) }
+                ?.let { TopThreeCardContent(it, size) } ?: Pending()
 
-                Slot.TopThree -> {
-                    val payload = topThreePayload(context, size)
-                    provideContent { TopThreeCardContent(payload, size) }
-                }
+            Slot.Wisdom -> Card(revision) { wisdomPayload(it) }
+                ?.let { WisdomCardContent(it, size) } ?: Pending()
 
-                Slot.Wisdom -> {
-                    val payload = wisdomPayload(context)
-                    provideContent { WisdomCardContent(payload, size) }
-                }
+            is Slot.Design -> Design(slot.designId, revision)
 
-                is Slot.Design -> provideDesign(context, slot.designId)
-
-                // Placed without ever being told what to hold. Tapping opens the app,
-                // which is the only way back to a choice from here.
-                null -> provideContent { Notice("Tap to set up", id = appWidgetId) }
-            }
-        } catch (cancellation: CancellationException) {
-            // Not a failure. provideContent never returns — it holds the session open
-            // and ends by being cancelled, which is what happens every single time the
-            // widget is asked to draw again. Caught alongside real faults, each ordinary
-            // redraw was logged as a crash and answered by trying to paint a notice over
-            // the content that was replacing it.
-            throw cancellation
-        } catch (failure: Throwable) {
-            Log.e("VisionSlot", "compose $size widget=$appWidgetId failed", failure)
-            provideContent { Notice(failure.javaClass.simpleName, id = appWidgetId) }
+            // Placed and never told what to hold, which is every cell between the
+            // launcher putting it down and the setting screen being answered.
+            null -> Notice("Tap to set up")
         }
+    }
+
+    /**
+     * A card's data, re-read whenever [revision] moves.
+     *
+     * Loaded in the composition rather than before it so that applying a style in
+     * Studio, or the day turning under a daily line, actually reaches the cell.
+     */
+    @Composable
+    private fun <T> Card(revision: Long, load: suspend (Context) -> T): T? {
+        val context = LocalContext.current
+        val value by produceState<T?>(null, revision) { value = runCatching { load(context) }.getOrNull() }
+        return value
+    }
+
+    /** A Gallery design, drawn by the same renderer the shelf uses. */
+    @Composable
+    private fun Design(designId: String, revision: Long) {
+        val context = LocalContext.current
+
+        // Read so the cell redraws when it is resized, even though the picture is
+        // fitted rather than measured against it.
+        LocalSize.current
+
+        val design = remember(designId) {
+            GalleryCatalog.load(context).firstOrNull { it.id == designId }
+        }
+
+        // Keyed on the revision as well as the design, because a clock holds the same
+        // design all its life and what moves every minute is the file behind it. The
+        // tick bumps the revision once the new picture is in place, and that is what
+        // brings this round again.
+        val bitmap by produceState<Bitmap?>(null, designId, revision) {
+            value = design?.let { wanted ->
+                DesignRenderer.cached(context, wanted)
+                    ?: if (GalleryTicker.paintWithin(context, wanted, FIRST_PAINT_WAIT_MS)) {
+                        DesignRenderer.cached(context, wanted)
+                    } else {
+                        null
+                    }
+            }
+        }
+
+        val picture = bitmap
+        when {
+            design == null -> Notice("Unknown design")
+
+            // Still being painted. The painting carries on past this and bumps the
+            // revision when it lands, which brings the real picture here.
+            picture == null -> Pending()
+
+            else -> Image(
+                provider = ImageProvider(picture),
+                contentDescription = design.name,
+                // Fitted rather than filled, so a design is only ever scaled — never
+                // stretched out of the proportion it was drawn at.
+                contentScale = ContentScale.Fit,
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    // A Gallery design is a face from the shelf, so a tap on one goes
+                    // back there rather than to Today.
+                    .clickable(
+                        actionStartActivity<MainActivity>(
+                            actionParametersOf(
+                                ActionParameters.Key<Boolean>(OpenGalleryExtra) to true
+                            )
+                        )
+                    )
+            )
+        }
+    }
+
+    /** The cell while its picture is still being made — the app's colour, and nothing said. */
+    @Composable
+    private fun Pending() {
+        Box(modifier = GlanceModifier.fillMaxSize().background(NoticeFill)) {}
     }
 
     /**
      * A plain word in the cell, for the states that have no picture to show.
      *
-     * Deliberately legible rather than tasteful: every one of these is a fault or an
+     * Deliberately legible rather than tasteful: each of these is a fault or an
      * unfinished setup, and the point is that it can be read off the home screen.
      */
     @Composable
-    private fun Notice(text: String, id: Int?) {
+    private fun Notice(text: String) {
+        val context = LocalContext.current
+        val id = appWidgetIdOf(context, LocalGlanceId.current)
+
+        // A cell that was never told what to hold opens the screen that tells it, for
+        // the one it is actually about rather than the app's front door.
+        val open = if (id == null) {
+            actionStartActivity<MainActivity>()
+        } else {
+            actionStartActivity<WidgetConfigActivity>(
+                actionParametersOf(
+                    ActionParameters.Key<Int>(AppWidgetManager.EXTRA_APPWIDGET_ID) to id
+                )
+            )
+        }
+
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(NoticeFill)
-                .clickable(actionStartActivity<MainActivity>())
+                .clickable(open)
                 .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (id == null) text else "$text\n#$id",
+                text = text,
                 style = TextStyle(color = ColorProvider(NoticeInk), fontSize = 12.sp)
             )
-        }
-    }
-
-    /** A Gallery design, drawn by the same renderer the shelf uses. */
-    private suspend fun GlanceAppWidget.provideDesign(context: Context, designId: String) {
-        val design = GalleryCatalog.load(context).firstOrNull { it.id == designId }
-
-        // Off the disk, which is immediate.
-        val kept = design?.let { DesignRenderer.cached(context, it) }
-
-        // Nothing kept yet means this design has not been drawn since it was installed,
-        // so it is drawn now and waited for.
-        //
-        // Waited for rather than stood in for: a design frozen at a moment that has
-        // already passed would mean a widget arriving on the wrong month and correcting
-        // itself a second later. A widget shows the real design or it shows nothing yet.
-        //
-        // The wait has a limit all the same. An update is a broadcast with a deadline,
-        // and a round of them all waiting without one is what queued every widget behind
-        // the single view that paints until they ran out of time. Past the limit the
-        // painting carries on without this update and asks for a redraw when it lands.
-        val bitmap = kept ?: design?.let {
-            if (GalleryTicker.paintWithin(context, it, FIRST_PAINT_WAIT_MS)) {
-                DesignRenderer.cached(context, it)
-            } else {
-                null
-            }
-        }
-
-        provideContent {
-            // Read so the widget redraws when the cell changes, even though the picture
-            // itself is fitted rather than measured against it.
-            LocalSize.current
-
-            if (bitmap == null) {
-                // The design has not been drawn yet and could not be drawn in the time
-                // this update had. Said out loud rather than left blank: the painting
-                // still running will ask for the redraw that replaces this, and if it
-                // never does, the cell says so instead of looking like a bug elsewhere.
-                Notice(if (design == null) "Unknown design" else "Drawing…", id = null)
-            } else {
-                Image(
-                    provider = ImageProvider(bitmap),
-                    contentDescription = design?.name,
-                    // Fitted rather than filled, so a design is only ever scaled — never
-                    // stretched out of the proportion it was drawn at.
-                    contentScale = ContentScale.Fit,
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        // A Gallery design is a face from the shelf, so a tap on one
-                        // goes back there rather than to Today.
-                        .clickable(
-                            actionStartActivity<MainActivity>(
-                                actionParametersOf(
-                                    ActionParameters.Key<Boolean>(OpenGalleryExtra) to true
-                                )
-                            )
-                        )
-                )
-            }
         }
     }
 }
@@ -229,6 +246,8 @@ class LargeSlotWidget : SlotWidget(WidgetSize.Large)
  * should be one line.
  */
 object SlotWidgets {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** The widget that draws a cell of [size], for anything asking it to redraw. */
     fun of(size: WidgetSize): SlotWidget = when (size) {
@@ -249,48 +268,40 @@ object SlotWidgets {
     }
 
     /**
-     * Asks for one widget to be drawn again, now that what it holds has changed.
+     * Asks one widget to draw itself again.
      *
-     * Not the ordinary APPWIDGET_UPDATE broadcast, which is what this used to send.
-     * That action is a protected one: only the system may send it, and an app that
-     * tries is refused with a SecurityException. Caught and logged, the refusal left
-     * the redraw simply never happening — the launcher composes the cell once while
-     * the setting screen is still open, finds nothing chosen yet, and those are the
-     * views that stay. That is the whole of why a configured widget sat on the home
-     * screen reading "Tap to set up" with its choice already written down beside it.
+     * Glance's own update rather than an APPWIDGET_UPDATE broadcast: that action is
+     * protected, only the system may send it, and an app that tries is refused.
      *
-     * Glance's own update is not protected. It wants a GlanceId, and the only way to
-     * one is a lookup that fails while the widget is still being placed — so it is
-     * tried a few times across the moment the launcher takes to finish, and if the
-     * cell never becomes nameable, everything of its size is redrawn instead. Each of
-     * those reads its own slot, so the rest come back exactly as they were.
+     * Safe to call the instant a choice is written. If a session is running this
+     * reaches it and the composition re-reads the state; if none is, one starts. Either
+     * way the cell draws what the state now says, because the state is read inside the
+     * composition rather than before it.
      */
-    fun requestRedraw(context: Context, appWidgetId: Int, size: WidgetSize) {
+    fun requestRedraw(context: Context, id: GlanceId, size: WidgetSize) {
         val app = context.applicationContext
-        redrawScope.launch {
-            repeat(REDRAW_ATTEMPTS) { attempt ->
-                if (attempt > 0) delay(REDRAW_RETRY_MS)
-                val id = glanceIdOf(app, appWidgetId) ?: return@repeat
-                val drawn = runCatching { of(size).update(app, id) }
-                    .onFailure { Log.w("VisionSlot", "redraw of $appWidgetId failed", it) }
-                    .isSuccess
-                if (drawn) {
-                    Log.i("VisionSlot", "redrew $appWidgetId")
-                    return@launch
-                }
-            }
-
-            Log.i("VisionSlot", "$appWidgetId never became nameable; redrawing all $size")
-            runCatching { of(size).updateAll(app) }
-                .onFailure { Log.w("VisionSlot", "redraw of all $size failed", it) }
+        scope.launch {
+            runCatching { of(size).update(app, id) }
+                .onFailure { Log.w("VisionSlot", "redraw failed", it) }
         }
     }
 
-    /** Long enough to outlast a launcher finishing its placement, short enough to feel instant. */
-    private const val REDRAW_ATTEMPTS = 5
-    private const val REDRAW_RETRY_MS = 400L
-
-    private val redrawScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * Tells a widget what it holds and asks it to show that.
+     *
+     * Run on a scope of this object's rather than the caller's. Both callers are on
+     * their way out as they call it — a setting screen about to finish, a broadcast
+     * receiver about to return — and a write tied to either would be cancelled before
+     * it landed.
+     */
+    fun assign(context: Context, id: GlanceId, size: WidgetSize, slot: Slot) {
+        val app = context.applicationContext
+        scope.launch {
+            writeSlot(app, id, slot)
+            runCatching { of(size).update(app, id) }
+                .onFailure { Log.w("VisionSlot", "redraw after assign failed", it) }
+        }
+    }
 
     /** The receiver declared in the manifest for [size]. */
     fun receiverOf(size: WidgetSize): Class<*> = when (size) {
@@ -304,10 +315,7 @@ object SlotWidgets {
  * What every size's receiver is built on.
  *
  * The tick is booked when a design arrives on a screen and let go of when the last one
- * leaves, so nothing is being woken for a clock nobody has up. Which of the widgets
- * actually hold a design is read from their state rather than from the class now, so
- * the booking always looks — there are three classes to ask about rather than
- * forty-four, which is what the old `known` shortcut existed to avoid.
+ * leaves, so nothing is being woken for a clock nobody has up.
  */
 abstract class SlotWidgetReceiver(
     override val glanceAppWidget: GlanceAppWidget
@@ -331,15 +339,8 @@ abstract class SlotWidgetReceiver(
         GalleryTicker.schedule(context, known = appWidgetIds.isNotEmpty())
     }
 
-    // What a widget held is kept against the launcher's id for it, so it has to be let
-    // go of when the launcher says that id is gone. Left behind, the entries would
-    // outlive every widget that ever used one — and an id the system hands out again
-    // would arrive already holding something.
-    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        super.onDeleted(context, appWidgetIds)
-        appWidgetIds.forEach { forgetSlot(context, it) }
-    }
-
+    // Glance clears a widget's own state for us when the launcher says it has gone, so
+    // there is nothing of ours left behind to sweep up.
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         GalleryTicker.schedule(context)
@@ -354,26 +355,16 @@ class LargeSlotReceiver : SlotWidgetReceiver(LargeSlotWidget())
  * Redraws every dressed card on a home screen.
  *
  * Applying in Studio changes what these are meant to look like, and nothing else would
- * tell them — a widget is only asked to redraw on its own schedule otherwise, which is
- * half an hour away at best.
+ * tell them. The revision is moved first so the composition reloads its data rather
+ * than recomposing to the same card.
  *
- * Only the cards. A Gallery design is not dressed by Studio and has its own tick, so a
- * widget holding one is left alone rather than being made to repaint the same picture.
+ * Only the cards. A Gallery design is not dressed by Studio and has its own tick.
  */
 suspend fun updateDesignWidgets(context: Context) {
-    // One after another, not all at once. Running them together was quicker on paper
-    // and is not worth it: they all reach for the same store Glance keeps its widget
-    // state in, and a card that loses that race is a card left showing the old thing
-    // with nothing said about it.
     placedSlots(context)
         .filter { it.slot !is Slot.Design }
         .forEach { placed ->
-            // Redrawn by the widget of its own size — the content a widget composes is
-            // the content for its cell, so the size has to match the one it was placed as.
-            //
-            // One that fails is one card left as it was, not the others abandoned — but
-            // it is said out loud, because a card that quietly keeps the picture it had
-            // looks exactly like one nobody asked to redraw.
+            bumpRevision(context, placed.id)
             runCatching { SlotWidgets.of(placed.size).update(context, placed.id) }
                 .onFailure { Log.w("VisionWidget", "card redraw failed", it) }
         }
