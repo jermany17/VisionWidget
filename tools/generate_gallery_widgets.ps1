@@ -36,10 +36,10 @@ $utf8 = New-Object System.Text.UTF8Encoding $false
 
 # ---- receivers ---------------------------------------------------------------
 $kt = New-Object System.Text.StringBuilder
-[void]$kt.AppendLine("package com.example.visionwidget.widget")
+[void]$kt.AppendLine("package app.visionov.visionwidget.widget")
 [void]$kt.AppendLine("")
 [void]$kt.AppendLine("import androidx.glance.appwidget.GlanceAppWidget")
-[void]$kt.AppendLine("import com.example.visionwidget.ui.gallery.GalleryWidget")
+[void]$kt.AppendLine("import app.visionov.visionwidget.ui.gallery.GalleryWidget")
 [void]$kt.AppendLine("")
 [void]$kt.AppendLine("/**")
 [void]$kt.AppendLine(" * One widget class and one receiver per Gallery design.")

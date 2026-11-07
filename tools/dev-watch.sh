@@ -12,7 +12,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR" || exit 1
 
 ADB="${ANDROID_HOME:-$HOME/AppData/Local/Android/Sdk}/platform-tools/adb.exe"
-APP_ID="com.example.visionwidget"
+APP_ID="app.visionov.visionwidget"
 ACTIVITY="$APP_ID/.MainActivity"
 POLL_SECONDS=2
 

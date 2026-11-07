@@ -5,11 +5,17 @@ plugins {
 }
 
 android {
-    namespace = "com.example.visionwidget"
+    // The package the source is written under, and the one R and BuildConfig are
+    // generated into. Play never reads it, so it needn't match the line below — but it
+    // was moved to agree while the app is still unreleased and the move costs nothing.
+    namespace = "app.visionov.visionwidget"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.visionwidget"
+        // What the app is called on a device and in Play, fixed by the Console entry it
+        // was reserved under. Permanent from the first upload: a second name would be a
+        // second app, and nobody on the first could be updated across to it.
+        applicationId = "app.visionov.visionwidget"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
