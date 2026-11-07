@@ -825,23 +825,28 @@ fun StudioScreen(
                 // string, and the two can be compared for whether anything is pending.
                 onSelectWisdomCategory = { theme ->
                     val picked = theme.lowercase()
-                    draftWisdomCategory = picked
-                    // A line the new theme doesn't hold would leave the card showing one
-                    // from the theme before it. Their own theme has no pool to draw from,
-                    // so the index is left where it was for a return to a real theme.
-                    if (!isOwnWisdom(picked) && draftWisdomIndex !in wisdomIndices(picked)) {
-                        draftWisdomIndex = randomWisdomIndex(picked)
-                    }
-                    // Nothing to show under their own theme until something is written,
-                    // so picking it asks for the line in the same breath.
-                    if (isOwnWisdom(picked) && draftWisdomOwnText.isBlank()) {
-                        writingOwnWisdom = true
+                    // Writing the line is the paid part, so the theme that holds it is
+                    // gated where it is chosen rather than at the dialog alone — the
+                    // two ways in are the chip and the write control beneath it.
+                    plusGate(isOwnWisdom(picked)) {
+                        draftWisdomCategory = picked
+                        // A line the new theme doesn't hold would leave the card showing
+                        // one from the theme before it. Their own theme has no pool to
+                        // draw from, so the index is left for a return to a real theme.
+                        if (!isOwnWisdom(picked) && draftWisdomIndex !in wisdomIndices(picked)) {
+                            draftWisdomIndex = randomWisdomIndex(picked)
+                        }
+                        // Nothing to show under their own theme until something is
+                        // written, so picking it asks for the line in the same breath.
+                        if (isOwnWisdom(picked) && draftWisdomOwnText.isBlank()) {
+                            writingOwnWisdom = true
+                        }
                     }
                 },
                 onShuffleWisdom = {
                     draftWisdomIndex = nextWisdomIndex(draftWisdomIndex, draftWisdomCategory)
                 },
-                onWriteOwnWisdom = { writingOwnWisdom = true },
+                onWriteOwnWisdom = { plusGate(true) { writingOwnWisdom = true } },
                 // Drawn as the Wisdom widget is dressed, whether or not that's the widget
                 // being styled — the card is a preview of the line, not of the scope.
                 wisdomLook = previewLooks[WidgetTarget.Wisdom]
@@ -852,7 +857,10 @@ fun StudioScreen(
 
             StudioTab.Gallery -> GalleryTab(
                 libraryIds = libraryIds,
-                onSaveToLibrary = onSaveToLibrary,
+                // Browsing the shelf is free and opening a design to look at it is too
+                // — the gate is on keeping one. A paywall at the door would hide the
+                // thing being sold; this way it is asked for at the moment it is wanted.
+                onSaveToLibrary = { id -> plusGate(true) { onSaveToLibrary(id) } },
                 onOpenLibrary = onOpenLibrary,
                 contentPadding = contentPadding
             )
