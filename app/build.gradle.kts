@@ -43,7 +43,7 @@ android {
         applicationId = "app.visionov.visionwidget"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
     }
 
@@ -103,4 +103,10 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // Carried from the first upload rather than added when the purchase flow is
+    // written. Play reads the billing permission off the manifest and, finding no
+    // library behind it, takes the app for one still on the AIDL interface it
+    // retired — and refuses the bundle outright.
+    implementation(libs.billing.ktx)
 }
