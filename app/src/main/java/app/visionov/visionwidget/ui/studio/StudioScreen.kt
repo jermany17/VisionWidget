@@ -116,6 +116,9 @@ import app.visionov.visionwidget.ui.gallery.GalleryWidget
 import app.visionov.visionwidget.ui.gallery.arrange
 import app.visionov.visionwidget.ui.gallery.galleryName
 import app.visionov.visionwidget.ui.home.DEFAULT_WISDOM_THEME
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.visionov.visionwidget.billing.BillingManager
+import app.visionov.visionwidget.billing.PaywallSheet
 import app.visionov.visionwidget.ui.components.PromptDialog
 import app.visionov.visionwidget.ui.components.SettingsButton
 import app.visionov.visionwidget.ui.components.SettingsSheet
@@ -582,6 +585,21 @@ fun StudioScreen(
         mutableStateOf(if (startOnGallery) StudioTab.Gallery else StudioTab.Design)
     }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showPaywall by rememberSaveable { mutableStateOf(false) }
+
+    val plusHeld by BillingManager.get(LocalContext.current).status.collectAsStateWithLifecycle()
+
+    /**
+     * Runs a choice, or asks to be paid for it.
+     *
+     * Every control marked with a plus goes through here rather than explaining itself
+     * where it stands — the mark says there is something to buy and this is the one
+     * place that says what. Held in one lambda rather than repeated per control so a
+     * new paid choice is one argument, not another copy of the question.
+     */
+    val plusGate: (Boolean, () -> Unit) -> Unit = { locked, choose ->
+        if (locked && !plusHeld.isActive) showPaywall = true else choose()
+    }
     // PHOTO WITHDRAWN — nothing can draft a photo background, so nothing can be short
     // of a picture for it.
     // var showMissingPhoto by rememberSaveable { mutableStateOf(false) }
@@ -724,12 +742,11 @@ fun StudioScreen(
                 // measures against the title beside it, and a title that renders a
                 // hair taller than its line box would carry the gear down with it —
                 // off the place the other tabs put it.
-                Row(
-                    modifier = Modifier.align(Alignment.Top),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PlanChip(label = "FREE PLAN")
-                    Spacer(Modifier.width(10.dp))
+                //
+                // The gear stands alone now. A chip reading "FREE PLAN" used to sit
+                // beside it, which named the plan on this one tab and had nowhere to
+                // go when it changed; the plan is read and changed in settings.
+                Box(Modifier.align(Alignment.Top)) {
                     SettingsButton(onClick = { showSettings = true })
                 }
             }
@@ -772,18 +789,24 @@ fun StudioScreen(
                 userFont = userFont,
                 isApplied = isApplied,
                 onSelectPreset = { preset ->
-                    draftFontId = preset.fontId
-                    draftThemeId = preset.themeId
-                    draftAlignId = preset.alignId
-                    draftBackgroundId = preset.backgroundId
-                    draftCornerRadius = preset.cornerRadius
-                    touched = true
+                    plusGate(preset.isPlus) {
+                        draftFontId = preset.fontId
+                        draftThemeId = preset.themeId
+                        draftAlignId = preset.alignId
+                        draftBackgroundId = preset.backgroundId
+                        draftCornerRadius = preset.cornerRadius
+                        touched = true
+                    }
                 },
-                onSelectFont = { draftFontId = it; touched = true },
+                onSelectFont = {
+                    plusGate(it > UserFonts.LAST_FREE_ID) { draftFontId = it; touched = true }
+                },
                 onSelectTheme = { draftThemeId = it; touched = true },
-                onPickCustomColour = { pickingColour = true },
+                onPickCustomColour = { plusGate(true) { pickingColour = true } },
                 onSelectAlign = { draftAlignId = it; touched = true },
-                onSelectBackground = { draftBackgroundId = it; touched = true },
+                onSelectBackground = {
+                    plusGate(BackgroundStyles[it].isPlus) { draftBackgroundId = it; touched = true }
+                },
                 onCornerRadiusChange = { draftCornerRadius = it; touched = true },
                 // PHOTO WITHDRAWN — the controls these belong to are not shown, so
                 // neither is ever called.
@@ -838,6 +861,10 @@ fun StudioScreen(
 
     if (showSettings) {
         SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+    }
+
+    if (showPaywall) {
+        PaywallSheet(userFont = userFont, onDismiss = { showPaywall = false })
     }
 
     if (pickingColour) {
@@ -2595,18 +2622,6 @@ private fun FontChip(
             maxLines = 1,
             textAlign = TextAlign.Center
         )
-    }
-}
-
-@Composable
-private fun PlanChip(label: String) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .border(1.dp, Rule, CircleShape)
-            .padding(horizontal = 16.dp, vertical = 9.dp)
-    ) {
-        Text(text = label, style = VisionType.eyebrow, color = OnCanvas)
     }
 }
 

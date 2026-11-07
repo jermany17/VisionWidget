@@ -163,6 +163,18 @@ class AppPreferences(context: Context) {
 
 
     /**
+     * Which base plan Vision+ was last bought on, noted when the purchase sheet opens.
+     *
+     * Play tells the client that a subscription is held but not which plan it is held
+     * on, and only the settings row's wording turns on that — so this is a note to
+     * ourselves, not a record of anything. Whether the subscription exists is Play's
+     * answer and is never kept here: a copy of that is a copy that can be edited.
+     */
+    var purchasedBasePlanId: String?
+        get() = prefs.getString(KEY_PURCHASED_PLAN, null)
+        set(value) = prefs.edit().putString(KEY_PURCHASED_PLAN, value).apply()
+
+    /**
      * How one widget renders the user's own words — face, colour, layout, fill and
      * corner. Held per widget, so the three can be styled apart or together. The rest of
      * the app stays on the default face, so this is a choice about the widgets alone.
@@ -247,6 +259,7 @@ class AppPreferences(context: Context) {
         const val KEY_PLANNED_DAY = "planned_day"
         const val KEY_PLANNED_TASKS = "planned_tasks"
         const val KEY_LIBRARY = "library_design_ids"
+        const val KEY_PURCHASED_PLAN = "purchased_base_plan"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"

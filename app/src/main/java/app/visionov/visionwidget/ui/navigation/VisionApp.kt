@@ -35,7 +35,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import app.visionov.visionwidget.billing.BillingManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.visionov.visionwidget.data.VisionAppViewModel
@@ -120,11 +122,19 @@ fun VisionApp(
     /** A launcher that won't be asked to place a widget, which has to be said out loud. */
     var pinRefused by rememberSaveable { mutableStateOf(false) }
 
+    val billing = BillingManager.get(LocalContext.current)
+
     // A process can sit in the background through a midnight, and a widget can turn the
     // daily line over while it does, so the day is checked on every return to the front
     // rather than at launch alone.
+    //
+    // Play is asked again on the same beat. A subscription can be bought, cancelled or
+    // refunded in the Play app with this one in the background, and nothing announces
+    // it — the line to Play is dropped when the process sleeps, so returning is the
+    // moment to put it back up and ask what is actually held.
     LifecycleResumeEffect(viewModel) {
         viewModel.refreshWisdomForToday()
+        billing.refresh()
         onPauseOrDispose { }
     }
 
