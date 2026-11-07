@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -199,12 +201,22 @@ private fun ChooseWidgetScreen(
     ) {
         Header(size = size, onClose = onClose)
 
+        // The bar at the foot of the screen is given to the grid to scroll past rather
+        // than fenced off beside it. A sibling spacer cannot do it: the grid takes the
+        // whole of what the column has left, so anything after it is measured at
+        // nothing and the last row stays under the buttons.
+        //
+        // Read at runtime rather than written down, because it is not one number — a
+        // phone on gestures leaves a thin handle, the same phone on three buttons leaves
+        // several times that, and the two differ again between devices.
+        val barInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             modifier = Modifier.fillMaxWidth(ContentWidthFraction),
             horizontalArrangement = Arrangement.spacedBy(GalleryGutter),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 36.dp)
+            contentPadding = PaddingValues(top = 4.dp, bottom = barInset + 36.dp)
         ) {
             items(cards, key = { it.encode() }) { slot ->
                 CardChoice(slot = slot, size = size, onPick = { onPick(slot) })
@@ -218,8 +230,6 @@ private fun ChooseWidgetScreen(
                 BrowseCell(onBrowse = onBrowse, tall = designs.isEmpty())
             }
         }
-
-        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
