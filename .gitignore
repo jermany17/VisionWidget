@@ -31,3 +31,7 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+# Where the APK and the AAB are kept on this machine. Paths that only make sense
+# here, so the note about them stays here too.
+BUILD_OUTPUTS.md
