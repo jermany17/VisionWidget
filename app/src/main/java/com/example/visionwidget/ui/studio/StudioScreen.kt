@@ -746,7 +746,14 @@ fun StudioScreen(
                     style = VisionType.greeting(userFont),
                     color = OnCanvas
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Held to the top of the header rather than centred in it. Centring
+                // measures against the title beside it, and a title that renders a
+                // hair taller than its line box would carry the gear down with it —
+                // off the place the other tabs put it.
+                Row(
+                    modifier = Modifier.align(Alignment.Top),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     PlanChip(label = "FREE PLAN")
                     Spacer(Modifier.width(10.dp))
                     SettingsButton(onClick = { showSettings = true })

@@ -333,10 +333,12 @@ private fun VisionDetail(
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Spacer(Modifier.height(20.dp))
         // The tab's own title, so the gear sits at the height it does on every other
-        // tab rather than riding the eyebrow below it.
+        // tab rather than riding the eyebrow below it. Held to the top for the same
+        // reason the other tabs are: centring would measure the gear against the
+        // title, and the title is the one thing that isn't the same on all four.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Text(
                 text = "Vision",
