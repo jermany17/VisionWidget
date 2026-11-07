@@ -97,7 +97,6 @@ private object SlotStore {
     private const val NAME = "vision_widget_slots"
 
     private const val PENDING_SLOT = "pending_slot"
-    private const val PENDING_SIZE = "pending_size"
     private const val PENDING_AT = "pending_at"
 
     /**
@@ -129,25 +128,33 @@ private object SlotStore {
     }
 
     /** Leaves the answer where a cell that has none can find it. */
-    fun offer(context: Context, slot: Slot, size: WidgetSize) {
+    fun offer(context: Context, slot: Slot) {
         prefs(context).edit()
             .putString(PENDING_SLOT, slot.encode())
-            .putString(PENDING_SIZE, size.name)
             .putLong(PENDING_AT, System.currentTimeMillis())
             .commit()
     }
 
     /**
-     * Takes the offered answer if it was meant for a cell of [size], and spends it.
+     * Takes the offered answer, whatever size asks for it, and spends it.
      *
-     * Spent on the way out so two cells cannot both claim it — a launcher that lost one
-     * id and made another would otherwise hand the same answer to both.
+     * Not matched against the size it was offered for, because that size is the least
+     * reliable thing to hand. A setting screen asks the system what size its own widget
+     * is before the widget is bound, and gets nothing — so it falls back to a guess, and
+     * a wrong guess here would be a match that never happens and a fallback that never
+     * fires. Which is the bug this exists to fix, kept alive by the guard against it.
+     *
+     * What is left guarding it is enough: the answer lives a minute, and it is spent on
+     * the way out so no second cell can take the same one. Two widgets of different
+     * sizes placed inside the same minute, with the first one's id lost, is the whole of
+     * what this can get wrong — and getting it wrong shows the user the design they just
+     * picked in a cell of another shape, which is a better wrong answer than an empty
+     * cell reading Tap to set up.
      */
-    fun claim(context: Context, size: WidgetSize): Slot? {
+    fun claim(context: Context): Slot? {
         val store = prefs(context)
         val fresh = System.currentTimeMillis() - store.getLong(PENDING_AT, 0L) < PENDING_TTL_MS
-        val forUs = store.getString(PENDING_SIZE, null) == size.name
-        if (!fresh || !forUs) return null
+        if (!fresh) return null
 
         val slot = Slot.decode(store.getString(PENDING_SLOT, null)) ?: return null
         clearOffer(context)
@@ -157,7 +164,6 @@ private object SlotStore {
     fun clearOffer(context: Context) {
         prefs(context).edit()
             .remove(PENDING_SLOT)
-            .remove(PENDING_SIZE)
             .remove(PENDING_AT)
             .commit()
     }
@@ -197,14 +203,13 @@ fun writeSlot(context: Context, appWidgetId: Int, slot: Slot) {
  * than by id, lives a minute, and is spent by the first cell of that size to come up
  * without an answer of its own.
  */
-fun offerSlot(context: Context, slot: Slot, size: WidgetSize) {
-    SlotStore.offer(context, slot, size)
-    Log.i("VisionSlot", "offered ${slot.encode()} to the next $size cell")
+fun offerSlot(context: Context, slot: Slot) {
+    SlotStore.offer(context, slot)
+    Log.i("VisionSlot", "offered ${slot.encode()} to the next cell that has none")
 }
 
-/** Takes the offered answer, if one is waiting for a cell of [size]. */
-fun claimOfferedSlot(context: Context, size: WidgetSize): Slot? =
-    SlotStore.claim(context, size)
+/** Takes the offered answer, if one is waiting. */
+fun claimOfferedSlot(context: Context): Slot? = SlotStore.claim(context)
 
 /** Drops the offer, once the cell it was meant for has an answer of its own. */
 fun clearOfferedSlot(context: Context) = SlotStore.clearOffer(context)

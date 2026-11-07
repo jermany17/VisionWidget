@@ -140,7 +140,7 @@ class WidgetConfigActivity : ComponentActivity() {
         // the launcher keeps the one it opened this screen with, and some do not — see
         // [offerSlot]. This copy is what the cell falls back on, and is spent the first
         // time a cell of this size composes without an answer of its own.
-        offerSlot(applicationContext, slot, size)
+        offerSlot(applicationContext, slot)
 
         // Handed back before the redraw rather than after, so the launcher keeps the
         // cell whatever the redraw does.

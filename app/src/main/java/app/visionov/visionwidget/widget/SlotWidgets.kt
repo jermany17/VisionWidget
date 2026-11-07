@@ -78,7 +78,7 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         // alone cannot be relied on. Claimed once and written down, so this cell has an
         // answer of its own from here on and the next one doesn't take the same.
         val held = appWidgetId?.let { readSlot(context, it) }
-            ?: claimOfferedSlot(context, size)?.also { claimed ->
+            ?: claimOfferedSlot(context)?.also { claimed ->
                 appWidgetId?.let { writeSlot(context, it, claimed) }
                 Log.i("VisionSlot", "widget=$appWidgetId claimed the offered ${claimed.encode()}")
             }
