@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.visionov.visionwidget.ui.ContentWidthFraction
+import app.visionov.visionwidget.ui.components.PromptDialog
 import app.visionov.visionwidget.ui.home.WISDOM_THEMES
 import app.visionov.visionwidget.ui.theme.Canvas
 import app.visionov.visionwidget.ui.theme.NavBar
@@ -176,19 +177,26 @@ fun OnboardingFlow(
         }
     }
 
-    // Asked once, on the way out, whichever way the flow is left.
-    //
-    // Here rather than on a step of its own because it is the system's dialog and not
-    // ours — there is no page to put it on. Whatever the answer, the flow is over: the
-    // permission is for what the app will send later, and refusing it is not a reason
-    // to keep someone in the setup.
+    // Asked once, on the way out, whichever way the flow is left. Whatever the answer,
+    // the flow is over: the permission is for what the app will send later, and
+    // refusing it is not a reason to keep someone in the setup.
     val permission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { leave() }
 
+    /**
+     * Whether our own word about notifications is on screen.
+     *
+     * The system's prompt is a yes or no with no room to say what is being asked for,
+     * and it is only ever offered once — a no there is close to final. So it is put in
+     * our own words first, the same way the clocks ask before sending anyone to
+     * Settings, and the system is only troubled by someone who has already said yes.
+     */
+    var askingNotifications by rememberSaveable { mutableStateOf(false) }
+
     val leaveAsking = {
         if (wantsNotificationPermission(context)) {
-            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            askingNotifications = true
         } else {
             leave()
         }
@@ -286,6 +294,31 @@ fun OnboardingFlow(
                 // just declined.
                 leavingBySkip = true
                 leaveAsking()
+            }
+        )
+    }
+
+    if (askingNotifications) {
+        PromptDialog(
+            eyebrow = "BEFORE YOU GO",
+            title = "Shall we remind you?",
+            body = "Vision Widget can nudge you about today's three, say when a " +
+                "milestone is coming up, and bring you the day's line each morning. " +
+                "Turn notifications on and you'll get them.\n\n" +
+                "Android will ask next. You can change your mind any time in Settings.",
+            userFont = userFont,
+            quietLabel = "No thanks",
+            // Not asked at all rather than asked and refused. The system offers its
+            // prompt once in a lifetime, and spending it on someone who has already
+            // said no here would close the door on ever asking again.
+            onQuiet = {
+                askingNotifications = false
+                leave()
+            },
+            loudLabel = "Sounds good",
+            onLoud = {
+                askingNotifications = false
+                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         )
     }
