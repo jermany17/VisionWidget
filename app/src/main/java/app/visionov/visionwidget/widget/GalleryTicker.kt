@@ -125,13 +125,24 @@ object GalleryTicker {
         // rather than standing the whole minute out.
         val now = System.currentTimeMillis()
         val at = (now - (now % MINUTE_MS) + MINUTE_MS - LEAD_MS).coerceAtLeast(now + 250L)
-        alarms.setWindow(
-            AlarmManager.RTC,
-            at,
-            WINDOW_MS,
-            pendingIntent(context)
-        )
-        android.util.Log.i("VisionGallery", "next tick in ${at - now}ms")
+
+        // Exactly, where the user has allowed it. An inexact alarm may land anywhere in
+        // a window the system picks, and that window widens as the phone decides the app
+        // is idle — which is a minute hand that turns some seconds after the minute, and
+        // further out the longer the phone is left alone. Asked exactly, the margin
+        // before the minute is the margin we chose.
+        //
+        // Still only a wake into the margin. The picture is held back until the system
+        // clock actually reaches the minute, so what this buys is the room to paint, not
+        // the moment of the change.
+        val pending = pendingIntent(context)
+        val exact = canScheduleExactAlarms(context)
+        if (exact) {
+            alarms.setExactAndAllowWhileIdle(AlarmManager.RTC, at, pending)
+        } else {
+            alarms.setWindow(AlarmManager.RTC, at, WINDOW_MS, pending)
+        }
+        android.util.Log.i("VisionGallery", "next tick in ${at - now}ms exact=$exact")
     }
 
     /**

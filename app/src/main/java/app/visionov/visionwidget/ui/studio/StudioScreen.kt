@@ -164,6 +164,12 @@ import app.visionov.visionwidget.ui.theme.WidgetTarget
 import app.visionov.visionwidget.ui.vision.Vision
 import app.visionov.visionwidget.ui.vision.formatTargetDate
 import app.visionov.visionwidget.ui.vision.formatWeeksLeft
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.flow.first
+import app.visionov.visionwidget.widget.canScheduleExactAlarms
+import app.visionov.visionwidget.widget.exactAlarmSettings
+import app.visionov.visionwidget.widget.needsExactAlarms
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.WidgetSize
 import app.visionov.visionwidget.widget.requestPinWidget
@@ -1382,6 +1388,27 @@ private fun ColumnScope.GalleryTab(
     // moment's decision, and coming back to the app with one still open would be odd.
     var looking by remember { mutableStateOf<GalleryWidget?>(null) }
 
+    // The clock waiting on the permission its minute needs, if one is.
+    var askingExactAlarms by remember { mutableStateOf<GalleryWidget?>(null) }
+
+    // Granted in Settings rather than in a dialog, so the answer only arrives on the
+    // way back into the app. Kept so the design can be saved the moment it does,
+    // rather than asking the user to find it on the shelf a second time.
+    var grantedFor by remember { mutableStateOf<GalleryWidget?>(null) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(grantedFor) {
+        val waiting = grantedFor ?: return@LaunchedEffect
+
+        // Left first, then come back. Settings opens over this screen, so the answer
+        // cannot be known until both have happened — asked at the moment the question
+        // is put, the app is still in front and the answer is always the old one.
+        lifecycle.currentStateFlow.first { it < Lifecycle.State.RESUMED }
+        lifecycle.currentStateFlow.first { it >= Lifecycle.State.RESUMED }
+
+        if (canScheduleExactAlarms(context)) onSaveToLibrary(waiting.id)
+        grantedFor = null
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(GalleryColumns),
         modifier = Modifier
@@ -1420,14 +1447,46 @@ private fun ColumnScope.GalleryTab(
             design = design,
             saved = design.id in libraryIds,
             onSave = {
-                onSaveToLibrary(design.id)
-                looking = null
+                // A clock is only worth keeping if it can be woken on the minute, and
+                // that is the user's to allow. Asked here rather than when one is
+                // placed: the library is the promise that a design will work, and a
+                // clock saved without this would keep its own time badly on a home
+                // screen with nothing said about why.
+                if (needsExactAlarms(design.category) && !canScheduleExactAlarms(context)) {
+                    looking = null
+                    askingExactAlarms = design
+                } else {
+                    onSaveToLibrary(design.id)
+                    looking = null
+                }
             },
             onOpenLibrary = {
                 looking = null
                 onOpenLibrary()
             },
             onDismiss = { looking = null }
+        )
+    }
+
+    askingExactAlarms?.let { design ->
+        PromptDialog(
+            eyebrow = "PERMISSION NEEDED",
+            title = "Clocks need alarms & reminders",
+            body = "A clock face only keeps time if this app may wake on the exact " +
+                "minute, and Android asks you to allow that in Settings. Without it " +
+                "the hands drift behind — so clocks can't be saved until it's on.\n\n" +
+                "Allow \"Alarms & reminders\", and this face is saved the moment you " +
+                "come back.",
+            userFont = UserFonts[UserFonts.DEFAULT_ID],
+            quietLabel = "Cancel",
+            onQuiet = { askingExactAlarms = null },
+            loudLabel = "Open settings",
+            onLoud = {
+                askingExactAlarms = null
+                // Saved on the way back, once the answer is known — see [grantedFor].
+                grantedFor = design
+                exactAlarmSettings(context)?.let { context.startActivity(it) }
+            }
         )
     }
 }

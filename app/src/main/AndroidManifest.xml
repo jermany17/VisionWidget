@@ -12,6 +12,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+        Lets a Gallery clock be woken on the minute rather than near it. An inexact
+        alarm lands somewhere in a window the system chooses, and that window widens as
+        the phone decides the app is idle — a minute hand some seconds late, and later
+        the longer the phone is left alone.
+
+        Asked for only when a clock is saved to the library, since nothing else here
+        needs it, and given in Settings rather than by a prompt of ours: there is no
+        runtime dialog for this one. Revocable at any time, so every alarm asks again
+        before relying on it.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
         Lets the app talk to Play's billing service, and is how Play knows to offer this
         app's subscriptions to it at all. Nothing is asked of the user for it: it grants
         no access to anything of theirs, so no prompt is ever shown.

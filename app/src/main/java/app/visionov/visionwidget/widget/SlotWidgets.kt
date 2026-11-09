@@ -7,7 +7,8 @@ import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -102,13 +103,13 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         val revision = state.revision()
 
         when (slot) {
-            Slot.Vision -> Card(revision) { visionPayload(it, size) }
+            Slot.Vision -> held(revision) { visionPayload(it, size) }
                 ?.let { VisionCardContent(it, size) } ?: Pending()
 
-            Slot.TopThree -> Card(revision) { topThreePayload(it, size) }
+            Slot.TopThree -> held(revision) { topThreePayload(it, size) }
                 ?.let { TopThreeCardContent(it, size) } ?: Pending()
 
-            Slot.Wisdom -> Card(revision) { wisdomPayload(it) }
+            Slot.Wisdom -> held(revision) { wisdomPayload(it) }
                 ?.let { WisdomCardContent(it, size) } ?: Pending()
 
             is Slot.Design -> Design(slot.designId, revision)
@@ -120,16 +121,22 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
     }
 
     /**
-     * A card's data, re-read whenever [revision] moves.
+     * Whatever [load] last gave, reloaded whenever [keys] move.
      *
-     * Loaded in the composition rather than before it so that applying a style in
-     * Studio, or the day turning under a daily line, actually reaches the cell.
+     * The last good answer is held on to while the next is being fetched, and a fetch
+     * that comes back with nothing leaves it alone. `produceState` cannot be used for
+     * this: it drops back to its initial value the moment a key changes, so every
+     * minute's tick emptied the cell before it refilled it — a clock that blinked, and
+     * one that stayed blank for good if a single reload happened to fail.
      */
     @Composable
-    private fun <T> Card(revision: Long, load: suspend (Context) -> T): T? {
+    private fun <T : Any> held(vararg keys: Any?, load: suspend (Context) -> T?): T? {
         val context = LocalContext.current
-        val value by produceState<T?>(null, revision) { value = runCatching { load(context) }.getOrNull() }
-        return value
+        val kept = remember { mutableStateOf<T?>(null) }
+        LaunchedEffect(keys = keys) {
+            runCatching { load(context) }.getOrNull()?.let { kept.value = it }
+        }
+        return kept.value
     }
 
     /** A Gallery design, drawn by the same renderer the shelf uses. */
@@ -148,9 +155,10 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         // Keyed on the revision as well as the design, because a clock holds the same
         // design all its life and what moves every minute is the file behind it. The
         // tick bumps the revision once the new picture is in place, and that is what
-        // brings this round again.
-        val bitmap by produceState<Bitmap?>(null, designId, revision) {
-            value = design?.let { wanted ->
+        // brings this round again — holding the minute that is up until the next one
+        // has actually been read off the disk.
+        val picture = held<Bitmap>(designId, revision) {
+            design?.let { wanted ->
                 DesignRenderer.cached(context, wanted)
                     ?: if (GalleryTicker.paintWithin(context, wanted, FIRST_PAINT_WAIT_MS)) {
                         DesignRenderer.cached(context, wanted)
@@ -159,8 +167,6 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
                     }
             }
         }
-
-        val picture = bitmap
         when {
             design == null -> Notice("Unknown design")
 
