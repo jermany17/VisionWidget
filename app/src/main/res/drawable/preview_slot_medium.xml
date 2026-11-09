@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the launcher's picker, and One UI's "add to home screen" dialog, show for the
+  4×2 cell.
+
+  Deliberately not any one widget. The entry means a size — which design goes in it is
+  chosen afterwards, in our own setting screen — and One UI reads nothing an app sends
+  at pin time, so this static image is the only thing it will ever draw. A picture of
+  the Vision card here told people they were adding the Vision card whatever they had
+  actually picked.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="200dp"
+    android:viewportWidth="400"
+    android:viewportHeight="200">
+
+    <path
+        android:fillColor="#4A3A52"
+        android:pathData="M56,0 L344,0 A56,56 0 0 1 400,56 L400,144 A56,56 0 0 1 344,200 L56,200 A56,56 0 0 1 0,144 L0,56 A56,56 0 0 1 56,0 Z" />
+
+    <!-- The app's mark, centred. -->
+    <group android:translateX="140" android:translateY="40">
+        <path
+            android:fillColor="#F2EDE6"
+            android:pathData="M12,16 L40,16 L60,88 L80,16 L108,16 L74,112 L46,112 Z" />
+    </group>
+</vector>

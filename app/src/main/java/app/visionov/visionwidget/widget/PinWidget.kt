@@ -76,34 +76,39 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
         // refusing the pin over — the dialog falls back to the provider's own picture
         // and the widget still lands — but it is exactly the failure that looks like
         // the launcher ignoring us, and the two want telling apart.
-        val extras = runCatching { previewOf(app, slot, size) }
+        val views = runCatching { previewViewsOf(app, slot, size) }
             .onFailure { Log.w("VisionPin", "preview for ${slot.encode()} failed", it) }
             .getOrNull()
-        if (extras == null) Log.w("VisionPin", "no preview for ${slot.encode()}")
+        if (views == null) Log.w("VisionPin", "no preview for ${slot.encode()}")
+
+        // Offered to the launcher, which may or may not take it.
+        //
+        // One UI does not. Measured on a device: the picture went across at the right
+        // size, and so did one registered against the provider through setWidgetPreview
+        // — the newer API meant for this — and the dialog drew its static previewImage
+        // regardless. Nothing an app can send changes what One UI shows there, which is
+        // why that image is a plain mark of the size rather than any one widget: it is
+        // the only thing shown, so it had better not claim to be something else.
+        //
+        // The extra stays for the launchers that do read it.
+        val extras = views?.let { bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to it) }
+        val provider = ComponentName(app, SlotWidgets.receiverOf(size))
 
         runCatching {
-            manager.requestPinAppWidget(
-                ComponentName(app, SlotWidgets.receiverOf(size)),
-                extras,
-                callback
-            )
+            manager.requestPinAppWidget(provider, extras, callback)
         }.onFailure { Log.w("VisionPin", "pin request for ${slot.encode()} failed", it) }
     }
     return true
 }
 
 /**
- * The picture the launcher's own dialog shows while it asks.
+ * The picture of what is about to be placed.
  *
- * Without one it falls back to the provider's `previewImage`, and there is a single
- * image per size now — so picking a date design out of the library and asking for it
- * put up a dialog showing the Vision card. This hands over the thing actually being
- * placed, drawn the same way the library tile beside it was.
- *
- * Only from Android 12, which is where the extra was added. Below that the dialog shows
- * the provider's picture and there is nothing to be done about it.
+ * Drawn the same way the library tile beside it is, so the dialog agrees with what was
+ * tapped. Where it is handed to is [requestPinWidget]'s business — there are two places
+ * to put it and launchers disagree about which they read.
  */
-private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): Bundle? {
+private suspend fun previewViewsOf(context: Context, slot: Slot, size: WidgetSize): RemoteViews? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
 
     val ratio = when (slot) {
@@ -127,14 +132,14 @@ private suspend fun previewOf(context: Context, slot: Slot, size: WidgetSize): B
         else -> renderCardPreview(context, slot, size, widthPx, heightPx)
     } ?: return null
 
-    val views = RemoteViews(context.packageName, R.layout.widget_pin_preview).apply {
-        setImageViewBitmap(R.id.preview, bitmap)
-    }
     Log.i(
         "VisionPin",
         "preview for ${slot.encode()} at ${widthPx}x$heightPx (${bitmap.byteCount} bytes)"
     )
-    return bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to views)
+
+    return RemoteViews(context.packageName, R.layout.widget_pin_preview).apply {
+        setImageViewBitmap(R.id.preview, bitmap)
+    }
 }
 
 /**

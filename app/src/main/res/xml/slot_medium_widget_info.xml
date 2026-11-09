@@ -12,5 +12,5 @@
     android:resizeMode="none"
     android:widgetCategory="home_screen"
     android:configure="app.visionov.visionwidget.widget.config.WidgetConfigActivity"
-    android:previewImage="@drawable/preview_vision_medium"
+    android:previewImage="@drawable/preview_slot_medium"
     android:initialLayout="@layout/vision_widget_loading" />
