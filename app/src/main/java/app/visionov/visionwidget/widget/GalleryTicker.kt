@@ -73,6 +73,33 @@ object GalleryTicker {
     @Volatile
     private var shownMinute = 0L
 
+    /**
+     * The widgets each design was last seen sitting in.
+     *
+     * A design is painted for the cell it has to fill, and the painting is started from
+     * places with no business reading the screen to find out — [paintJob] is asked for one
+     * design by a cell that wants it now. So what [liveDesigns] saw is kept here, and
+     * every path that matters goes through that within the minute.
+     */
+    private val seenIn = ConcurrentHashMap<String, List<PlacedWidget>>()
+
+    /**
+     * The size to paint [design] at: the largest cell it is actually sitting in.
+     *
+     * Largest, because one design can be up in a 2x2 and a 4x2 at once and there is one
+     * picture between them. The bigger cell is the one that would show the shortfall;
+     * the smaller scales what it is given down and is none the worse for it.
+     */
+    private fun paintedSize(context: Context, design: GalleryWidget): Pair<Int, Int> {
+        val cells = seenIn[design.id].orEmpty().mapNotNull { cellPxOf(context, it) }
+        val width = cells
+            .maxOfOrNull { (cellWidth, cellHeight) ->
+                design.pictureWidthPx(cellWidth, cellHeight)
+            }
+            ?: defaultCellPx(context).let { (w, h) -> design.pictureWidthPx(w, h) }
+        return width to design.pictureHeightPx(width)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
@@ -217,11 +244,12 @@ object GalleryTicker {
             // caught by the fallback below.
             if (System.currentTimeMillis() >= target) return@forEach
             runCatching {
+                val (width, height) = paintedSize(context, design)
                 DesignRenderer.refresh(
                     context,
                     design,
-                    design.widgetWidthPx(context),
-                    design.widgetHeightPx(context),
+                    width,
+                    height,
                     at = moment.first to moment.second,
                     into = DesignRenderer.pendingFile(context, design, stamp)
                 )
@@ -301,6 +329,7 @@ object GalleryTicker {
                 (widget.slot as? Slot.Design)?.let { byId[it.designId]?.to(widget) }
             }
             .groupBy({ it.first }, { it.second })
+            .also { live -> live.forEach { (design, widgets) -> seenIn[design.id] = widgets } }
     }
 
     /**
@@ -337,12 +366,8 @@ object GalleryTicker {
             scope.async {
                 try {
                     val painted = runCatching {
-                        DesignRenderer.refresh(
-                            app,
-                            design,
-                            design.widgetWidthPx(app),
-                            design.widgetHeightPx(app)
-                        )
+                        val (width, height) = paintedSize(app, design)
+                        DesignRenderer.refresh(app, design, width, height)
                     }.getOrDefault(false)
                     // Only when there is something new to show. A design that would not
                     // settle leaves the widget as it was rather than asking it to redraw
@@ -400,12 +425,8 @@ object GalleryTicker {
     private suspend fun repaint(context: Context) {
         liveDesigns(context).forEach { (design, widgets) ->
             runCatching {
-                val painted = DesignRenderer.refresh(
-                    context,
-                    design,
-                    design.widgetWidthPx(context),
-                    design.widgetHeightPx(context)
-                )
+                val (width, height) = paintedSize(context, design)
+                val painted = DesignRenderer.refresh(context, design, width, height)
                 android.util.Log.i(
                     "GalleryTick",
                     "${design.id} painted=$painted widgets=${widgets.size}"

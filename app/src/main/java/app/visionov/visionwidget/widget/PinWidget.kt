@@ -133,9 +133,12 @@ private suspend fun previewViewsOf(context: Context, slot: Slot, size: WidgetSiz
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
 
     val ratio = when (slot) {
+        // The design's own proportion. It used to be worked out by dividing the painted
+        // width by the painted height, which is what that pair has always meant — but the
+        // painted size is a question about a cell now, and a dialog has no cell.
         is Slot.Design -> GalleryCatalog.load(context)
             .firstOrNull { it.id == slot.designId }
-            ?.let { it.widgetWidthPx(context).toFloat() / it.widgetHeightPx(context) }
+            ?.ratio
             ?: return null
 
         else -> if (size == WidgetSize.Medium) 2f else 1f
