@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How a widget's picture reaches the launcher.
@@ -30,57 +31,89 @@ object WidgetPictures {
     private fun authority(context: Context) = "${context.packageName}.pictures"
 
     /**
+     * How many addresses may pile up for one picture before they are swept.
+     *
+     * Each minute's address is granted and never taken back, so they gather at one an
+     * hour's sixtieth. Two hours' worth is a small enough pile to leave lying in the
+     * system, and sweeping only that rarely keeps the one risky moment rare — see
+     * [sweep].
+     */
+    private const val GRANTS_BEFORE_SWEEP = 120
+
+    /** How many addresses have been handed out for each picture since it was last swept. */
+    private val handedOut = ConcurrentHashMap<String, Int>()
+
+    /**
      * Where [file] can be read from, as an address the launcher may use, or null if
      * there is no picture there yet.
      *
-     * One address per design, for good — the plain name of the file, with nothing on the
-     * end of it to say which minute is in it.
+     * The file's own moment is written onto the end, so each minute has an address of its
+     * own. That is not decoration: handed the same address twice the launcher draws what
+     * it decoded the first time, however new the file behind it is. The views were applied
+     * — the host said so — and the cell still showed the minute before, because nothing in
+     * what it was given had changed.
      *
-     * Writing the minute in was the obvious thing, and it was wrong twice over. An
-     * address that moves every minute is an address that has to be granted every minute,
-     * and the one before it let go of; but a revoke matches on the path and pays no
-     * attention to what follows, so letting go of last minute's address takes every grant
-     * on that path with it — including the one just made. Granting after revoking saved
-     * that much. What it could not save is the views already handed over: the launcher
-     * re-applies the last ones it holds whenever it likes, on a scroll or a screen waking,
-     * and those name an address that has since been revoked. That is a cell that goes
-     * blank long after a perfectly good minute, and fills again on its own when the next
-     * update arrives — which is exactly how it behaved.
+     * Moving the address and letting go of the old one are separate things, and only the
+     * second was ever the trouble. A revoke matches on the path and pays no attention to
+     * what follows it, so releasing last minute's address takes every grant on that path
+     * with it; and even granting afterwards cannot save the views already handed over,
+     * which go on naming an address that no longer works. That is a cell going blank well
+     * after a good minute and filling again by itself on the next update.
      *
-     * So nothing is ever revoked, and for that to be affordable there is only ever one
-     * address to grant. The picture behind it still changes every minute: an Icon pointing
-     * at a URI is decoded afresh each time the views are applied, so the file is re-read
-     * rather than remembered. [DesignRenderer.promote] moving the new minute into place
-     * under the same name is the whole of the update.
+     * So the address moves and nothing is released. Every minute's address stays good,
+     * which means views of any age still draw — a stale one shows a stale minute rather
+     * than nothing at all.
      */
     fun uriFor(context: Context, file: File): Uri? {
         if (!file.exists()) return null
 
-        val uri = runCatching {
+        val base = runCatching {
             FileProvider.getUriForFile(context, authority(context), file)
         }.getOrElse {
             Log.w("VisionSlot", "no address for ${file.name}", it)
             return null
         }
 
-        grantToHost(context, uri)
+        val uri = base.buildUpon()
+            .appendQueryParameter("v", file.lastModified().toString())
+            .build()
+        grantToHost(context, file.name, base, uri)
         return uri
     }
 
     /**
-     * Lets whoever draws the home screen read [uri], and never takes it back.
+     * Lets whoever draws the home screen read [uri], and does not take it back.
      *
      * Recent Android walks a widget's views for the addresses in them and grants the host
      * what it needs by itself, but that cannot be counted on as far back as this app runs,
-     * and a grant that was not needed costs nothing. Granting the same address again costs
-     * nothing either, which is what makes leaving it in place affordable: there is one of
-     * these per design on the screen, not one per minute it has been up.
+     * and a grant that was not needed costs nothing.
      */
-    private fun grantToHost(context: Context, uri: Uri) {
+    private fun grantToHost(context: Context, key: String, base: Uri, uri: Uri) {
         val host = hostPackage(context) ?: return
         runCatching {
+            val count = handedOut.merge(key, 1, Int::plus) ?: 1
+            if (count > GRANTS_BEFORE_SWEEP) {
+                sweep(context, key, base)
+            }
             context.grantUriPermission(host, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }.onFailure { Log.w("VisionSlot", "grant failed for $uri", it) }
+        }.onFailure { Log.w("VisionSlot", "grant failed for $key", it) }
+    }
+
+    /**
+     * Drops the addresses that have gathered for one picture.
+     *
+     * A revoke takes the whole path at once, which is the only reason this can be done at
+     * all — and the reason it has to be done here rather than a minute at a time. What
+     * follows it in [grantToHost] is the grant for the address actually in use, so the
+     * gap in which the live one is missing is the few instructions between the two. Every
+     * couple of hours, for that long, is a risk worth taking against letting a grant per
+     * minute pile up for as long as the phone is on.
+     */
+    private fun sweep(context: Context, key: String, base: Uri) {
+        runCatching {
+            context.revokeUriPermission(base, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            handedOut[key] = 1
+        }
     }
 
     /** Whichever app is drawing the home screen, which is the one holding our widgets. */
