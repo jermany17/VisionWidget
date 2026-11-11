@@ -18,12 +18,19 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,9 +76,9 @@ fun LibraryScreen(
         designIds.mapNotNull { byId[it] }
     }
 
-    // Which tile is offering to be placed, if any. One at a time, so the shelf does not
-    // fill with buttons as tiles are tapped past.
-    var placingId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The design being placed, if any — shown large in its own sheet so the last
+    // thing seen before the launcher's generic confirmation is the real face.
+    var placing by remember { mutableStateOf<GalleryWidget?>(null) }
 
     Column(
         modifier = modifier
@@ -128,17 +135,22 @@ fun LibraryScreen(
             items(designs, key = { it.id }) { design ->
                 LibraryTile(
                     design = design,
-                    // One tile at a time offers to be placed. Kept here rather than in
-                    // the tile, because a tile cannot know that another has been tapped
-                    // — held there, every tap left its own button up and the shelf
-                    // filled with them.
-                    placing = placingId == design.id,
-                    onTap = { placingId = if (placingId == design.id) null else design.id },
-                    onRemove = { onRemove(design.id) },
-                    onPlace = { onPlace(sizeOf(design), Slot.Design(design.id)) }
+                    onTap = { placing = design },
+                    onRemove = { onRemove(design.id) }
                 )
             }
         }
+    }
+
+    placing?.let { design ->
+        PlaceSheet(
+            design = design,
+            onPlace = {
+                onPlace(sizeOf(design), Slot.Design(design.id))
+                placing = null
+            },
+            onDismiss = { placing = null }
+        )
     }
 }
 
@@ -156,10 +168,8 @@ private fun sizeOf(design: GalleryWidget): WidgetSize =
 @Composable
 private fun LibraryTile(
     design: GalleryWidget,
-    placing: Boolean,
     onTap: () -> Unit,
-    onRemove: () -> Unit,
-    onPlace: () -> Unit
+    onRemove: () -> Unit
 ) {
     Column {
         DesignFace(
@@ -178,27 +188,90 @@ private fun LibraryTile(
             ) {
                 Text(text = "×", style = VisionType.glyph, color = OnCanvas)
             }
-
-            // Shown once the face is tapped rather than always, so the tile stays the
-            // design rather than a design under a button.
-            if (placing) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .clip(CircleShape)
-                        .background(Canvas)
-                        .clickable(onClick = onPlace)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(text = "Add to screen", style = GalleryMeta, color = OnCanvas)
-                }
-            }
         }
 
         Spacer(Modifier.height(10.dp))
         Text(text = design.name, style = galleryName(), color = OnCanvas, maxLines = 1)
         Spacer(Modifier.height(3.dp))
         Text(text = design.meta, style = GalleryMeta, color = OnCanvasMuted)
+    }
+}
+
+/**
+ * The design, shown large, with the one button that puts it on a home screen.
+ *
+ * Here because the launcher's own confirmation cannot be given a picture. One UI draws
+ * the provider's static image there, and a provider is a size now rather than a
+ * design — so whatever is chosen, that dialog shows the same plain mark. Three ways of
+ * handing it the real thing were tried on a device and it took none of them.
+ *
+ * It cannot be skipped either; there is no way to place a widget without the launcher
+ * asking. So the design is shown properly here instead, immediately before. The last
+ * thing seen before confirming is the thing being added.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlaceSheet(
+    design: GalleryWidget,
+    onPlace: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val userFont = UserFonts[UserFonts.DEFAULT_ID]
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Canvas
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            DesignFace(design, modifier = Modifier.fillMaxWidth(0.72f))
+
+            Spacer(Modifier.height(16.dp))
+            Text(text = design.name, style = VisionType.modalTitle(userFont), color = OnCanvas)
+            Spacer(Modifier.height(5.dp))
+            Text(text = design.meta, style = GalleryMeta, color = OnCanvasMuted)
+
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = "This face goes on your home screen. Android will ask you to " +
+                    "confirm — its own picture there is just our app mark, not this.",
+                style = VisionType.modalBody(userFont),
+                color = OnCanvasMuted,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(22.dp))
+            Button(
+                onClick = onPlace,
+                shape = RoundedCornerShape(percent = 50),
+                colors = ButtonDefaults.buttonColors(containerColor = OnCanvas, contentColor = Canvas),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+            ) {
+                Text(text = "Add to home screen", style = VisionType.modalButton(userFont))
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "Cancel", style = VisionType.modalButton(userFont), color = OnCanvasMuted)
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
