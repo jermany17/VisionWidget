@@ -7,7 +7,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * How a widget's picture reaches the launcher.
@@ -31,72 +30,57 @@ object WidgetPictures {
     private fun authority(context: Context) = "${context.packageName}.pictures"
 
     /**
-     * The last address handed out for each picture, so the one before it can be let go.
-     *
-     * A clock is promoted into place every minute of the day and each minute is a new
-     * address. Granting without releasing would leave fourteen hundred of them behind by
-     * nightfall, all held in the system on our behalf.
-     */
-    private val granted = ConcurrentHashMap<String, Uri>()
-
-    /**
      * Where [file] can be read from, as an address the launcher may use, or null if
      * there is no picture there yet.
      *
-     * The file's own moment is written into the address because the launcher will not
-     * look twice at one it has already seen. A picture is promoted into place under a
-     * fixed name, so the name alone never changes; an ImageView handed the same address
-     * again keeps the picture it had, and the clock would stand still at the minute it
-     * was first given. The moment moves, so the address moves, so the new minute is
-     * actually read off the disk.
+     * One address per design, for good — the plain name of the file, with nothing on the
+     * end of it to say which minute is in it.
+     *
+     * Writing the minute in was the obvious thing, and it was wrong twice over. An
+     * address that moves every minute is an address that has to be granted every minute,
+     * and the one before it let go of; but a revoke matches on the path and pays no
+     * attention to what follows, so letting go of last minute's address takes every grant
+     * on that path with it — including the one just made. Granting after revoking saved
+     * that much. What it could not save is the views already handed over: the launcher
+     * re-applies the last ones it holds whenever it likes, on a scroll or a screen waking,
+     * and those name an address that has since been revoked. That is a cell that goes
+     * blank long after a perfectly good minute, and fills again on its own when the next
+     * update arrives — which is exactly how it behaved.
+     *
+     * So nothing is ever revoked, and for that to be affordable there is only ever one
+     * address to grant. The picture behind it still changes every minute: an Icon pointing
+     * at a URI is decoded afresh each time the views are applied, so the file is re-read
+     * rather than remembered. [DesignRenderer.promote] moving the new minute into place
+     * under the same name is the whole of the update.
      */
     fun uriFor(context: Context, file: File): Uri? {
         if (!file.exists()) return null
 
-        val base = runCatching {
+        val uri = runCatching {
             FileProvider.getUriForFile(context, authority(context), file)
         }.getOrElse {
             Log.w("VisionSlot", "no address for ${file.name}", it)
             return null
         }
 
-        val uri = base.buildUpon()
-            .appendQueryParameter("v", file.lastModified().toString())
-            .build()
-        grantToHost(context, file.name, base, uri)
+        grantToHost(context, uri)
         return uri
     }
 
     /**
-     * Lets whoever draws the home screen read [uri].
+     * Lets whoever draws the home screen read [uri], and never takes it back.
      *
      * Recent Android walks a widget's views for the addresses in them and grants the host
-     * what it needs by itself, but that cannot be counted on as far back as this app
-     * runs, and a grant that was not needed costs nothing.
-     *
-     * Last minute's address is released *before* this minute's is granted, and the order
-     * is the whole point. A revoke matches on the address's path and pays no attention to
-     * the moment on the end of it, so releasing the old one afterwards took the new one
-     * with it — the grant was gone before the launcher ever read it, and every cell
-     * holding a clock went blank with a Permission Denial behind it. Granted last, it
-     * survives.
-     *
-     * Both the bare address and the stamped one are granted, because whether a grant is
-     * matched on the whole address or on its path alone is not worth guessing at when a
-     * picture failing to appear is the bug being fixed. The bare one never changes, so
-     * granting it again costs nothing; the stamped one is what replaces its predecessor,
-     * which keeps the count to one per design rather than one per minute of the day.
+     * what it needs by itself, but that cannot be counted on as far back as this app runs,
+     * and a grant that was not needed costs nothing. Granting the same address again costs
+     * nothing either, which is what makes leaving it in place affordable: there is one of
+     * these per design on the screen, not one per minute it has been up.
      */
-    private fun grantToHost(context: Context, key: String, base: Uri, uri: Uri) {
+    private fun grantToHost(context: Context, uri: Uri) {
         val host = hostPackage(context) ?: return
         runCatching {
-            granted.remove(key)
-                ?.takeIf { it != uri }
-                ?.let { context.revokeUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            context.grantUriPermission(host, base, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             context.grantUriPermission(host, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            granted[key] = uri
-        }.onFailure { Log.w("VisionSlot", "grant failed for $key", it) }
+        }.onFailure { Log.w("VisionSlot", "grant failed for $uri", it) }
     }
 
     /** Whichever app is drawing the home screen, which is the one holding our widgets. */
