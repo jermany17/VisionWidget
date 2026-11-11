@@ -200,6 +200,9 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         // brings this round again — holding the minute that is up until the next one
         // has actually been read off the disk.
         val picture = held(first, designId, revision) { pictureOf(it, designId) }
+        // The picture's size is logged because it is the one thing that silently
+        // breaks a widget: too many bytes and the views reach the launcher empty.
+        Log.i("VisionSlot", "draw $designId pic=${picture?.width}x${picture?.height}")
 
         when {
             design == null -> Notice("Unknown design")
