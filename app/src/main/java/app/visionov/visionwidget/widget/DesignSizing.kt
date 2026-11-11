@@ -7,31 +7,35 @@ import kotlin.math.sqrt
 /**
  * How large a Gallery design is painted for the home screen.
  *
- * A budget in bytes rather than a width, because what decides this is how much a
- * picture costs to hand over, not how wide it looks. A widget's views travel to the
- * launcher inside a Binder transaction with about a megabyte to spend on all of it,
- * and a bitmap that does not fit is not reported — the views simply arrive empty and
- * the cell goes transparent.
+ * A guard on this app's own memory, and nothing more than that now.
  *
- * Measured on a device at 1080x2340: a design painted 640 across came to 1.64MB and
- * every widget holding one went blank, while the same design at 400 across came to
- * 0.64MB and drew correctly. The composition was healthy in both cases — the slot, the
- * bitmap and the cell size were all right there in the log — which is what made this
- * hard to see from the app's side.
+ * It used to be a Binder budget. The picture travelled to the launcher as pixels inside
+ * a transaction, so how wide a design could be drawn was really a question of what would
+ * fit in one, and it was measured that way: on a device at 1080x2340 a design painted 640
+ * across came to 1.64MB and every widget holding one went blank, while the same design at
+ * 400 across came to 0.64MB and drew.
  *
- * Six hundred and forty thousand bytes is comfortably under the limit and is the size
- * that was actually verified. It also costs nothing in sharpness worth having: a 2x2
- * cell on this phone is about 528 pixels across, so a design drawn much beyond that is
- * paying for detail the cell has nowhere to put.
+ * That reading was half the truth. Six hundred and forty thousand bytes fit, and cells
+ * still went blank — because the megabyte a transaction buffer holds is shared by every
+ * transaction the process has in flight rather than granted to each of them. Three clocks
+ * turning on the same minute overflowed it between them, each one well inside the budget
+ * on its own. No cap on a single picture could have fixed that; the cost was all of them
+ * at once, and it grew with every clock added to the screen.
+ *
+ * The pixels no longer travel. [WidgetPictures] hands the launcher the address of the
+ * file, so what a design costs is now a question about this app's heap and the time taken
+ * to compress a PNG — a far looser one. Four million bytes is about a thousand pixels
+ * square, more than a cell on a phone can show, and a design is drawn at its own width at
+ * the screen's density until it reaches that.
  */
-private const val MAX_DESIGN_BYTES = 640_000
+private const val MAX_DESIGN_BYTES = 4_000_000
 
 /** Four bytes a pixel, which is what ARGB_8888 costs and what both renderers draw into. */
 private const val BYTES_PER_PIXEL = 4
 
 /**
  * The size a design is painted at for the home screen — its own width at the screen's
- * density, held under what one widget can actually carry.
+ * density, held under what this app can afford to draw at once.
  */
 fun GalleryWidget.widgetWidthPx(context: Context): Int {
     val natural = (designWidth * context.resources.displayMetrics.density).toInt()

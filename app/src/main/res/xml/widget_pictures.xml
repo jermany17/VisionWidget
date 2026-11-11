@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Where the widget pictures are served from.
+
+  The whole of the cache directory rather than the one generation inside it, so that
+  bumping the generation in DesignRenderer does not quietly stop the launcher being able
+  to read anything. Nothing is exported: the provider is private and each address is
+  handed out one at a time, to whoever is drawing the home screen.
+-->
+<paths>
+    <cache-path name="pictures" />
+</paths>

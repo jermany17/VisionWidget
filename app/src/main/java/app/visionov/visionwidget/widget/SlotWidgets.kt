@@ -3,7 +3,8 @@ package app.visionov.visionwidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
-import android.graphics.Bitmap
+import android.graphics.drawable.Icon
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -102,7 +103,7 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
      * it — both halves are needed, and this is the half that was missing.
      */
     private class FirstDraw(
-        val bitmap: Bitmap? = null,
+        val picture: Uri? = null,
         val vision: VisionPayload? = null,
         val top: TopThreePayload? = null,
         val wisdom: WisdomPayload? = null
@@ -115,7 +116,7 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
                 Slot.Vision -> FirstDraw(vision = visionPayload(context, size))
                 Slot.TopThree -> FirstDraw(top = topThreePayload(context, size))
                 Slot.Wisdom -> FirstDraw(wisdom = wisdomPayload(context))
-                is Slot.Design -> FirstDraw(bitmap = pictureOf(context, slot.designId))
+                is Slot.Design -> FirstDraw(picture = pictureOf(context, slot.designId))
                 null -> FirstDraw()
             }
         }.getOrDefault(FirstDraw())
@@ -139,7 +140,7 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
             Slot.Wisdom -> held(first.wisdom, revision) { wisdomPayload(it) }
                 ?.let { WisdomCardContent(it, size) } ?: Pending()
 
-            is Slot.Design -> Design(first.bitmap, slot.designId, revision)
+            is Slot.Design -> Design(first.picture, slot.designId, revision)
 
             // Placed and never told what to hold, which is every cell between the
             // launcher putting it down and the setting screen being answered.
@@ -170,20 +171,24 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         return kept.value
     }
 
-    /** The picture on disk for a design, painted first if there has never been one. */
-    private suspend fun pictureOf(context: Context, designId: String): Bitmap? {
+    /**
+     * Where the launcher can read a design's picture, painted first if there has never
+     * been one.
+     *
+     * The address rather than the picture. Nothing here decodes a bitmap any more — the
+     * pixels would only have to be handed over in a transaction that cannot hold them.
+     * See [WidgetPictures].
+     */
+    private suspend fun pictureOf(context: Context, designId: String): Uri? {
         val design = GalleryCatalog.load(context).firstOrNull { it.id == designId } ?: return null
-        return DesignRenderer.cached(context, design)
-            ?: if (GalleryTicker.paintWithin(context, design, FIRST_PAINT_WAIT_MS)) {
-                DesignRenderer.cached(context, design)
-            } else {
-                null
-            }
+        WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))?.let { return it }
+        if (!GalleryTicker.paintWithin(context, design, FIRST_PAINT_WAIT_MS)) return null
+        return WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))
     }
 
     /** A Gallery design, drawn by the same renderer the shelf uses. */
     @Composable
-    private fun Design(first: Bitmap?, designId: String, revision: Long) {
+    private fun Design(first: Uri?, designId: String, revision: Long) {
         val context = LocalContext.current
 
         // Read so the cell redraws when it is resized, even though the picture is
@@ -200,9 +205,10 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         // brings this round again — holding the minute that is up until the next one
         // has actually been read off the disk.
         val picture = held(first, designId, revision) { pictureOf(it, designId) }
-        // The picture's size is logged because it is the one thing that silently
-        // breaks a widget: too many bytes and the views reach the launcher empty.
-        Log.i("VisionSlot", "draw $designId pic=${picture?.width}x${picture?.height}")
+        // Logged because a picture going missing is the one fault that shows up as a
+        // blank cell rather than as anything said out loud. The moment on the end of the
+        // address is what tells one minute's picture from the last.
+        Log.i("VisionSlot", "draw $designId pic=$picture")
 
         when {
             design == null -> Notice("Unknown design")
@@ -212,7 +218,10 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
             picture == null -> Pending()
 
             else -> Image(
-                provider = ImageProvider(picture),
+                // By address and not by pixels. Glance has no provider that takes a URI
+                // on its own, so the address is carried in an Icon — which is the same
+                // thing to the launcher: it opens what it is pointed at and draws that.
+                provider = ImageProvider(Icon.createWithContentUri(picture)),
                 contentDescription = design.name,
                 // Fitted rather than filled, so a design is only ever scaled — never
                 // stretched out of the proportion it was drawn at.

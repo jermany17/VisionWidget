@@ -63,6 +63,28 @@
             </intent-filter>
         </activity>
         <!--
+          Serves a widget's picture to whoever is drawing the home screen.
+
+          A widget's views travel to the launcher inside a Binder transaction, and the
+          megabyte that buffer holds is shared by every transaction the process has in
+          flight rather than given to each. Clocks turning on the same minute handed over
+          a bitmap apiece within milliseconds of one another and overflowed it between
+          them, which is not reported — the views arrive empty and the cell goes blank.
+
+          So the pixels stay on the disk and the launcher is given the address of them.
+          Private, and granted one picture at a time; see WidgetPictures.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.pictures"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/widget_pictures" />
+        </provider>
+
+        <!--
           Drives the Gallery clocks. The minute's tick is sent here by an alarm; the
           three system announcements are the ones that move a clock or a calendar on
           their own, and boot is where the tick is picked up again.
