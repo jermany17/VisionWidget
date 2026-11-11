@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,9 @@ fun LibraryScreen(
         val byId = catalog.associateBy { it.id }
         designIds.mapNotNull { byId[it] }
     }
+
+    // Which tile is showing its "Add to screen" button, if any.
+    var offering by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The design being placed, if any — shown large in its own sheet so the last
     // thing seen before the launcher's generic confirmation is the real face.
@@ -135,7 +139,13 @@ fun LibraryScreen(
             items(designs, key = { it.id }) { design ->
                 LibraryTile(
                     design = design,
-                    onTap = { placing = design },
+                    // One tile at a time offers its button. Held here rather than in
+                    // the tile, because a tile cannot know that another has been
+                    // tapped — kept there, every tap left its own button up and the
+                    // shelf filled with them.
+                    offering = offering == design.id,
+                    onTap = { offering = if (offering == design.id) null else design.id },
+                    onAdd = { placing = design },
                     onRemove = { onRemove(design.id) }
                 )
             }
@@ -168,7 +178,9 @@ private fun sizeOf(design: GalleryWidget): WidgetSize =
 @Composable
 private fun LibraryTile(
     design: GalleryWidget,
+    offering: Boolean,
     onTap: () -> Unit,
+    onAdd: () -> Unit,
     onRemove: () -> Unit
 ) {
     Column {
@@ -187,6 +199,23 @@ private fun LibraryTile(
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = "×", style = VisionType.glyph, color = OnCanvas)
+            }
+
+            // Shown once the face is tapped rather than always, so the shelf stays a
+            // shelf of designs rather than a shelf of buttons. Opens the sheet that
+            // shows the face large, which is the last place it can be seen properly
+            // before the launcher's own confirmation draws its generic mark instead.
+            if (offering) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(CircleShape)
+                        .background(Canvas)
+                        .clickable(onClick = onAdd)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(text = "Add to screen", style = GalleryMeta, color = OnCanvas)
+                }
             }
         }
 
