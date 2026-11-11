@@ -94,6 +94,16 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
         val extras = views?.let { bundleOf(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW to it) }
         val provider = ComponentName(app, SlotWidgets.receiverOf(size))
 
+        // Three ways of offering One UI a picture have been tried on a device, and it
+        // takes none of them: the extra above, a preview registered against the
+        // provider through setWidgetPreview, and the same registered eight hundred
+        // milliseconds ahead in case its cache was the problem. Its "add to home
+        // screen" dialog draws the provider's static previewImage and nothing else.
+        //
+        // So that image is a plain mark of the size — see the provider xml. The design
+        // the user picked is on the tile they tapped, directly behind the dialog, and
+        // the widget itself lands as the real thing.
+
         runCatching {
             manager.requestPinAppWidget(provider, extras, callback)
         }.onFailure { Log.w("VisionPin", "pin request for ${slot.encode()} failed", it) }

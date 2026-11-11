@@ -876,6 +876,11 @@ fun StudioScreen(
                 // — the gate is on keeping one. A paywall at the door would hide the
                 // thing being sold; this way it is asked for at the moment it is wanted.
                 onSaveToLibrary = { id -> plusGate(true) { onSaveToLibrary(id) } },
+                // Whether the paywall is what a save would meet. The shelf asks so it
+                // can put that question first: a clock also wants the alarms
+                // permission, and sending someone to Settings for a design they cannot
+                // keep anyway is a trip for nothing.
+                plusLocked = !plusHeld.isActive,
                 onOpenLibrary = onOpenLibrary,
                 contentPadding = contentPadding
             )
@@ -1374,6 +1379,8 @@ private fun OwnWisdomDialog(
 private fun ColumnScope.GalleryTab(
     libraryIds: List<String>,
     onSaveToLibrary: (String) -> Unit,
+    /** Whether a save would meet the paywall — asked before the alarms permission is. */
+    plusLocked: Boolean,
     onOpenLibrary: () -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -1447,17 +1454,25 @@ private fun ColumnScope.GalleryTab(
             design = design,
             saved = design.id in libraryIds,
             onSave = {
-                // A clock is only worth keeping if it can be woken on the minute, and
-                // that is the user's to allow. Asked here rather than when one is
-                // placed: the library is the promise that a design will work, and a
-                // clock saved without this would keep its own time badly on a home
-                // screen with nothing said about why.
-                if (needsExactAlarms(design.category) && !canScheduleExactAlarms(context)) {
-                    looking = null
+                looking = null
+
+                // Two things can stand between a design and the library, and the
+                // subscription is asked about first. A clock also wants the alarms
+                // permission, which means a trip out to Settings — and sending
+                // someone on that for a design they cannot keep anyway, only to meet
+                // the paywall on their way back, is the worst order of the two.
+                //
+                // Locked, the save is passed straight out: the paywall is raised
+                // there, and nothing else is asked.
+                val wantsPermission = needsExactAlarms(design.category) &&
+                    !canScheduleExactAlarms(context)
+
+                if (!plusLocked && wantsPermission) {
+                    // A clock only keeps time if the app may wake on the minute, so
+                    // the library does not promise one it cannot keep.
                     askingExactAlarms = design
                 } else {
                     onSaveToLibrary(design.id)
-                    looking = null
                 }
             },
             onOpenLibrary = {
