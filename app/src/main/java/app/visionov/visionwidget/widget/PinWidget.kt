@@ -28,6 +28,9 @@ private const val EXTRA_SLOT = "slot"
 /** The size it was asked for, in case the placed widget cannot yet be asked its own. */
 private const val EXTRA_SIZE = "size"
 
+/** The one request code every pin callback is registered under. */
+private const val PIN_REQUEST = 0x5107
+
 private val pinScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 /**
@@ -54,9 +57,17 @@ fun requestPinWidget(context: Context, size: WidgetSize, slot: Slot): Boolean {
     val app = context.applicationContext
     val callback = PendingIntent.getBroadcast(
         context,
-        // One per slot, so asking for a second design while the first is still pending
-        // does not rewrite the first one's callback out from under it.
-        slot.encode().hashCode(),
+        // One callback for all of them, rewritten each time, rather than one per slot.
+        //
+        // A code per slot was meant to keep a second ask from overwriting the first,
+        // and did the opposite: each left a live callback behind, and the launcher
+        // fired more than one at the next placement. Measured — a single widget was
+        // told it held a date design and then a clock, eighteen milliseconds apart,
+        // and which of them stuck was down to the order they happened to land in.
+        //
+        // Only one pin can be in flight as far as the user is concerned, so there is
+        // only one callback, and asking again replaces it.
+        PIN_REQUEST,
         Intent(context, WidgetPinnedReceiver::class.java)
             .setAction(ACTION_PINNED)
             .putExtra(EXTRA_SLOT, slot.encode())

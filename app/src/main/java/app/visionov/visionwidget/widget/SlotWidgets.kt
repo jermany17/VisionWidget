@@ -89,30 +89,57 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     /**
-     * Nothing is loaded here. Everything this cell shows depends on state that can
-     * change while the session is alive, and state read here would be read once.
+     * What this cell already knew when its session began.
+     *
+     * Glance keeps a session alive about forty-five seconds and the clocks tick every
+     * sixty, so in practice every tick starts a fresh one — and a fresh session has
+     * composed nothing and remembered nothing. Loading only from inside the
+     * composition therefore put an empty tree up first and the real one a fifth of a
+     * second later: a cell that blinked blank on every single minute.
+     *
+     * So the first answer is fetched here, before the first tree exists, and handed to
+     * the composition to start from. Changes after that are still watched for inside
+     * it — both halves are needed, and this is the half that was missing.
      */
+    private class FirstDraw(
+        val bitmap: Bitmap? = null,
+        val vision: VisionPayload? = null,
+        val top: TopThreePayload? = null,
+        val wisdom: WisdomPayload? = null
+    )
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { Cell() }
+        val slot = readSlot(context, id)
+        val first = runCatching {
+            when (slot) {
+                Slot.Vision -> FirstDraw(vision = visionPayload(context, size))
+                Slot.TopThree -> FirstDraw(top = topThreePayload(context, size))
+                Slot.Wisdom -> FirstDraw(wisdom = wisdomPayload(context))
+                is Slot.Design -> FirstDraw(bitmap = pictureOf(context, slot.designId))
+                null -> FirstDraw()
+            }
+        }.getOrDefault(FirstDraw())
+
+        provideContent { Cell(first) }
     }
 
     @Composable
-    private fun Cell() {
+    private fun Cell(first: FirstDraw) {
         val state = currentState<androidx.datastore.preferences.core.Preferences>()
         val slot = state.slot()
         val revision = state.revision()
 
         when (slot) {
-            Slot.Vision -> held(revision) { visionPayload(it, size) }
+            Slot.Vision -> held(first.vision, revision) { visionPayload(it, size) }
                 ?.let { VisionCardContent(it, size) } ?: Pending()
 
-            Slot.TopThree -> held(revision) { topThreePayload(it, size) }
+            Slot.TopThree -> held(first.top, revision) { topThreePayload(it, size) }
                 ?.let { TopThreeCardContent(it, size) } ?: Pending()
 
-            Slot.Wisdom -> held(revision) { wisdomPayload(it) }
+            Slot.Wisdom -> held(first.wisdom, revision) { wisdomPayload(it) }
                 ?.let { WisdomCardContent(it, size) } ?: Pending()
 
-            is Slot.Design -> Design(slot.designId, revision)
+            is Slot.Design -> Design(first.bitmap, slot.designId, revision)
 
             // Placed and never told what to hold, which is every cell between the
             // launcher putting it down and the setting screen being answered.
@@ -130,18 +157,33 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
      * one that stayed blank for good if a single reload happened to fail.
      */
     @Composable
-    private fun <T : Any> held(vararg keys: Any?, load: suspend (Context) -> T?): T? {
+    private fun <T : Any> held(
+        initial: T?,
+        vararg keys: Any?,
+        load: suspend (Context) -> T?
+    ): T? {
         val context = LocalContext.current
-        val kept = remember { mutableStateOf<T?>(null) }
+        val kept = remember { mutableStateOf(initial) }
         LaunchedEffect(keys = keys) {
             runCatching { load(context) }.getOrNull()?.let { kept.value = it }
         }
         return kept.value
     }
 
+    /** The picture on disk for a design, painted first if there has never been one. */
+    private suspend fun pictureOf(context: Context, designId: String): Bitmap? {
+        val design = GalleryCatalog.load(context).firstOrNull { it.id == designId } ?: return null
+        return DesignRenderer.cached(context, design)
+            ?: if (GalleryTicker.paintWithin(context, design, FIRST_PAINT_WAIT_MS)) {
+                DesignRenderer.cached(context, design)
+            } else {
+                null
+            }
+    }
+
     /** A Gallery design, drawn by the same renderer the shelf uses. */
     @Composable
-    private fun Design(designId: String, revision: Long) {
+    private fun Design(first: Bitmap?, designId: String, revision: Long) {
         val context = LocalContext.current
 
         // Read so the cell redraws when it is resized, even though the picture is
@@ -157,16 +199,8 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         // tick bumps the revision once the new picture is in place, and that is what
         // brings this round again — holding the minute that is up until the next one
         // has actually been read off the disk.
-        val picture = held<Bitmap>(designId, revision) {
-            design?.let { wanted ->
-                DesignRenderer.cached(context, wanted)
-                    ?: if (GalleryTicker.paintWithin(context, wanted, FIRST_PAINT_WAIT_MS)) {
-                        DesignRenderer.cached(context, wanted)
-                    } else {
-                        null
-                    }
-            }
-        }
+        val picture = held(first, designId, revision) { pictureOf(it, designId) }
+
         when {
             design == null -> Notice("Unknown design")
 
