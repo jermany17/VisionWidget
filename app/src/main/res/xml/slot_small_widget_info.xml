@@ -12,8 +12,10 @@
   their own, and dragging one about can only take it further from what was picked.
 
   The preview is what the picker shows before the widget is placed, and it has to be a
-  static image — so it is the Vision card at this size, which is what the cell most
-  often ends up holding.
+  static image: One UI reads nothing an app offers at pin time. Showing any one widget
+  there told people they were adding that one whatever they went on to pick, so it is a
+  picture of several of the things this cell can hold instead — the entry means a size,
+  and the choosing happens afterwards.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
