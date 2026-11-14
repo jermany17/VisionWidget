@@ -2,6 +2,7 @@ package app.visionov.visionwidget.notify
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -42,24 +43,41 @@ private const val TAG = "VisionReminders"
  */
 enum class Reminder(
     val channelId: String,
+    /**
+     * The channel this one replaced, swept up the first time the new one is made.
+     *
+     * A channel's settings are fixed at the moment it is created — only its name and
+     * description can be changed afterwards, since from then on they are the user's to
+     * set and not ours to take back. So a channel that has to be told something new has
+     * to be a new channel, under a new id, and the one it replaces has to be cleared
+     * away or the settings screen lists the same reminder twice.
+     *
+     * The old id cannot simply be reused once deleted: Android hands a recreated
+     * channel its old settings back, which is the same protection seen from the other
+     * side.
+     */
+    val retiredChannelId: String,
     val channelName: String,
     val channelNote: String,
     val title: String
 ) {
     PlanTomorrow(
-        channelId = "plan_tomorrow",
+        channelId = "plan_tomorrow_v2",
+        retiredChannelId = "plan_tomorrow",
         channelName = "Plan tomorrow",
         channelNote = "An evening nudge to set tomorrow's three.",
         title = "Plan tomorrow"
     ),
     DailyWisdom(
-        channelId = "daily_wisdom",
+        channelId = "daily_wisdom_v2",
+        retiredChannelId = "daily_wisdom",
         channelName = "Daily Wisdom",
         channelNote = "One line from your chosen theme, each morning.",
         title = "Daily Wisdom"
     ),
     EveningCheck(
-        channelId = "evening_check",
+        channelId = "evening_check_v2",
+        retiredChannelId = "evening_check",
         channelName = "Evening check",
         channelNote = "A look in before the day ends, only if something's left.",
         title = "Evening check"
@@ -138,6 +156,8 @@ object Reminders {
         val preferences = AppPreferences(app)
         val alarms = app.getSystemService(AlarmManager::class.java) ?: return
         val on = preferences.notificationsEnabled && systemAllows(app)
+
+        sweepRetiredChannels(app)
 
         Reminder.entries.forEach { reminder ->
             val pending = pendingIntent(app, reminder)
@@ -240,6 +260,25 @@ object Reminders {
         }
     }
 
+    /**
+     * Clears away the channels these three used to be sent on.
+     *
+     * Done here rather than beside the channel that replaces it, because a channel is
+     * only made the first time its reminder actually speaks — which for the evening
+     * check can be days. Left to that, the settings screen would list the morning line
+     * twice over until the alarm it is waiting on finally came round.
+     *
+     * Running on every sync costs nothing: a channel that has already gone is not an
+     * error to delete, and after the first time there is nothing left to find.
+     */
+    private fun sweepRetiredChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        Reminder.entries.forEach { reminder ->
+            runCatching { manager.deleteNotificationChannel(reminder.retiredChannelId) }
+        }
+    }
+
     private fun post(context: Context, reminder: Reminder, line: String) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
@@ -249,7 +288,15 @@ object Reminders {
                     reminder.channelId,
                     reminder.channelName,
                     NotificationManager.IMPORTANCE_DEFAULT
-                ).apply { description = reminder.channelNote }
+                ).apply {
+                    description = reminder.channelNote
+                    // Readable on a locked screen, rather than left to the phone's
+                    // "hide sensitive content" setting — which is on by default on some
+                    // of them, and which turned these into a bare app name behind the
+                    // lock. There is nothing here to protect: a reminder to pick three
+                    // things, and a line from a book of quotations.
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
             )
         }
 
@@ -271,6 +318,9 @@ object Reminders {
             .setContentIntent(open)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            // Said again on the notification for the phones that never had channels,
+            // where this is the only place it can be said at all.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
         // Permission is checked in [fire] a moment before this; the catch is for the
