@@ -43,7 +43,7 @@ android {
         applicationId = "app.visionov.visionwidget"
         minSdk = 26
         targetSdk = 37
-        versionCode = 18
+        versionCode = 34
         versionName = "1.0"
     }
 

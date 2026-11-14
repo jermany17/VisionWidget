@@ -848,38 +848,31 @@ private fun StepPrimaryButton(label: String, userFont: UserFontChoice, onClick: 
     }
 }
 
-/** Confirms the skip, since it can't be undone — everything entered goes with it. */
+/**
+ * Confirms the skip, since it can't be undone — everything entered goes with it.
+ *
+ * Asked in the app's own voice rather than the platform's. This was a plain
+ * AlertDialog set in the label face throughout, which made the one question asked
+ * during onboarding look like it came from somewhere else than the two asked after it
+ * — the same warning in two different hands. It is [PromptDialog] now, as they are.
+ */
 @Composable
 private fun SkipConfirmDialog(
     userFont: UserFontChoice,
     onKeepGoing: () -> Unit,
     onConfirmSkip: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onKeepGoing,
-        containerColor = Canvas,
-        title = { Text(text = "SKIP SETUP?", style = StepLabel, color = OnCanvas) },
-        text = {
-            Text(
-                text = "SKIPPING CLEARS EVERYTHING YOU'VE ENTERED AND TAKES YOU " +
-                    "STRAIGHT TO THE HOME SCREEN.",
-                style = VisionType.eyebrow.copy(
-                    fontSize = 11.sp,
-                    lineHeight = 18.sp,
-                    letterSpacing = 0.6.sp
-                ),
-                color = OnCanvasMuted
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirmSkip) {
-                Text(text = "Skip", style = VisionType.bodyText(userFont), color = OnCanvas)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onKeepGoing) {
-                Text(text = "Keep going", style = VisionType.bodyText(userFont), color = OnCanvasMuted)
-            }
-        }
+    PromptDialog(
+        eyebrow = "SKIP SETUP",
+        title = "Skip setup?",
+        body = "Skipping clears everything you've entered and takes you straight to " +
+            "the home screen.",
+        userFont = userFont,
+        // Keeping going is the answer that holds on to what has been typed, so it is
+        // the quiet one; skipping is what gives it up.
+        quietLabel = "Keep going",
+        onQuiet = onKeepGoing,
+        loudLabel = "Skip",
+        onLoud = onConfirmSkip
     )
 }
