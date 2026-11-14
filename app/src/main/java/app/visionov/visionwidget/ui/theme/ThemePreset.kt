@@ -31,10 +31,10 @@ object ThemePresets {
 
         // ── Vision+ (4–9) ──
         ThemePreset(4, "Film Diary", 3, 19, 2, 4, 20),
-        ThemePreset(5, "Zen", 6, 6, 2, 1, 30),
+        ThemePreset(5, "Zen", 6, 6, 3, 1, 30),
         ThemePreset(6, "Forest", 1, 28, 1, 2, 26),
         ThemePreset(7, "Dusk", 7, 29, 2, 2, 30),
-        ThemePreset(8, "Bloom", 5, 15, 1, 3, 22),
+        ThemePreset(8, "Bloom", 8, 15, 1, 3, 22),
         ThemePreset(9, "Atelier", 13, 9, 1, 1, 8)
     )
 

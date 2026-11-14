@@ -27,7 +27,16 @@ data class UserFontChoice(
      * Compose, and that cannot be handed a [FontFamily]. Carried here so the two
      * can never name different files for the same choice.
      */
-    @FontRes val resId: Int
+    @FontRes val resId: Int,
+    /**
+     * How much of the designed size this face is actually set at.
+     *
+     * Every figure in [VisionType] and in the widget renderer is set for the default
+     * face. A face that sits larger on the body renders bigger than those figures mean
+     * at the same point size, so it is brought back in line here rather than by the
+     * design having to name a size per face.
+     */
+    val sizeScale: Float = 1f
 )
 
 object UserFonts {
@@ -40,7 +49,13 @@ object UserFonts {
         UserFontChoice(2, "Modern", DMSans, FontWeight.SemiBold, R.font.dm_sans_variable),
         UserFontChoice(3, "Typewriter", DMMono, FontWeight.Normal, R.font.dm_mono_regular),
         UserFontChoice(4, "Minimal", DMSans, FontWeight.Light, R.font.dm_sans_variable),
-        UserFontChoice(5, "Literary", LibreBaskerville, FontWeight.Normal, R.font.libre_baskerville_variable),
+        // Libre Baskerville carries the largest x-height (0.53 em) and cap height
+        // (0.77 em) of every face offered, against the default's 0.51 and 0.72 — so at
+        // the same point size it reads about a twentieth larger than the sizes assume.
+        UserFontChoice(
+            5, "Literary", LibreBaskerville, FontWeight.Normal,
+            R.font.libre_baskerville_variable, sizeScale = 0.94f
+        ),
         UserFontChoice(6, "Classic", Newsreader, FontWeight.Normal, R.font.newsreader_variable),
         UserFontChoice(7, "Romantic", Lora, FontWeight.Medium, R.font.lora_variable),
         UserFontChoice(8, "Antique", EBGaramond, FontWeight.Medium, R.font.eb_garamond_variable),

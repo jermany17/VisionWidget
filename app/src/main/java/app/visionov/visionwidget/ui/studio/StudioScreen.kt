@@ -227,26 +227,11 @@ private val WidgetCheckGlyph = TextStyle(
     lineHeight = 6.sp
 )
 
-private fun widgetTitle(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 19.sp,
-    lineHeight = 20.sp
-)
+private fun widgetTitle(font: UserFontChoice) = VisionType.userFace(font, 19.sp, 20.sp)
 
-private fun widgetLine(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 9.sp,
-    lineHeight = 12.sp
-)
+private fun widgetLine(font: UserFontChoice) = VisionType.userFace(font, 9.sp, 12.sp)
 
-private fun widgetQuote(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 11.sp,
-    lineHeight = 15.sp
-)
+private fun widgetQuote(font: UserFontChoice) = VisionType.userFace(font, 11.sp, 15.sp)
 
 /** The mark beside a paid face — warm, so it reads as an offer rather than a warning. */
 private val PlusMark = Color(0xFF9A7B4F)
@@ -277,23 +262,13 @@ private enum class StyleScope(val label: String, val targets: Set<WidgetTarget>)
     val single: WidgetTarget? get() = targets.singleOrNull()
 }
 
-private fun tabLabel(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 19.sp,
-    lineHeight = 24.sp
-)
+private fun tabLabel(font: UserFontChoice) = VisionType.userFace(font, 19.sp, 24.sp)
 
 /**
  * The scope bar's own label. Smaller than [tabLabel]: four across where the tabs are
  * two, so "Wisdom" has to sit in a quarter of the width rather than a half.
  */
-private fun scopeLabel(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 14.sp,
-    lineHeight = 18.sp
-)
+private fun scopeLabel(font: UserFontChoice) = VisionType.userFace(font, 14.sp, 18.sp)
 
 /** How many faces sit across the picker. */
 private const val FontColumns = 3
@@ -315,12 +290,7 @@ private val ScrollArrow = TextStyle(
 )
 
 /** The "Aa" on a set's card, shown in that set's own face. */
-private fun presetSpecimen(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 26.sp,
-    lineHeight = 30.sp
-)
+private fun presetSpecimen(font: UserFontChoice) = VisionType.userFace(font, 26.sp, 30.sp)
 
 /** A set's name. Fixed to the app's own face — it labels the card, it isn't part of it. */
 private fun presetName() = TextStyle(
@@ -384,23 +354,13 @@ private val AppliedBorder = Color.White.copy(alpha = 0.28f)
 private val AppliedInk = Color.White.copy(alpha = 0.65f)
 
 /** Sized to the mock phone it sits in rather than to the screen around it. */
-private fun applyLabel(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 14.sp,
-    lineHeight = 18.sp
-)
+private fun applyLabel(font: UserFontChoice) = VisionType.userFace(font, 14.sp, 18.sp)
 
 /**
  * A chip's own name, set in the face it offers. Sized down from body text so the
  * longest name still fits a third of the row in the widest face on offer.
  */
-private fun fontChipLabel(font: UserFontChoice) = TextStyle(
-    fontFamily = font.family,
-    fontWeight = font.weight,
-    fontSize = 12.sp,
-    lineHeight = 16.sp
-)
+private fun fontChipLabel(font: UserFontChoice) = VisionType.userFace(font, 12.sp, 16.sp)
 
 /**
  * Previews how the widgets read on a phone, using the user's own data rather than

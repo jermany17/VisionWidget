@@ -1,4 +1,4 @@
-package app.visionov.visionwidget.widget
+﻿package app.visionov.visionwidget.widget
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -187,6 +187,8 @@ private fun leadInFor(room: Float, slots: Int, rowLine: Float, gap: Float): Floa
 /** Everything a card draws with, resolved from what was applied to it. */
 private class CardInk(
     val face: Typeface?,
+    /** The chosen face's own size correction — see [UserFontChoice.sizeScale]. */
+    val textScale: Float,
     val onSurface: Int,
     val onSurfaceMuted: Int,
     val onSurfaceRule: Int,
@@ -227,6 +229,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
         val photoInk = 0xFFF7F4EE.toInt()
         return CardInk(
             face = face,
+            textScale = font.sizeScale,
             onSurface = photoInk,
             onSurfaceMuted = withAlpha(photoInk, 0.76f),
             onSurfaceRule = withAlpha(photoInk, 0.22f),
@@ -236,6 +239,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
     }
     return CardInk(
         face = face,
+        textScale = font.sizeScale,
         onSurface = theme.onSurface.toArgb(),
         onSurfaceMuted = theme.onSurfaceMuted.toArgb(),
         onSurfaceRule = theme.onSurfaceRule.toArgb(),
@@ -336,10 +340,15 @@ private fun coverRect(srcWidth: Int, srcHeight: Int, dstWidth: Int, dstHeight: I
     )
 }
 
-/** A block of the user's own words, wrapped to the card and set as the layout asks. */
+/**
+ * A block of the user's own words, wrapped to the card and set as the layout asks.
+ *
+ * Takes the whole [ink] rather than its typeface so the face's own size correction is
+ * applied here, once, instead of at each of the sizes the cards name.
+ */
 private fun textBlock(
     text: String,
-    face: Typeface?,
+    ink: CardInk,
     sizePx: Float,
     lineHeightPx: Float,
     colour: Int,
@@ -351,8 +360,8 @@ private fun textBlock(
     maxLines: Int? = null
 ): StaticLayout {
     val paint = TextPaint(CardPaintFlags).apply {
-        typeface = face
-        textSize = sizePx
+        typeface = ink.face
+        textSize = sizePx * ink.textScale
         color = colour
         this.letterSpacing = letterSpacing
         isStrikeThruText = strikeThrough
@@ -361,7 +370,9 @@ private fun textBlock(
         androidx.compose.ui.text.style.TextAlign.Center -> Layout.Alignment.ALIGN_CENTER
         else -> Layout.Alignment.ALIGN_NORMAL
     }
-    val extra = lineHeightPx - (paint.descent() - paint.ascent())
+    // Scaled with the glyphs, so a corrected face keeps the rhythm the size was set for
+    // rather than reading as the same lines spaced further apart.
+    val extra = lineHeightPx * ink.textScale - (paint.descent() - paint.ascent())
     val builder = StaticLayout.Builder
         .obtain(text, 0, text.length, paint, widthPx.coerceAtLeast(1))
         .setAlignment(align)
@@ -492,7 +503,7 @@ fun renderVisionCard(
         val ruleY = metaTop - MEDIUM_SPACING * s - s
 
         val eyebrow = textBlock(
-            "VISION", ink.face, MEDIUM_EYEBROW * s, MEDIUM_EYEBROW_LINE * s,
+            "VISION", ink, MEDIUM_EYEBROW * s, MEDIUM_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         var y = padY
@@ -505,14 +516,14 @@ fun renderVisionCard(
         val titleLines = (forTitle / (MEDIUM_TITLE_LINE * s)).toInt().coerceIn(1, 2)
         val title = textBlock(
             align.format(goal ?: "No vision yet"),
-            ink.face, MEDIUM_TITLE * s, MEDIUM_TITLE_LINE * s, ink.onSurface, inner,
+            ink, MEDIUM_TITLE * s, MEDIUM_TITLE_LINE * s, ink.onSurface, inner,
             style.alignId, maxLines = titleLines
         )
         canvas.draw(title, left, y); y += title.height + MEDIUM_SPACING * s
 
         val whyLine = textBlock(
             align.format(why?.takeIf { it.isNotBlank() } ?: "Nothing set yet."),
-            ink.face, MEDIUM_BODY * s, MEDIUM_BODY_LINE * s, ink.onSurfaceMuted, inner,
+            ink, MEDIUM_BODY * s, MEDIUM_BODY_LINE * s, ink.onSurfaceMuted, inner,
             style.alignId, maxLines = 1
         )
         canvas.draw(whyLine, left, y)
@@ -525,7 +536,7 @@ fun renderVisionCard(
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = MEDIUM_META * s
+            textSize = MEDIUM_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
         }
@@ -608,7 +619,7 @@ fun renderTopThreeCard(
 
         val eyebrow = textBlock(
             "TODAY'S TOP 3 · $done / ${set.size}",
-            ink.face, MEDIUM_EYEBROW * s, MEDIUM_EYEBROW_LINE * s,
+            ink, MEDIUM_EYEBROW * s, MEDIUM_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         var y = padY
@@ -617,7 +628,7 @@ fun renderTopThreeCard(
         if (shown.isEmpty()) {
             canvas.draw(
                 textBlock(
-                    align.format("Nothing set yet."), ink.face, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
+                    align.format("Nothing set yet."), ink, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
                     ink.onSurfaceMuted, inner, style.alignId
                 ),
                 left, y
@@ -627,7 +638,7 @@ fun renderTopThreeCard(
             // is where a card's action belongs — the words above say what is missing,
             // this says where to go.
             val hint = textBlock(
-                align.format(PLAN_HINT), ink.face, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
+                align.format(PLAN_HINT), ink, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
                 ink.onSurface, inner, style.alignId, maxLines = 1
             )
             // Only where the card is deep enough for it to be a foot rather than a
@@ -654,7 +665,7 @@ fun renderTopThreeCard(
 
             visible.forEach { index ->
                 val row = textBlock(
-                    align.format(tasks[index].orEmpty()), ink.face, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
+                    align.format(tasks[index].orEmpty()), ink, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
                     if (checked[index]) ink.onSurfaceMuted else ink.onSurface,
                     rowInner, style.alignId, strikeThrough = checked[index], maxLines = 1
                 )
@@ -686,7 +697,7 @@ fun renderWisdomCard(
         val inner = (w - 2 * left).toInt()
 
         val meta = textBlock(
-            category.uppercase(), ink.face, MEDIUM_META * s, MEDIUM_META_LINE * s,
+            category.uppercase(), ink, MEDIUM_META * s, MEDIUM_META_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
 
@@ -694,7 +705,7 @@ fun renderWisdomCard(
         val available = h - 2 * padY - meta.height - MEDIUM_SPACING * s
         val maxLines = (available / lineHeight).toInt().coerceAtLeast(1)
         val line = textBlock(
-            align.format(quote), ink.face, MEDIUM_QUOTE * s, lineHeight, ink.onSurface, inner,
+            align.format(quote), ink, MEDIUM_QUOTE * s, lineHeight, ink.onSurface, inner,
             style.alignId, maxLines = maxLines
         )
 
@@ -748,7 +759,7 @@ fun renderVisionCardLarge(
         }
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = LARGE_META * s
+            textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
         }
@@ -761,21 +772,21 @@ fun renderVisionCardLarge(
 
         var y = padY
         val eyebrow = textBlock(
-            "VISION", ink.face, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
+            "VISION", ink, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(eyebrow, left, y); y += eyebrow.height + LARGE_SPACING * s
 
         val title = textBlock(
             align.format(goal ?: "No vision yet"),
-            ink.face, LARGE_TITLE * s, LARGE_TITLE_LINE * s, ink.onSurface, inner,
+            ink, LARGE_TITLE * s, LARGE_TITLE_LINE * s, ink.onSurface, inner,
             style.alignId, maxLines = 2
         )
         canvas.draw(title, left, y); y += title.height + LARGE_SPACING * s
 
         val whyLine = textBlock(
             align.format(why?.takeIf { it.isNotBlank() } ?: "Nothing set yet."),
-            ink.face, LARGE_BODY * s, LARGE_BODY_LINE * s, ink.onSurfaceMuted, inner,
+            ink, LARGE_BODY * s, LARGE_BODY_LINE * s, ink.onSurfaceMuted, inner,
             style.alignId, maxLines = 1
         )
         canvas.draw(whyLine, left, y); y += whyLine.height + LARGE_SPACING * s
@@ -785,7 +796,7 @@ fun renderVisionCardLarge(
 
         val stepsEyebrow = textBlock(
             "MILESTONES · $reached / ${milestones.size} REACHED",
-            ink.face, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
+            ink, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(stepsEyebrow, left, y); y += stepsEyebrow.height + LARGE_SPACING * s
@@ -812,7 +823,7 @@ fun renderVisionCardLarge(
         if (milestones.isEmpty()) {
             canvas.draw(
                 textBlock(
-                    align.format("No steps yet."), ink.face, LARGE_ROW * s, rowLine,
+                    align.format("No steps yet."), ink, LARGE_ROW * s, rowLine,
                     ink.onSurfaceMuted, inner, style.alignId
                 ),
                 left, y
@@ -820,7 +831,7 @@ fun renderVisionCardLarge(
         } else {
             visible.forEach { step ->
                 val row = textBlock(
-                    align.format(step.step), ink.face, LARGE_ROW * s, rowLine,
+                    align.format(step.step), ink, LARGE_ROW * s, rowLine,
                     if (step.checked) ink.onSurfaceMuted else ink.onSurface,
                     rowInner, style.alignId, strikeThrough = step.checked, maxLines = 1
                 )
@@ -877,7 +888,7 @@ fun renderTopThreeCardLarge(
         }
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = LARGE_META * s
+            textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
         }
@@ -891,7 +902,7 @@ fun renderTopThreeCardLarge(
         val countHeight = LARGE_COUNT_LINE * s
         val count = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = LARGE_COUNT * s
+            textSize = LARGE_COUNT * s * ink.textScale
             color = ink.onSurface
             textAlign = Paint.Align.RIGHT
         }
@@ -899,7 +910,7 @@ fun renderTopThreeCardLarge(
         canvas.drawTextLine("$done/${set.size}", w - left, y, countHeight, count)
 
         val eyebrow = textBlock(
-            "TODAY'S TOP 3", ink.face, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
+            "TODAY'S TOP 3", ink, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(eyebrow, left, y + (countHeight - eyebrow.height) / 2f)
@@ -922,7 +933,7 @@ fun renderTopThreeCardLarge(
         if (visible.isEmpty()) {
             canvas.draw(
                 textBlock(
-                    align.format("Nothing set yet."), ink.face, LARGE_ROW * s, rowLine,
+                    align.format("Nothing set yet."), ink, LARGE_ROW * s, rowLine,
                     ink.onSurfaceMuted, inner, style.alignId
                 ),
                 left, y
@@ -930,7 +941,7 @@ fun renderTopThreeCardLarge(
             // Just above the rule rather than on the card's own floor: the foot below
             // it already belongs to the streak and the week.
             val hint = textBlock(
-                align.format(PLAN_HINT), ink.face, LARGE_ROW * s, rowLine,
+                align.format(PLAN_HINT), ink, LARGE_ROW * s, rowLine,
                 ink.onSurface, inner, style.alignId, maxLines = 1
             )
             val hintTop = footRule - LARGE_SPACING * s - hint.height
@@ -944,7 +955,7 @@ fun renderTopThreeCardLarge(
 
             visible.forEach { index ->
                 val row = textBlock(
-                    align.format(tasks[index].orEmpty()), ink.face, LARGE_ROW * s, rowLine,
+                    align.format(tasks[index].orEmpty()), ink, LARGE_ROW * s, rowLine,
                     if (checked[index]) ink.onSurfaceMuted else ink.onSurface,
                     (inner - gutter).toInt(), style.alignId,
                     strikeThrough = checked[index], maxLines = 1
@@ -988,7 +999,7 @@ fun renderWisdomCardLarge(
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = LARGE_META * s
+            textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
         }
@@ -998,7 +1009,7 @@ fun renderWisdomCardLarge(
 
         var y = padY
         val eyebrow = textBlock(
-            "DAILY WISDOM", ink.face, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
+            "DAILY WISDOM", ink, LARGE_EYEBROW * s, LARGE_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(eyebrow, left, y); y += eyebrow.height + LARGE_SPACING * s
@@ -1007,7 +1018,7 @@ fun renderWisdomCardLarge(
         val available = footRule - LARGE_SPACING * s - y
         val maxLines = (available / lineHeight).toInt().coerceAtLeast(1)
         val line = textBlock(
-            align.format(quote), ink.face, LARGE_QUOTE * s, lineHeight, ink.onSurface, inner,
+            align.format(quote), ink, LARGE_QUOTE * s, lineHeight, ink.onSurface, inner,
             style.alignId, maxLines = maxLines
         )
         canvas.draw(line, left, y)
@@ -1044,14 +1055,14 @@ fun renderVisionCardSmall(
         val inner = (side - 2 * left).toInt()
 
         val eyebrow = textBlock(
-            "VISION", ink.face, SMALL_EYEBROW * s, SMALL_EYEBROW_LINE * s,
+            "VISION", ink, SMALL_EYEBROW * s, SMALL_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(eyebrow, left, padY)
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
-            textSize = SMALL_META * s
+            textSize = SMALL_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
         }
@@ -1073,7 +1084,7 @@ fun renderVisionCardSmall(
         val titleLines = (forTitle / (SMALL_TITLE_LINE * s)).toInt().coerceIn(1, 2)
         val title = textBlock(
             align.format(goal ?: "No vision yet"),
-            ink.face, SMALL_TITLE * s, SMALL_TITLE_LINE * s, ink.onSurface, inner,
+            ink, SMALL_TITLE * s, SMALL_TITLE_LINE * s, ink.onSurface, inner,
             style.alignId, maxLines = titleLines
         )
         canvas.draw(title, left, ruleY - SMALL_SPACING * s - title.height)
@@ -1102,7 +1113,7 @@ fun renderTopThreeCardSmall(
         val inner = (side - 2 * left).toInt()
 
         val eyebrow = textBlock(
-            "TOP 3", ink.face, SMALL_EYEBROW * s, SMALL_EYEBROW_LINE * s,
+            "TOP 3", ink, SMALL_EYEBROW * s, SMALL_EYEBROW_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         canvas.draw(eyebrow, left, padY)
@@ -1113,14 +1124,14 @@ fun renderTopThreeCardSmall(
             else -> "ALL DONE"
         }
         val nextLine = textBlock(
-            align.format(nextText), ink.face, SMALL_BODY * s, SMALL_BODY_LINE * s,
+            align.format(nextText), ink, SMALL_BODY * s, SMALL_BODY_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.14f, maxLines = 1
         )
         val nextTop = side - padY - nextLine.height
         canvas.draw(nextLine, left, nextTop)
 
         val count = textBlock(
-            "$done/${set.size}", ink.face, SMALL_COUNT * s, SMALL_COUNT_LINE * s,
+            "$done/${set.size}", ink, SMALL_COUNT * s, SMALL_COUNT_LINE * s,
             ink.onSurface, inner, style.alignId
         )
         canvas.draw(count, left, nextTop - SMALL_SPACING * s - count.height)
@@ -1146,7 +1157,7 @@ fun renderWisdomCardSmall(
         val inner = (side - 2 * left).toInt()
 
         val meta = textBlock(
-            category.uppercase(), ink.face, SMALL_META * s, SMALL_META_LINE * s,
+            category.uppercase(), ink, SMALL_META * s, SMALL_META_LINE * s,
             ink.onSurfaceMuted, inner, style.alignId, 0.18f
         )
         val metaTop = side - padY - meta.height
@@ -1156,7 +1167,7 @@ fun renderWisdomCardSmall(
         val available = metaTop - SMALL_SPACING * s - padY
         val maxLines = (available / lineHeight).toInt().coerceAtLeast(1)
         val line = textBlock(
-            align.format(quote), ink.face, SMALL_QUOTE * s, lineHeight, ink.onSurface, inner,
+            align.format(quote), ink, SMALL_QUOTE * s, lineHeight, ink.onSurface, inner,
             style.alignId, maxLines = maxLines
         )
         canvas.draw(line, left, padY)

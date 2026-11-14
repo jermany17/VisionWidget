@@ -5,6 +5,8 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import app.visionov.visionwidget.R
 
@@ -91,51 +93,53 @@ val SpaceGrotesk = FontFamily(
 object VisionType {
     // --- User-selectable face, resolved from the id the DB stores ---
 
-    fun greeting(font: UserFontChoice) = TextStyle(
+    /**
+     * A style set in the user's own face.
+     *
+     * Every figure is written for the default face and brought to the chosen one by its
+     * [UserFontChoice.sizeScale], so a face that sits larger on the body doesn't read a
+     * size up from what the design asked for. Routed through here rather than built at
+     * each style so no style can be added that forgets the correction — which is also
+     * why the screen-local styles in Studio come through here rather than building
+     * their own [TextStyle].
+     */
+    fun userFace(
+        font: UserFontChoice,
+        fontSize: TextUnit,
+        lineHeight: TextUnit,
+        letterSpacing: TextUnit = TextUnit.Unspecified
+    ) = TextStyle(
         fontFamily = font.family,
         fontWeight = font.weight,
-        fontSize = 34.sp,
-        lineHeight = 40.sp
+        fontSize = fontSize * font.sizeScale,
+        lineHeight = lineHeight * font.sizeScale,
+        letterSpacing = if (letterSpacing.isSpecified) {
+            letterSpacing * font.sizeScale
+        } else {
+            letterSpacing
+        }
     )
 
+    fun greeting(font: UserFontChoice) = userFace(font, 34.sp, 40.sp)
+
     /** Streak and weekly counts — "17 days", "18 / 21". */
-    fun metricValue(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 18.sp,
-        lineHeight = 22.sp
-    )
+    fun metricValue(font: UserFontChoice) = userFace(font, 18.sp, 22.sp)
 
     /**
      * Headline inside a card, where it shares the page with other sections. The same
      * slot holds the vision's name once set and the prompt to create one before that,
      * so both use this size.
      */
-    fun cardTitle(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 24.sp,
-        lineHeight = 30.sp
-    )
+    fun cardTitle(font: UserFontChoice) = userFace(font, 24.sp, 30.sp)
 
     /**
      * The label inside a full-width pill button set in the user's face — a size down
      * from [cardTitle], since a button's own fill already gives it enough weight.
      */
-    fun buttonLabel(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 16.sp,
-        lineHeight = 22.sp
-    )
+    fun buttonLabel(font: UserFontChoice) = userFace(font, 16.sp, 22.sp)
 
     /** Empty-state headline that owns a whole screen, so it carries more weight. */
-    fun screenPromptTitle(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 32.sp,
-        lineHeight = 38.sp
-    )
+    fun screenPromptTitle(font: UserFontChoice) = userFace(font, 32.sp, 38.sp)
 
     // --- Sheets and dialogs ---
     //
@@ -175,49 +179,22 @@ object VisionType {
     )
 
     /** The headline of a sheet. */
-    fun sheetTitle(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 25.sp,
-        lineHeight = 27.sp,
-        letterSpacing = (-0.375).sp
-    )
+    fun sheetTitle(font: UserFontChoice) = userFace(font, 25.sp, 27.sp, (-0.375).sp)
 
     /** The one line under a sheet's headline — "One step, one date." */
-    fun sheetLead(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    )
+    fun sheetLead(font: UserFontChoice) = userFace(font, 14.sp, 20.sp)
 
     /** A sheet's prose — what deleting costs, what a hundred per cent means. */
-    fun sheetBody(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 14.sp,
-        lineHeight = 21.sp,
-        letterSpacing = (-0.14).sp
-    )
+    fun sheetBody(font: UserFontChoice) = userFace(font, 14.sp, 21.sp, (-0.14).sp)
 
     /**
      * What a vision is called. The largest thing written into a sheet, because it is the
      * one the whole sheet is about.
      */
-    fun sheetGoalField(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
-        letterSpacing = (-0.27).sp
-    )
+    fun sheetGoalField(font: UserFontChoice) = userFace(font, 18.sp, 24.sp, (-0.27).sp)
 
     /** The reason under it — an aside to the goal, so a step down from it. */
-    fun sheetWhyField(font: UserFontChoice) = sheetGoalField(font).copy(
-        fontSize = 17.sp,
-        lineHeight = 23.sp,
-        letterSpacing = (-0.26).sp
-    )
+    fun sheetWhyField(font: UserFontChoice) = userFace(font, 17.sp, 23.sp, (-0.26).sp)
 
     /** A date, once chosen. Read as a figure to agree with rather than as prose. */
     fun sheetDateField(font: UserFontChoice) = sheetGoalField(font)
@@ -229,27 +206,13 @@ object VisionType {
      * a rule between each, and at the goal's size the stack reads as three headlines
      * rather than as a list of three things.
      */
-    fun sheetRowField(font: UserFontChoice) = sheetGoalField(font).copy(
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = (-0.14).sp
-    )
+    fun sheetRowField(font: UserFontChoice) = userFace(font, 14.sp, 20.sp, (-0.14).sp)
 
     /** The label in a sheet's buttons, whichever of the two answers it carries. */
-    fun sheetButton(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 15.sp,
-        lineHeight = 20.sp,
-        letterSpacing = (-0.15).sp
-    )
+    fun sheetButton(font: UserFontChoice) = userFace(font, 15.sp, 20.sp, (-0.15).sp)
 
     /** The way out under them, which is not one of the two answers. */
-    fun sheetCancel(font: UserFontChoice) = sheetButton(font).copy(
-        fontSize = 14.sp,
-        lineHeight = 19.sp,
-        letterSpacing = (-0.21).sp
-    )
+    fun sheetCancel(font: UserFontChoice) = userFace(font, 14.sp, 19.sp, (-0.21).sp)
 
     /**
      * A dialog is the same panel at closer range — it covers the sheet it was raised
@@ -263,66 +226,30 @@ object VisionType {
         letterSpacing = 1.9.sp
     )
 
-    fun modalTitle(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 24.sp,
-        lineHeight = 25.sp,
-        letterSpacing = (-0.36).sp
-    )
+    fun modalTitle(font: UserFontChoice) = userFace(font, 24.sp, 25.sp, (-0.36).sp)
 
-    fun modalBody(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 12.5.sp,
-        lineHeight = 18.sp
-    )
+    fun modalBody(font: UserFontChoice) = userFace(font, 12.5.sp, 18.sp)
 
-    fun modalButton(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 15.sp,
-        lineHeight = 20.sp
-    )
+    fun modalButton(font: UserFontChoice) = userFace(font, 15.sp, 20.sp)
 
     /** The daily wisdom quote inside its card. */
-    fun quote(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 22.sp,
-        lineHeight = 30.sp
-    )
+    fun quote(font: UserFontChoice) = userFace(font, 22.sp, 30.sp)
 
     /**
      * The percentage inside a progress ring. Sized to the ring rather than to the text
      * around it, so the figure fills the hole the ring leaves without crowding it.
      */
-    fun ringValue(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 22.sp,
-        lineHeight = 26.sp
-    )
+    fun ringValue(font: UserFontChoice) = userFace(font, 22.sp, 26.sp)
 
     /** The initial in the avatar chip. */
-    fun avatar(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 13.sp,
-        lineHeight = 16.sp
-    )
+    fun avatar(font: UserFontChoice) = userFace(font, 13.sp, 16.sp)
 
     /**
      * The note under the list of slots — the rule the reader is being asked to keep.
      * Set in the user's own face, like the prompts it sits beneath, a size down from
      * them so it reads as an aside.
      */
-    fun helperText(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    )
+    fun helperText(font: UserFontChoice) = userFace(font, 14.sp, 20.sp)
 
     // --- Chrome, always DMMono ---
 
@@ -349,12 +276,7 @@ object VisionType {
      * The sentence under a headline — the vision's own line, and the prompt shown in
      * its place before one is set.
      */
-    fun bodyText(font: UserFontChoice) = TextStyle(
-        fontFamily = font.family,
-        fontWeight = font.weight,
-        fontSize = 15.sp,
-        lineHeight = 21.sp
-    )
+    fun bodyText(font: UserFontChoice) = userFace(font, 15.sp, 21.sp)
 
     val navLabel = TextStyle(
         fontFamily = DMSans,
