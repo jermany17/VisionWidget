@@ -101,6 +101,27 @@ class BillingManager private constructor(context: Context) {
         }
     }
 
+    /**
+     * Asks Play what is held, for a caller with no screen and a deadline.
+     *
+     * The home screen has to learn that a subscription ended without waiting for the
+     * app to be opened, and the only one who knows is Play. This is [refresh] without
+     * the prices — nothing out here is going to show them — and awaited rather than
+     * launched, so a receiver can hold itself open until the answer lands and the
+     * designs have been redrawn.
+     *
+     * Says nothing and changes nothing if Play cannot be reached. An unanswered
+     * question is not an expired subscription, and a widget put behind a notice on a
+     * dropped connection is the worse of the two mistakes.
+     */
+    suspend fun recheck() {
+        if (!connect()) {
+            Log.w(TAG, "Recheck skipped: no line to Play")
+            return
+        }
+        reconcile()
+    }
+
     private suspend fun connect(): Boolean = connecting.withLock {
         if (client.isReady) return@withLock true
 
@@ -236,13 +257,15 @@ class BillingManager private constructor(context: Context) {
      * The redraw is what makes a subscription ending, or coming back, show up on the
      * home screen rather than at the next time something else happened to repaint.
      */
-    private fun noteForWidgets(held: Boolean) {
+    private suspend fun noteForWidgets(held: Boolean) {
         if (preferences.plusHeld == held) return
         preferences.plusHeld = held
-        scope.launch {
-            runCatching { updateGalleryWidgets(app) }
-                .onFailure { Log.w(TAG, "Design redraw after plus change failed", it) }
-        }
+        // Awaited rather than launched, so a caller with a deadline — a receiver woken
+        // at midnight to ask this very question — can hold itself open until the cells
+        // have actually been redrawn. A receiver that returns first is one the system
+        // may stop the app behind, leaving the old picture up.
+        runCatching { updateGalleryWidgets(app) }
+            .onFailure { Log.w(TAG, "Design redraw after plus change failed", it) }
     }
 
     /**

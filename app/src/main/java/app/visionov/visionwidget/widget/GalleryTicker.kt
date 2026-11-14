@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import app.visionov.visionwidget.billing.BillingManager
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
@@ -77,6 +78,15 @@ object GalleryTicker {
      * a repaint triggered by that would start again on the next draw and never settle.
      */
     private const val UNDERSIZE_SLACK_PX = 8
+
+    /**
+     * How long Play is given to say whether Vision+ is still held.
+     *
+     * A broadcast receiver has about ten seconds in hand and the redraw still has to
+     * happen inside it, so this leaves most of that for the painting. Connecting and
+     * asking is normally well under a second.
+     */
+    private const val PLUS_CHECK_MS = 4_000L
 
     /** The minute the pictures that are up were drawn for. */
     @Volatile
@@ -437,6 +447,24 @@ object GalleryTicker {
         return withTimeoutOrNull(timeoutMs) { job.await() } ?: false
     }
 
+    /**
+     * Asks Play whether Vision+ is still held, then calls [done].
+     *
+     * Run from a receiver with a deadline, so it is bounded: past [PLUS_CHECK_MS] the
+     * answer is given up on and whatever is noted stands. Play being slow is not
+     * evidence that a subscription ended, and the question comes round again tomorrow.
+     */
+    fun recheckPlus(context: Context, done: () -> Unit = {}) {
+        val app = context.applicationContext
+        scope.launch {
+            try {
+                withTimeoutOrNull(PLUS_CHECK_MS) { BillingManager.get(app).recheck() }
+            } finally {
+                done()
+            }
+        }
+    }
+
     /** Repaints everything — the day has turned, so the calendars have moved too. */
     fun redrawAll(context: Context, done: () -> Unit = {}) {
         val app = context.applicationContext
@@ -491,10 +519,25 @@ class GalleryTickReceiver : BroadcastReceiver() {
             Intent.ACTION_TIMEZONE_CHANGED -> {
                 val pending = goAsync()
                 GalleryTicker.schedule(context)
-                GalleryTicker.redrawAll(context) { pending.finish() }
+                // The day turning is also when Play is asked whether Vision+ is still
+                // held. A Gallery design is kept by the subscription, and the cell
+                // showing one has to stop when that ends whether or not anybody has
+                // opened the app since — which, for a widget, is usually not at all.
+                // Once a day is the right rate for a question whose answer changes on
+                // a billing period, and it costs one connection against a wake the
+                // calendars were having anyway.
+                GalleryTicker.recheckPlus(context) {
+                    GalleryTicker.redrawAll(context) { pending.finish() }
+                }
             }
 
-            Intent.ACTION_BOOT_COMPLETED -> GalleryTicker.schedule(context)
+            // The same question after a restart, since a day may well have turned while
+            // the phone was off and nothing was listening for it.
+            Intent.ACTION_BOOT_COMPLETED -> {
+                val pending = goAsync()
+                GalleryTicker.schedule(context)
+                GalleryTicker.recheckPlus(context) { pending.finish() }
+            }
 
             else -> {
                 android.util.Log.i("GalleryTick", "tick received")
