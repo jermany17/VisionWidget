@@ -35,6 +35,17 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_SEEN_ONBOARDING, value).apply()
 
     /**
+     * False until the tour that follows onboarding has been through once.
+     *
+     * Kept apart from [hasSeenOnboarding] because the two are answered at different
+     * moments and one is skippable without the other: onboarding asks for a goal, and
+     * this only shows what the app does with it.
+     */
+    var hasSeenTutorial: Boolean
+        get() = prefs.getBoolean(KEY_SEEN_TUTORIAL, false)
+        set(value) = prefs.edit().putBoolean(KEY_SEEN_TUTORIAL, value).apply()
+
+    /**
      * The theme the daily line is drawn from, as picked on the last onboarding step.
      * Skipping that step leaves it on [DEFAULT_WISDOM_THEME] rather than on no theme at
      * all, so the card is always drawn from somewhere nameable.
@@ -270,6 +281,7 @@ class AppPreferences(context: Context) {
         const val PREFS_NAME = "vision_prefs"
         const val KEY_WIDGET_RADIUS = "widget_corner_radius"
         const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
+        const val KEY_SEEN_TUTORIAL = "has_seen_tutorial"
         const val KEY_WISDOM_CATEGORY = "wisdom_category"
         const val KEY_WISDOM_INDEX = "wisdom_index"
         const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
