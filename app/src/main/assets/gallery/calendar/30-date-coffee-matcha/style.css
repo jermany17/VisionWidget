@@ -1,14 +1,14 @@
 /*! Vision Widget — 30-date-coffee-matcha */
 @font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(../../_fonts/playfair-display-400-italic.woff2) format('woff2')}
 @font-face{font-family:'Jost';font-style:normal;font-weight:500;font-display:swap;src:url(../../_fonts/jost-500-normal.woff2) format('woff2')}
-/* 위젯 셸: Small(1:1) · 배경 없음(컵만) · 크기는 .cw { width } 하나로 조절, 내부는 cqw 비례 */
+/* 위젯 셸: Small(1:1) · 배경 없음(컵만) · 크기는 .widget { width } 하나로 조절, 내부는 cqw 비례 */
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;background:var(--preview-bg,#e9e2d8)}
-.cw{position:relative;width:min(100%,340px);aspect-ratio:1;container-type:inline-size;isolation:isolate}
+.widget{position:relative;width:min(100%,340px);aspect-ratio:1;container-type:inline-size;isolation:isolate}
 .cup{position:absolute;left:var(--cup-x);top:var(--cup-y);width:var(--cup-w);filter:drop-shadow(0 5.44px 9.52px rgba(40,25,10,.22))}
 .cup img{display:block;width:100%;height:auto}
 /* 커피 표면 — 이미지 기준 좌표(%): 원의 중심 · 지름 */
 .surf{position:absolute;left:var(--sx);top:var(--sy);width:var(--sw);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;text-align:center}
-.cw{--cup-x:6.8px;--cup-y:30.6px;--cup-w:333.2px;--sx:39.3%;--sy:49.6%;--sw:66%;--preview-bg:#d6dccb}
+.widget{--cup-x:6.8px;--cup-y:30.6px;--cup-w:333.2px;--sx:39.3%;--sy:49.6%;--sw:66%;--preview-bg:#d6dccb}
 .day{font:italic 400 88.4px/1.05 'Playfair Display',Georgia,serif;color:#fbfff4;text-shadow:0 1px 6px rgba(40,70,10,.45),0 0 18px rgba(255,255,240,.35);font-variant-numeric:lining-nums}
 .sub{font:500 14.28px 'Jost',sans-serif;letter-spacing:.32em;color:#f7fbea;text-shadow:0 1px 4px rgba(40,70,10,.5);margin-top:8.5px}

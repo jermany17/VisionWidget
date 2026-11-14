@@ -6,7 +6,7 @@
   function parse(s){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]):null}
   var qs=parse((location.search.match(/[?&]date=([\d-]+)/)||[])[1]);
   function render(){
-    document.querySelectorAll('.vw2[data-live="true"]').forEach(function(w){
+    document.querySelectorAll('.widget[data-live="true"]').forEach(function(w){
       var d=parse(w.dataset.date)||qs||new Date();
       var key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
       if(w.dataset.rendered===key)return; w.dataset.rendered=key;
@@ -30,7 +30,7 @@
     var avail=box.clientWidth, need=dn.scrollWidth;
     if(need>avail) dn.style.setProperty('--fit',(avail/need*0.97).toFixed(3));
   }
-  function fitAll(){document.querySelectorAll('.vw2').forEach(fit)}
+  function fitAll(){document.querySelectorAll('.widget').forEach(fit)}
   render(); setInterval(render,30000);
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitAll);
 })();

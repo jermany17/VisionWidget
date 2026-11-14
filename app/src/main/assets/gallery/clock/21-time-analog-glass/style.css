@@ -3,7 +3,7 @@
 html,body{margin:0;width:100%;min-height:100%;overflow:hidden}
 body{min-height:100vh;display:grid;place-items:center;background:#706d6f;font-family:Georgia,"Times New Roman",serif}
 .preview{padding:40px}
-.clock-widget{width:320px;height:320px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.28);border-radius:32px;background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.02)),rgba(126,122,124,.58);box-shadow:0 18px 45px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.widget{width:320px;height:320px;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.28);border-radius:32px;background:linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.02)),rgba(126,122,124,.58);box-shadow:0 18px 45px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .date{position:absolute;top:29px;left:29px;display:flex;flex-direction:column;gap:2px;color:rgba(255,255,255,.94);font:500 12px/1.15 Arial,Helvetica,sans-serif;letter-spacing:.08em}
 .digital-hour{position:absolute;top:27px;right:31px;color:rgba(255,255,255,.94);font-size:25px;line-height:1}
 .clock-face{position:absolute;width:190px;height:190px;left:50%;top:50%;transform:translate(-50%,-47%);border-radius:50%}
@@ -23,4 +23,4 @@ body{min-height:100vh;display:grid;place-items:center;background:#706d6f;font-fa
 .hand.minute{width:2px;height:78px;margin-top:-78px;background:rgba(255,255,255,.94)}
 .center-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;transform:translate(-50%,-50%);border-radius:50%;background:rgba(255,255,255,.96);z-index:5}
 .caption{position:absolute;left:50%;bottom:30px;margin:0;transform:translateX(-50%);color:rgba(255,255,255,.72);font:7px/1.7 Arial,Helvetica,sans-serif;letter-spacing:.35em;text-align:center;white-space:nowrap}
-@media(max-width:420px){.clock-widget{width:min(82vw,320px);height:min(82vw,320px)}}
+@media(max-width:420px){.widget{width:min(82vw,320px);height:min(82vw,320px)}}

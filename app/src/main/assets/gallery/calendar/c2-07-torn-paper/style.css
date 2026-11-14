@@ -14,8 +14,8 @@
 @font-face{font-family:'Ms Madi';font-style:normal;font-weight:400;font-display:swap;src:url(../../_fonts/ms-madi-400-normal.woff2) format('woff2')}
 
 /* ================= Shell =================
-   크기: .vw2 { width } 하나로 조절. 비율 600:280 고정. 내부는 전부 cqw(위젯 폭 1%) 단위.          */
-.vw2{
+   크기: .widget { width } 하나로 조절. 비율 600:280 고정. 내부는 전부 cqw(위젯 폭 1%) 단위.          */
+.widget{
   --f-display:'Playfair Display',Georgia,serif; --f-body:'Cormorant Garamond',Georgia,serif; --f-script:'Ms Madi','Snell Roundhand',cursive;
   --ink:#333; --ink-soft:#444; --shadow:none; --today-bg:#ccc; --today-ink:#222;
   --day-x:7%; --day-w:38%; --day-align:left; --cal-l:56%; --cal-r:5%; --cal-t:11%; --cal-b:9%;
@@ -62,8 +62,8 @@
 .grid .today{color:var(--today-ink);text-shadow:none}
 .grid .today::before{content:'';position:absolute;z-index:-1;left:50%;top:50%;width:25.8px;height:25.8px;transform:translate(-50%,-52%);
                      border-radius:50%;background:var(--today-bg);box-shadow:0 1.2px 3.6px rgba(0,0,0,.08)}
-.vw2[data-weeks="6"] .month{margin-bottom:8.4px}
-.vw2[data-weeks="6"] .grid .today::before{width:23.4px;height:23.4px}
+.widget[data-weeks="6"] .month{margin-bottom:8.4px}
+.widget[data-weeks="6"] .grid .today::before{width:23.4px;height:23.4px}
 
 /* ================= Decorations ================= */
 .out{position:absolute;pointer-events:none;z-index:3}

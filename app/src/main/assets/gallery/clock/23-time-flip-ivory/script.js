@@ -5,7 +5,7 @@
   function render(){
     var d=new Date(); if(q){d.setHours(+q[1]);d.setMinutes(+q[2]);}
     var h=String(d.getHours()%12||12), m=pad(d.getMinutes());
-    document.querySelectorAll('.flip[data-live="true"]').forEach(function(w){
+    document.querySelectorAll('.widget[data-live="true"]').forEach(function(w){
       [['.hh',h],['.mm',m]].forEach(function(p){var c=w.querySelector(p[0]),s=c.querySelector('span');
         if(s.textContent!==p[1]){s.textContent=p[1];c.classList.remove('tick');void c.offsetWidth;c.classList.add('tick');}});
     });

@@ -1,5 +1,7 @@
 (function () {
-  var ROOTS = '.widget,.cw,.vw2,.flip,.clock-widget';
+  // Every design's own root is renamed to this on the way in, whatever the design
+  // called it, so there is one name to look for rather than a list to keep current.
+  var ROOTS = '.widget';
 
   function fit() {
     var root = document.querySelector(ROOTS);

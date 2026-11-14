@@ -26,6 +26,6 @@ main.preview > .caption {
    that was what left one of them a sliver: its width was pinned while its height went
    on following the variable the design actually sizes from. embed.js measures whatever
    the design settled on and scales that to the frame. */
-.widget, .cw, .vw2, .flip, .clock-widget {
+.widget {
   margin: 0 !important;
 }

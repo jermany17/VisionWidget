@@ -7,6 +7,13 @@
 # actually draws is carried over.
 #
 # Lock screen designs are skipped: there is no lock screen widget in this app.
+#
+# Every design's outermost box is renamed to `.widget` on the way in -- see
+# [Get-RootClass]. The designs name that box after whichever batch they were drawn in
+# (`.cw` for the coffee set, `.flip` for the flip clocks, `.vw2` then `.vwm` for the two
+# generations of Medium), and the app has no use for the distinction: it needs the box
+# only so it can scale it to the tile it sits in. Normalising here means a design named
+# in some new way arrives already speaking the one name the app looks for.
 
 param(
     [string]$Source = "C:\Users\leejm\Downloads\vision-widgets-by-widget-20261031T055010Z-1-001\vision-widgets-by-widget",
@@ -15,6 +22,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Categories = @("clock", "calendar")
+
+# The one class the app looks for, and what every design's own root is renamed to.
+$RootClass = "widget"
+
+# Three designs carry a "(Medium)" suffix in the order file where every other name is
+# "A · B". Named here in that same form so the shelf reads as one set. The suffix was
+# standing in for the size, which the tile already prints under itself.
+$NameOverrides = @{
+    "c2-02-ribbon-blush"   = "Ribbon · Burgundy satin"
+    "c2-03-cloud-line"     = "Cloud line · Ivory"
+    "c2-10-calendar-ivory" = "Month · Ivory"
+}
 
 if (Test-Path $Dest) { Remove-Item $Dest -Recurse -Force }
 New-Item -ItemType Directory -Path $Dest -Force | Out-Null
@@ -32,6 +51,42 @@ $catById = @{}
 foreach ($c in $Categories) {
     $o = Read-Json (Join-Path $Source "$c\_order.json")
     foreach ($i in $o.items) { $catById[$i.id] = $i }
+}
+
+# ---- the design's own root ----------------------------------------------------
+# What a design calls its outermost box.
+#
+# Found by where it sits rather than by what it is called, because what it is called
+# changes with every batch the designer draws and a list of the names seen so far is a
+# list that is wrong the next time. The box is the first element in the body that
+# carries a class -- except that three designs wrap themselves in a preview frame of
+# their own first, so a `preview` is stepped over to reach what it frames.
+function Get-RootClass([string]$html) {
+    $at = $html.IndexOf("<body")
+    if ($at -lt 0) { return $null }
+    $body = $html.Substring($at)
+
+    foreach ($m in [regex]::Matches($body, '<(?:div|section|main|article)[^>]*?class\s*=\s*"([^"]+)"')) {
+        $first = ($m.Groups[1].Value.Trim() -split '\s+')[0]
+        if ($first -eq "preview") { continue }
+        return $first
+    }
+    return $null
+}
+
+# Renames [$from] to [$RootClass] wherever it is used as a class.
+#
+# Written as a class rather than as a word: `.cw` must not be found inside `.cw-dial`,
+# and the root is always the first name in the attribute it appears in.
+function Rename-RootClass([string]$text, [string]$from, [bool]$isHtml) {
+    if ($from -eq $RootClass) { return $text }
+    $f = [regex]::Escape($from)
+    if ($isHtml) {
+        return [regex]::Replace($text, '(class\s*=\s*")' + $f + '(?=[\s"])', '${1}' + $RootClass)
+    }
+    # Stylesheets and scripts name it as a selector; a dash or word character after it
+    # means this is some longer name that merely starts the same way.
+    return [regex]::Replace($text, '\.' + $f + '(?![\w-])', '.' + $RootClass)
 }
 
 # ---- ratio parsing -----------------------------------------------------------
@@ -63,13 +118,16 @@ function Get-Size($size) {
 # instead, and those only hold together at the width they were drawn for. Handing the
 # viewport that width covers both: the fluid ones fill it, the fixed ones land on it
 # exactly, and the view scales the finished page to whatever size it is being shown at.
-function Get-DesignWidth($cssPath) {
-    if (-not (Test-Path $cssPath)) { return 340 }
-    $css = (Get-Content $cssPath -Encoding UTF8 -Raw) -replace "`r?`n", " "
+# Returns 0 when the figure cannot be read, so the caller can stop rather than carry a
+# guess. A silent fallback here is what let three redesigned Mediums through at 340
+# where they were drawn at 600: nothing was wrong until the widgets came out small.
+function Get-DesignWidth([string]$cssText) {
+    if (-not $cssText) { return 0 }
+    $css = $cssText -replace "`r?`n", " "
 
-    $rule = [regex]::Match($css, '\.(widget|cw|vw2|flip|clock-widget)\s*\{[^}]*?width\s*:\s*([^;}]+)')
-    if (-not $rule.Success) { return 340 }
-    $width = $rule.Groups[2].Value.Trim()
+    $rule = [regex]::Match($css, '\.' + $RootClass + '\s*\{[^}]*?width\s*:\s*([^;}]+)')
+    if (-not $rule.Success) { return 0 }
+    $width = $rule.Groups[1].Value.Trim()
 
     # A root sized from a variable: read what that variable was set to.
     if ($width -match 'var\(\s*(--[\w-]+)') {
@@ -80,7 +138,7 @@ function Get-DesignWidth($cssPath) {
     # Otherwise the last pixel figure in the rule is the ceiling it tops out at.
     $px = [regex]::Matches($width, '(\d+(?:\.\d+)?)px')
     if ($px.Count -gt 0) { return [int]$px[$px.Count - 1].Groups[1].Value }
-    return 340
+    return 0
 }
 
 # Container query units, resolved to plain pixels.
@@ -115,9 +173,9 @@ function Resolve-ContainerUnits([string]$text, [int]$designWidth) {
 #
 # Laying out just past the breakpoint gives the design the arrangement it was drawn in;
 # `embed.js` then scales whatever it settled on up to fill the frame.
-function Get-ViewportWidth($cssPath, [int]$designWidth) {
-    if (-not (Test-Path $cssPath)) { return $designWidth }
-    $css = (Get-Content $cssPath -Encoding UTF8 -Raw) -replace "`r?`n", " "
+function Get-ViewportWidth([string]$cssText, [int]$designWidth) {
+    if (-not $cssText) { return $designWidth }
+    $css = $cssText -replace "`r?`n", " "
 
     $widest = 0
     foreach ($m in [regex]::Matches($css, '@media[^{]*max-width\s*:\s*(\d+)px')) {
@@ -136,17 +194,47 @@ foreach ($category in $Categories) {
     foreach ($dir in Get-ChildItem (Join-Path $Source $category) -Directory) {
         $infoPath = Join-Path $dir.FullName "widget-info.json"
         if (-not (Test-Path $infoPath)) { continue }
-        $info = Read-Json $infoPath
         $id = $dir.Name
+
+        # Lock screen designs ship as widgets of their own now, named and ordered beside
+        # the rest. There is no lock screen widget in this app, so they are left behind.
+        if ($id -like "lock-*") { continue }
+
+        # Asked before anything is written: a design the order files have dropped would
+        # otherwise leave its stylesheet on disk under a name the catalog never mentions.
+        $all = $allById[$id]
+        if (-not $all) { Write-Warning "dropped (no All order): $id"; continue }
+        $cat = $catById[$id]
+        $info = Read-Json $infoPath
+
+        $htmlSrc   = Join-Path $dir.FullName "index.html"
+        $cssSrc    = Join-Path $dir.FullName "style.css"
+        $scriptSrc = Join-Path $dir.FullName "script.js"
+
+        $html = if (Test-Path $htmlSrc)   { Get-Content $htmlSrc   -Encoding UTF8 -Raw } else { $null }
+        $css  = if (Test-Path $cssSrc)    { Get-Content $cssSrc    -Encoding UTF8 -Raw } else { $null }
+        $js   = if (Test-Path $scriptSrc) { Get-Content $scriptSrc -Encoding UTF8 -Raw } else { $null }
+
+        # Everything the design calls its own root becomes `.widget`, so the three places
+        # downstream that have to find it only ever look for one name.
+        $root = if ($html) { Get-RootClass $html } else { $null }
+        if (-not $root) { throw "no root box found in $category/$id/index.html" }
+        $html = Rename-RootClass $html $root $true
+        if ($css) { $css = Rename-RootClass $css $root $false }
+        if ($js)  { $js  = Rename-RootClass $js  $root $false }
+
+        $designWidth = Get-DesignWidth $css
+        if ($designWidth -le 0) {
+            throw "no width on .$RootClass in $category/$id/style.css (root was .$root)"
+        }
+        $viewportWidth = Get-ViewportWidth $css $designWidth
 
         $target = Join-Path $Dest "$category\$id"
         New-Item -ItemType Directory -Path $target -Force | Out-Null
 
-        $designWidth = Get-DesignWidth (Join-Path $dir.FullName "style.css")
-        $viewportWidth = Get-ViewportWidth (Join-Path $dir.FullName "style.css") $designWidth
-
-        $scriptSrc = Join-Path $dir.FullName "script.js"
-        if (Test-Path $scriptSrc) { Copy-Item $scriptSrc (Join-Path $target "script.js") }
+        if ($js) {
+            [System.IO.File]::WriteAllText((Join-Path $target "script.js"), $js, (New-Object System.Text.UTF8Encoding $false))
+        }
 
         # The page lays itself out at the width it was drawn for and `embed.js` scales
         # that to whatever frame it is in — it is told the width here. The override
@@ -155,30 +243,24 @@ foreach ($category in $Categories) {
         # The fitting is done inside the page rather than left to the view's own zoom
         # because the view will not zoom out past a floor of its own: a 600-wide design
         # asked to fit a thumbnail stopped at 524 and lost its right-hand edge.
-        $htmlSrc = Join-Path $dir.FullName "index.html"
-        if (Test-Path $htmlSrc) {
-            $html = Get-Content $htmlSrc -Encoding UTF8 -Raw
-            $html = [regex]::Replace(
-                $html,
-                '<meta\s+name="viewport"[^>]*>',
-                "<meta name=`"viewport`" content=`"width=$viewportWidth`">"
-            )
-            # `freeze.js` carries no `defer`: it has to have run before the design's own
-            # script, which is what it is there to lie to.
-            $head = "<style>:root{--design-width:$designWidth}</style>" +
-                    "<link rel=`"stylesheet`" href=`"../../embed.css`">" +
-                    "<script src=`"../../freeze.js`"></script>" +
-                    "<script src=`"../../embed.js`" defer></script></head>"
-            $html = $html -replace '</head>', $head
-            # A couple of these carry a style block of their own in the page.
-            $html = Resolve-ContainerUnits $html $designWidth
-            [System.IO.File]::WriteAllText((Join-Path $target "index.html"), $html, (New-Object System.Text.UTF8Encoding $false))
-        }
+        $html = [regex]::Replace(
+            $html,
+            '<meta\s+name="viewport"[^>]*>',
+            "<meta name=`"viewport`" content=`"width=$viewportWidth`">"
+        )
+        # `freeze.js` carries no `defer`: it has to have run before the design's own
+        # script, which is what it is there to lie to.
+        $head = "<style>:root{--design-width:$designWidth}</style>" +
+                "<link rel=`"stylesheet`" href=`"../../embed.css`">" +
+                "<script src=`"../../freeze.js`"></script>" +
+                "<script src=`"../../embed.js`" defer></script></head>"
+        $html = $html -replace '</head>', $head
+        # A couple of these carry a style block of their own in the page.
+        $html = Resolve-ContainerUnits $html $designWidth
+        [System.IO.File]::WriteAllText((Join-Path $target "index.html"), $html, (New-Object System.Text.UTF8Encoding $false))
 
         # Stylesheet, with its private font folder swapped for the shared one.
-        $cssSrc = Join-Path $dir.FullName "style.css"
-        if (Test-Path $cssSrc) {
-            $css = Get-Content $cssSrc -Encoding UTF8 -Raw
+        if ($css) {
             $css = $css -replace 'url\((["'']?)fonts/', 'url($1../../_fonts/'
             $css = Resolve-ContainerUnits $css $designWidth
             [System.IO.File]::WriteAllText((Join-Path $target "style.css"), $css, (New-Object System.Text.UTF8Encoding $false))
@@ -206,13 +288,9 @@ foreach ($category in $Categories) {
             }
         }
 
-        $all = $allById[$id]
-        $cat = $catById[$id]
-        if (-not $all) { Write-Warning "no All order for $id"; continue }
-
         [void]$catalog.Add([ordered]@{
             id          = $id
-            name        = $all.name
+            name        = if ($NameOverrides.ContainsKey($id)) { $NameOverrides[$id] } else { $all.name }
             category    = $category
             size        = Get-Size $info.size
             cells       = Get-Cells $info.android_cells
@@ -264,7 +342,7 @@ main.preview > .caption {
    that was what left one of them a sliver: its width was pinned while its height went
    on following the variable the design actually sizes from. embed.js measures whatever
    the design settled on and scales that to the frame. */
-.widget, .cw, .vw2, .flip, .clock-widget {
+.widget {
   margin: 0 !important;
 }
 '@
@@ -283,7 +361,9 @@ main.preview > .caption {
 # well be sitting in the middle of a page that is larger than it is.
 $embedJs = @'
 (function () {
-  var ROOTS = '.widget,.cw,.vw2,.flip,.clock-widget';
+  // Every design's own root is renamed to this on the way in, whatever the design
+  // called it, so there is one name to look for rather than a list to keep current.
+  var ROOTS = '.widget';
 
   function fit() {
     var root = document.querySelector(ROOTS);

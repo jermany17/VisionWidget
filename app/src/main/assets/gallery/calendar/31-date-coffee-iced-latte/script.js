@@ -6,7 +6,7 @@
   function set(w,sel,v){var e=w.querySelector(sel); if(e&&e.textContent!==v)e.textContent=v;}
   function render(){
     var d=now(), h=d.getHours(), m=d.getMinutes();
-    document.querySelectorAll('.cw[data-live="true"]').forEach(function(w){
+    document.querySelectorAll('.widget[data-live="true"]').forEach(function(w){
       var hh=w.querySelector('.hand.hh'), mm=w.querySelector('.hand.mm');
       if(hh){ hh.style.transform='rotate('+((h%12)*30+m*0.5)+'deg)'; mm.style.transform='rotate('+(m*6)+'deg)'; }
       set(w,'.time',(h%12||12)+':'+(m<10?'0':'')+m);

@@ -1,14 +1,14 @@
 /*! Vision Widget — 25-time-coffee-espresso-gold */
 
-/* 위젯 셸: Small(1:1) · 배경 없음(컵만) · 크기는 .cw { width } 하나로 조절, 내부는 cqw 비례 */
+/* 위젯 셸: Small(1:1) · 배경 없음(컵만) · 크기는 .widget { width } 하나로 조절, 내부는 cqw 비례 */
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;background:var(--preview-bg,#e9e2d8)}
-.cw{position:relative;width:min(100%,340px);aspect-ratio:1;container-type:inline-size;isolation:isolate}
+.widget{position:relative;width:min(100%,340px);aspect-ratio:1;container-type:inline-size;isolation:isolate}
 .cup{position:absolute;left:var(--cup-x);top:var(--cup-y);width:var(--cup-w);filter:drop-shadow(0 5.44px 9.52px rgba(40,25,10,.22))}
 .cup img{display:block;width:100%;height:auto}
 /* 커피 표면 — 이미지 기준 좌표(%): 원의 중심 · 지름 */
 .surf{position:absolute;left:var(--sx);top:var(--sy);width:var(--sw);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;text-align:center}
-.cw{--cup-x:0px;--cup-y:10.2px;--cup-w:340px;--sx:48.5%;--sy:49.6%;--sw:50%;--preview-bg:#ece4d9;--tick:#e7c983;--tick-w:5%;--tick-in:6%;--tick-sh:0 0 3px rgba(255,215,140,.6);--hand:linear-gradient(#f3dca1,#c99a45);--hand-sh:0 1px 2px rgba(0,0,0,.35);--hh-w:4.2%;--hh-l:28%;--mm-w:3%;--mm-l:40%;--pin-w:9%;--pin:radial-gradient(circle at 35% 35%,#fff3cf,#c99a45);--pin-sh:none}
+.widget{--cup-x:0px;--cup-y:10.2px;--cup-w:340px;--sx:48.5%;--sy:49.6%;--sw:50%;--preview-bg:#ece4d9;--tick:#f4ecdc;--tick-w:5%;--tick-in:6%;--tick-sh:0 0 3px rgba(255,248,232,.45);--hand:#f4ecdc;--hand-sh:0 1px 2px rgba(0,0,0,.35);--hh-w:4.2%;--hh-l:28%;--mm-w:3%;--mm-l:40%;--pin-w:9%;--pin:#f4ecdc;--pin-sh:none}
 
 .face{position:relative;width:100%;height:100%}
 .tick{position:absolute;width:var(--tick-w);aspect-ratio:1;border-radius:50%;background:var(--tick);box-shadow:var(--tick-sh);transform:translate(-50%,-50%)}
