@@ -100,6 +100,18 @@ fun VisionApp(
         )
     }
 
+    /**
+     * Whether the Gallery tab is still owed to whoever asked for it.
+     *
+     * A Gallery widget's tap asks for Studio's Gallery rather than its Design, and it
+     * asks once — for the visit it opened. The flag it travels on is read off the
+     * launch intent, though, which does not change for as long as the activity lives,
+     * so every later visit to Studio was still being answered with the tab a widget
+     * pointed at an hour ago. Spent on first use, and Studio opens on Design after
+     * that, as it does for every other way in.
+     */
+    var galleryOwed by rememberSaveable { mutableStateOf(openGallery) }
+
     // Where the user has asked to go while Studio still has something unapplied.
     //
     // Studio's drafts live inside Studio, so it is the one that can say whether leaving
@@ -258,28 +270,35 @@ fun VisionApp(
                 onToggleMilestone = viewModel::toggleMilestone,
                 onDeleteMilestone = viewModel::deleteMilestone
             )
-            VisionTab.Studio -> StudioScreen(
-                contentPadding = screenPadding,
-                looks = widgetLooks,
-                onApplyStyle = viewModel::applyWidgetStyle,
-                onPickPhoto = viewModel::setWidgetPhoto,
-                wisdomCategory = wisdomCategory,
-                wisdomOwnText = wisdomOwnText,
-                onApplyWisdom = viewModel::applyWisdom,
-                vision = mainVision,
-                topThreeTasks = topThreeTasks,
-                topThreeChecked = topThreeChecked,
-                wisdomIndex = wisdomIndex,
-                startOnGallery = openGallery,
-                libraryIds = libraryDesignIds,
-                onSaveToLibrary = viewModel::saveToLibrary,
-                onOpenLibrary = { showLibrary = true },
-                leaveRequested = pendingTab != null,
-                onLeaveResolved = { allowed ->
-                    if (allowed) pendingTab?.let { selectedTab = it }
-                    pendingTab = null
-                }
-            )
+            VisionTab.Studio -> {
+                // Read during composition, which is when Studio settles on a tab, and
+                // spent straight after so the next visit opens on Design.
+                val startOnGallery = galleryOwed
+                LaunchedEffect(Unit) { galleryOwed = false }
+
+                StudioScreen(
+                    contentPadding = screenPadding,
+                    looks = widgetLooks,
+                    onApplyStyle = viewModel::applyWidgetStyle,
+                    onPickPhoto = viewModel::setWidgetPhoto,
+                    wisdomCategory = wisdomCategory,
+                    wisdomOwnText = wisdomOwnText,
+                    onApplyWisdom = viewModel::applyWisdom,
+                    vision = mainVision,
+                    topThreeTasks = topThreeTasks,
+                    topThreeChecked = topThreeChecked,
+                    wisdomIndex = wisdomIndex,
+                    startOnGallery = startOnGallery,
+                    libraryIds = libraryDesignIds,
+                    onSaveToLibrary = viewModel::saveToLibrary,
+                    onOpenLibrary = { showLibrary = true },
+                    leaveRequested = pendingTab != null,
+                    onLeaveResolved = { allowed ->
+                        if (allowed) pendingTab?.let { selectedTab = it }
+                        pendingTab = null
+                    }
+                )
+            }
             VisionTab.Insights -> InsightsScreen(
                 contentPadding = screenPadding,
                 records = dayRecords,
