@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.visionov.visionwidget.R
 import app.visionov.visionwidget.ui.theme.UserFontChoice
 import app.visionov.visionwidget.ui.theme.UserFonts
@@ -47,7 +48,7 @@ import app.visionov.visionwidget.ui.theme.VisionType
  * them worth looking at, and a tour that drove the real screens would have nothing to
  * show on the first run — no vision, no three, no widget.
  *
- * So the only thing this draws is the way through: skip, how far along, and next. The
+ * So the only thing this draws is the way through: back, how far along, and next. The
  * pictures carry the rest.
  */
 
@@ -81,7 +82,14 @@ private val CurrentDotWidth = 22.dp
 private val DotGap = 6.dp
 
 private val BarHeight = 96.dp
-private val ButtonWidth = 108.dp
+
+/**
+ * Back and next are the same width, which is what puts the steps between them on the
+ * middle of the screen as well as on the middle of the gap. Two buttons of different
+ * widths make those two centres different places, and whichever one the dots were put
+ * on, they read as being slightly off the other.
+ */
+private val ButtonWidth = 84.dp
 
 @Composable
 fun TutorialFlow(onFinish: () -> Unit) {
@@ -109,7 +117,7 @@ fun TutorialFlow(onFinish: () -> Unit) {
                 count = TUTORIAL_PAGES.size,
                 last = last,
                 userFont = userFont,
-                onSkip = onFinish,
+                onBack = { if (page > 0) page-- },
                 onNext = { if (last) onFinish() else page++ }
             )
         }
@@ -140,14 +148,14 @@ private fun TutorialPicture(@DrawableRes page: Int, modifier: Modifier = Modifie
     }
 }
 
-/** Skip, how far along, and next — the only part of this screen that does anything. */
+/** Back, how far along, and next — the only part of this screen that does anything. */
 @Composable
 private fun TutorialBar(
     page: Int,
     count: Int,
     last: Boolean,
     userFont: UserFontChoice,
-    onSkip: () -> Unit,
+    onBack: () -> Unit,
     onNext: () -> Unit
 ) {
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -161,20 +169,16 @@ private fun TutorialBar(
             .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left, centre and right are each given a third, so the counter sits on the
-        // middle of the screen rather than on the middle of whatever is left over —
-        // "Done" is a shorter word than "Next" and would otherwise shift it.
+        // Left, centre and right are each given a third, and the two buttons are the
+        // same width, so the steps land on the middle of the screen and on the middle
+        // of the gap between the buttons at once — those are the same place only while
+        // the buttons match.
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            // Nothing is lost by skipping: the tour can be read off the app itself, and
-            // somebody who wants to get on with it has already decided that.
-            Text(
-                text = "SKIP",
-                style = VisionType.eyebrow,
-                color = BarInkMuted,
-                modifier = Modifier
-                    .clickable(onClick = onSkip)
-                    .padding(vertical = 10.dp, horizontal = 2.dp)
-            )
+            // Nothing to go back to on the first picture. The slot is still spent, so
+            // that the steps do not slide across as it appears on the second.
+            if (page > 0) {
+                BarButton(label = "Back", userFont = userFont, onClick = onBack)
+            }
         }
 
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -182,22 +186,38 @@ private fun TutorialBar(
         }
 
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            Box(
-                modifier = Modifier
-                    .width(ButtonWidth)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(BarInk)
-                    .clickable(onClick = onNext)
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (last) "Done" else "Next",
-                    style = VisionType.buttonLabel(userFont),
-                    color = BarFill
-                )
-            }
+            BarButton(
+                label = if (last) "Done" else "Next",
+                userFont = userFont,
+                onClick = onNext
+            )
         }
+    }
+}
+
+/**
+ * Back and next, which are the same button with a different word in them.
+ *
+ * Held well under the scale the app's own buttons are set at. Those are the thing being
+ * pressed on the screen they belong to; these sit under a picture that is the whole
+ * point of the screen, and at the app's size they were competing with it.
+ */
+@Composable
+private fun BarButton(label: String, userFont: UserFontChoice, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(ButtonWidth)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(BarInk)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = VisionType.userFace(userFont, 13.sp, 17.sp),
+            color = BarFill
+        )
     }
 }
 
