@@ -362,6 +362,24 @@ main.preview > .caption {
   animation: none !important;
   transition: none !important;
 }
+
+/* A backdrop filter blurs whatever is behind the element. Behind these there is
+   nothing: the page is drawn offscreen onto transparency and handed to the launcher as
+   a picture, so the wallpaper the effect was written for is not in the frame and never
+   can be. It cannot do its job here.
+
+   What it does instead is break the shape. The glass calendar is a rectangle masked
+   down to a rounded blob, and Chromium clips a backdrop filter by the border box and by
+   a radius but not by a mask — so the blob came out correctly and a translucent
+   rectangle came out around it. The wave calendars next to it are masked exactly the
+   same way and are clean; the filter is the only line between them.
+
+   Dropped rather than worked around, since nothing is lost: the designs that ask for it
+   carry their own translucent fill and edge, which is what reads as glass. */
+*, *::before, *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
 '@
 [System.IO.File]::WriteAllText((Join-Path $Dest "embed.css"), $embed, (New-Object System.Text.UTF8Encoding $false))
 
