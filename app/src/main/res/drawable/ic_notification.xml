@@ -1,0 +1,25 @@
+<!--
+  The mark as the status bar takes it.
+
+  A small icon is drawn from its alpha alone — the system throws the colours away and
+  tints what is left — so this is the V and its spark as flat shapes, with nothing behind
+  them. The launcher icon could not stand in for it: that one is a mark on paper, and a
+  silhouette of it would arrive in the shade as a filled square.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+
+    <!-- The V, drawn as a stroke of even weight rather than a letterform. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.9,5.6 L7.2,5.6 L12,16.4 L16.8,5.6 L19.1,5.6 L13.1,19.0 L10.9,19.0 Z" />
+
+    <!-- The spark off its shoulder, the one thing that makes the mark the app's. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18.3,2.0 L19.0,4.1 L21.1,4.8 L19.0,5.5 L18.3,7.6 L17.6,5.5 L15.5,4.8 L17.6,4.1 Z" />
+</vector>

@@ -174,6 +174,54 @@ class AppPreferences(context: Context) {
 
 
     /**
+     * The master switch over everything the app sends to the shade.
+     *
+     * Separate from the system permission, and both have to be on. The permission is the
+     * user's answer to Android and cannot be taken back by us — an app may ask for it but
+     * never revoke its own — so without a switch of our own the only way back off would
+     * be a trip to the system settings. This is that way back, and it costs nothing when
+     * the permission is the thing that is missing.
+     */
+    var notificationsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_ON, true)
+        set(value) = prefs.edit().putBoolean(KEY_NOTIFY_ON, value).apply()
+
+    /** Whether the evening nudge to write tomorrow's three is sent, and when. */
+    var planTomorrowEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PLAN_ON, true)
+        set(value) = prefs.edit().putBoolean(KEY_PLAN_ON, value).apply()
+
+    var planTomorrowMinutes: Int
+        get() = prefs.getInt(KEY_PLAN_AT, DEFAULT_PLAN_AT)
+        set(value) = prefs.edit().putInt(KEY_PLAN_AT, value.coerceIn(0, MINUTES_IN_DAY - 1)).apply()
+
+    /** Whether the day's line is sent in the morning, and when. */
+    var dailyWisdomEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WISDOM_ON, true)
+        set(value) = prefs.edit().putBoolean(KEY_WISDOM_ON, value).apply()
+
+    var dailyWisdomMinutes: Int
+        get() = prefs.getInt(KEY_WISDOM_AT, DEFAULT_WISDOM_AT)
+        set(value) = prefs.edit().putInt(KEY_WISDOM_AT, value.coerceIn(0, MINUTES_IN_DAY - 1)).apply()
+
+    /** Whether the day is looked in on before it ends, and when. */
+    var eveningCheckEnabled: Boolean
+        get() = prefs.getBoolean(KEY_EVENING_ON, true)
+        set(value) = prefs.edit().putBoolean(KEY_EVENING_ON, value).apply()
+
+    /**
+     * Held to the evening, which is what makes it a check rather than an interruption:
+     * asked at noon it would be telling the user about a day they are still in the middle
+     * of doing.
+     */
+    var eveningCheckMinutes: Int
+        get() = prefs.getInt(KEY_EVENING_AT, DEFAULT_EVENING_AT)
+            .coerceIn(EVENING_CHECK_EARLIEST, MINUTES_IN_DAY - 1)
+        set(value) = prefs.edit()
+            .putInt(KEY_EVENING_AT, value.coerceIn(EVENING_CHECK_EARLIEST, MINUTES_IN_DAY - 1))
+            .apply()
+
+    /**
      * Which base plan Vision+ was last bought on, noted when the purchase sheet opens.
      *
      * Play tells the client that a subscription is held but not which plan it is held
@@ -274,32 +322,48 @@ class AppPreferences(context: Context) {
         }.apply()
     }
 
-    private companion object {
-        /** Shared, not per-instance: every caller builds its own [AppPreferences]. */
-        val RollLock = Any()
+    companion object {
+        /** The earliest the evening check may be set to — see [eveningCheckMinutes]. */
+        const val EVENING_CHECK_EARLIEST = 17 * 60
 
-        const val PREFS_NAME = "vision_prefs"
-        const val KEY_WIDGET_RADIUS = "widget_corner_radius"
-        const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
-        const val KEY_SEEN_TUTORIAL = "has_seen_tutorial"
-        const val KEY_WISDOM_CATEGORY = "wisdom_category"
-        const val KEY_WISDOM_INDEX = "wisdom_index"
-        const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
-        const val KEY_WISDOM_DAY = "wisdom_day"
-        const val KEY_PLANNED_DAY = "planned_day"
-        const val KEY_PLANNED_TASKS = "planned_tasks"
-        const val KEY_LIBRARY = "library_design_ids"
-        const val KEY_PURCHASED_PLAN = "purchased_base_plan"
-        const val KEY_PLUS_HELD = "plus_held"
-        const val KEY_WIDGET_FONT = "widget_font_id"
-        const val KEY_WIDGET_THEME = "widget_theme_id"
-        const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"
-        const val KEY_WIDGET_ALIGN = "widget_align_id"
-        const val KEY_WIDGET_BACKGROUND = "widget_background_id"
-        const val KEY_WIDGET_PHOTO = "widget_photo_uri"
+        const val MINUTES_IN_DAY = 24 * 60
+
+        const val DEFAULT_PLAN_AT = 22 * 60
+        const val DEFAULT_WISDOM_AT = 8 * 60 + 30
+        const val DEFAULT_EVENING_AT = 18 * 60 + 30
+
+        /** Shared, not per-instance: every caller builds its own [AppPreferences]. */
+        private val RollLock = Any()
+
+        private const val PREFS_NAME = "vision_prefs"
+        private const val KEY_WIDGET_RADIUS = "widget_corner_radius"
+        private const val KEY_SEEN_ONBOARDING = "has_seen_onboarding"
+        private const val KEY_SEEN_TUTORIAL = "has_seen_tutorial"
+        private const val KEY_WISDOM_CATEGORY = "wisdom_category"
+        private const val KEY_WISDOM_INDEX = "wisdom_index"
+        private const val KEY_WISDOM_OWN_TEXT = "wisdom_own_text"
+        private const val KEY_WISDOM_DAY = "wisdom_day"
+        private const val KEY_PLANNED_DAY = "planned_day"
+        private const val KEY_PLANNED_TASKS = "planned_tasks"
+        private const val KEY_LIBRARY = "library_design_ids"
+        private const val KEY_PURCHASED_PLAN = "purchased_base_plan"
+        private const val KEY_PLUS_HELD = "plus_held"
+        private const val KEY_NOTIFY_ON = "notifications_enabled"
+        private const val KEY_PLAN_ON = "notify_plan_enabled"
+        private const val KEY_PLAN_AT = "notify_plan_at"
+        private const val KEY_WISDOM_ON = "notify_wisdom_enabled"
+        private const val KEY_WISDOM_AT = "notify_wisdom_at"
+        private const val KEY_EVENING_ON = "notify_evening_enabled"
+        private const val KEY_EVENING_AT = "notify_evening_at"
+        private const val KEY_WIDGET_FONT = "widget_font_id"
+        private const val KEY_WIDGET_THEME = "widget_theme_id"
+        private const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"
+        private const val KEY_WIDGET_ALIGN = "widget_align_id"
+        private const val KEY_WIDGET_BACKGROUND = "widget_background_id"
+        private const val KEY_WIDGET_PHOTO = "widget_photo_uri"
 
         /** The pre-per-widget names, kept only so an existing install can be moved off them. */
-        val SHARED_KEYS = listOf(
+        private val SHARED_KEYS = listOf(
             KEY_WIDGET_FONT,
             KEY_WIDGET_THEME,
             KEY_WIDGET_ALIGN,
@@ -308,6 +372,6 @@ class AppPreferences(context: Context) {
             KEY_WIDGET_PHOTO
         )
 
-        fun WidgetTarget.key(base: String) = "${base}_$key"
+        private fun WidgetTarget.key(base: String) = "${base}_$key"
     }
 }

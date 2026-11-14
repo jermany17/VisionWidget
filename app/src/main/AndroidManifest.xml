@@ -104,6 +104,22 @@
         </receiver>
 
         <!--
+          The three daily reminders, and the restart that would otherwise lose them.
+          Android drops every alarm an app has set when the phone reboots, so boot is
+          where they are put back — see Reminders.sync.
+        -->
+        <receiver
+            android:name=".notify.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="app.visionov.visionwidget.REMIND_PlanTomorrow" />
+                <action android:name="app.visionov.visionwidget.REMIND_DailyWisdom" />
+                <action android:name="app.visionov.visionwidget.REMIND_EveningCheck" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
           Takes the launcher's word that a widget asked for from inside the app has
           landed, and writes onto it what it was asked to hold. Pinning skips the
           setting screen, so this is the only moment that choice can be recorded.

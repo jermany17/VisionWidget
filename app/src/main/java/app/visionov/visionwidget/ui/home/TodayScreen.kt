@@ -73,6 +73,7 @@ import app.visionov.visionwidget.ui.components.CardFooterRow
 import app.visionov.visionwidget.ui.components.CreateVisionRow
 import app.visionov.visionwidget.ui.components.SettingsButton
 import app.visionov.visionwidget.ui.components.SettingsSheet
+import app.visionov.visionwidget.ui.components.SettingsRoutes
 import app.visionov.visionwidget.ui.components.croppedPhotoBackground
 import app.visionov.visionwidget.ui.components.rememberWidgetPhoto
 import app.visionov.visionwidget.ui.theme.AlignChoice
@@ -171,6 +172,8 @@ fun TodayScreen(
     wisdomOwnText: String = "",
     onShuffleWisdom: () -> Unit = {},
     onOpenVision: () -> Unit = {},
+    /** Where the settings sheet's rows go — see [SettingsRoutes]. */
+    settingsRoutes: SettingsRoutes = SettingsRoutes(),
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
@@ -335,7 +338,11 @@ fun TodayScreen(
     }
 
     if (showSettings) {
-        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+        SettingsSheet(
+            userFont = userFont,
+            routes = settingsRoutes,
+            onDismiss = { showSettings = false }
+        )
     }
 
     if (planningTomorrow) {

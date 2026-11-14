@@ -56,6 +56,7 @@ import app.visionov.visionwidget.data.topThreeStats
 import app.visionov.visionwidget.ui.ContentWidthFraction
 import app.visionov.visionwidget.ui.components.SettingsButton
 import app.visionov.visionwidget.ui.components.SettingsSheet
+import app.visionov.visionwidget.ui.components.SettingsRoutes
 import app.visionov.visionwidget.ui.theme.Canvas
 import app.visionov.visionwidget.ui.theme.CardThemes
 import app.visionov.visionwidget.ui.theme.NavBar
@@ -201,6 +202,8 @@ fun InsightsScreen(
     onToggleTask: (epochDay: Long, slotIndex: Int) -> Unit = { _, _ -> },
     contentPadding: PaddingValues = PaddingValues(),
     userFontId: Int = UserFonts.DEFAULT_ID,
+    /** Where the settings sheet's rows go — see [SettingsRoutes]. */
+    settingsRoutes: SettingsRoutes = SettingsRoutes(),
     modifier: Modifier = Modifier
 ) {
     val userFont = UserFonts[userFontId]
@@ -364,7 +367,11 @@ fun InsightsScreen(
     }
 
     if (showSettings) {
-        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+        SettingsSheet(
+            userFont = userFont,
+            routes = settingsRoutes,
+            onDismiss = { showSettings = false }
+        )
     }
 }
 

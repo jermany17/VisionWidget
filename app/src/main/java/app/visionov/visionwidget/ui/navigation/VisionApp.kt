@@ -42,6 +42,12 @@ import app.visionov.visionwidget.billing.PlusStatus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.visionov.visionwidget.data.VisionAppViewModel
+import app.visionov.visionwidget.notify.Reminders
+import app.visionov.visionwidget.ui.components.HowToAddPage
+import app.visionov.visionwidget.ui.components.LicencesPage
+import app.visionov.visionwidget.ui.components.PermissionsPage
+import app.visionov.visionwidget.ui.components.SettingsRoutes
+import app.visionov.visionwidget.ui.theme.UserFonts
 import app.visionov.visionwidget.data.tallyBetween
 import app.visionov.visionwidget.data.topThreeStats
 import app.visionov.visionwidget.ui.gallery.LibraryScreen
@@ -69,6 +75,9 @@ import java.time.temporal.TemporalAdjusters
 /** Falls back to the defaults rather than throwing if a target was never written. */
 private fun Map<WidgetTarget, WidgetLook>.lookOf(target: WidgetTarget) =
     this[target] ?: WidgetLook()
+
+/** The pages the settings sheet can hand off to, each covering the tabs while it is up. */
+enum class SettingsPage { HowToAdd, Permissions, Licences }
 
 enum class VisionTab(val label: String) {
     Today("Today"),
@@ -132,6 +141,11 @@ fun VisionApp(
     // belongs under Studio rather than beside it. Navigation state, as above.
     var showLibrary by rememberSaveable { mutableStateOf(false) }
 
+    // Which of the settings pages is open, if any. They live here rather than inside the
+    // settings sheet because a page has to cover the tab bar, and the sheet is drawn
+    // under it — see [SettingsRoutes].
+    var settingsPage by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+
     /** A launcher that won't be asked to place a widget, which has to be said out loud. */
     var pinRefused by rememberSaveable { mutableStateOf(false) }
 
@@ -145,9 +159,15 @@ fun VisionApp(
     // refunded in the Play app with this one in the background, and nothing announces
     // it — the line to Play is dropped when the process sleeps, so returning is the
     // moment to put it back up and ask what is actually held.
+    val appContext = LocalContext.current
     LifecycleResumeEffect(viewModel) {
         viewModel.refreshWisdomForToday()
         billing.refresh()
+        // The reminders ride on alarms, which the system drops on a reboot and which say
+        // nothing when the notification permission is withdrawn behind the app's back.
+        // Putting them back in step costs nothing when nothing has moved, and it is the
+        // one beat that is guaranteed to come round.
+        Reminders.sync(appContext)
         onPauseOrDispose { }
     }
 
@@ -171,6 +191,18 @@ fun VisionApp(
      */
     val libraryDesignIds = remember(storedLibraryIds, plusStatus) {
         if (plusStatus is PlusStatus.None) emptyList() else storedLibraryIds
+    }
+
+    // One object for every row of the settings sheet that leaves it, so the four tab
+    // screens thread a single value through rather than four lambdas apiece.
+    val settingsRoutes = remember(libraryDesignIds.size) {
+        SettingsRoutes(
+            libraryCount = libraryDesignIds.size,
+            openLibrary = { showLibrary = true },
+            openHowToAdd = { settingsPage = SettingsPage.HowToAdd },
+            openPermissions = { settingsPage = SettingsPage.Permissions },
+            openLicences = { settingsPage = SettingsPage.Licences }
+        )
     }
 
     val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
@@ -271,9 +303,11 @@ fun VisionApp(
                 wisdomCategory = wisdomCategory,
                 wisdomOwnText = wisdomOwnText,
                 onShuffleWisdom = viewModel::shuffleWisdom,
-                onOpenVision = { selectedTab = VisionTab.Vision }
+                onOpenVision = { selectedTab = VisionTab.Vision },
+                settingsRoutes = settingsRoutes
             )
             VisionTab.Vision -> VisionScreen(
+                settingsRoutes = settingsRoutes,
                 contentPadding = screenPadding,
                 visions = visions,
                 selectedVisionId = selectedVisionId,
@@ -313,6 +347,7 @@ fun VisionApp(
                     libraryIds = libraryDesignIds,
                     onSaveToLibrary = viewModel::saveToLibrary,
                     onOpenLibrary = { showLibrary = true },
+                    settingsRoutes = settingsRoutes,
                     leaveRequested = pendingTab != null,
                     onLeaveResolved = { allowed ->
                         if (allowed) pendingTab?.let { selectedTab = it }
@@ -323,7 +358,8 @@ fun VisionApp(
             VisionTab.Insights -> InsightsScreen(
                 contentPadding = screenPadding,
                 records = dayRecords,
-                onToggleTask = viewModel::toggleRecordedTask
+                onToggleTask = viewModel::toggleRecordedTask,
+                settingsRoutes = settingsRoutes
             )
         }
 
@@ -343,6 +379,7 @@ fun VisionApp(
                     showLibrary = false
                     selectedTab = VisionTab.Studio
                 },
+                onHowToAdd = { settingsPage = SettingsPage.HowToAdd },
                 onBack = { showLibrary = false },
                 contentPadding = screenPadding
             )
@@ -383,6 +420,23 @@ fun VisionApp(
                     .navigationBarsPadding()
                     .padding(vertical = NavBarMargin)
             )
+        }
+
+        // Last in the box, so they cover the tab bar and the library both — these are
+        // pages, not panels, and nothing underneath one of them is meant to be reachable
+        // without coming back out first.
+        settingsPage?.let { page ->
+            val settingsFont = UserFonts[UserFonts.DEFAULT_ID]
+            val leave = { settingsPage = null }
+            when (page) {
+                SettingsPage.HowToAdd -> HowToAddPage(userFont = settingsFont, onBack = leave)
+                SettingsPage.Permissions -> PermissionsPage(userFont = settingsFont, onBack = leave)
+                SettingsPage.Licences -> LicencesPage(userFont = settingsFont, onBack = leave)
+            }
+            // Registered after the library's, so it is this one the system's back
+            // reaches while a page is up. Licences takes its own back first when it has
+            // a licence open — see [LicencesPage].
+            BackHandler(onBack = leave)
         }
     }
 }

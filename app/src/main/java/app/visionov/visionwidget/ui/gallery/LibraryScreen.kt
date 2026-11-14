@@ -1,6 +1,7 @@
 package app.visionov.visionwidget.ui.gallery
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,16 +31,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.visionov.visionwidget.ui.ContentWidthFraction
 import app.visionov.visionwidget.ui.theme.Canvas
 import app.visionov.visionwidget.ui.theme.OnCanvas
 import app.visionov.visionwidget.ui.theme.OnCanvasMuted
+import app.visionov.visionwidget.ui.theme.Rule
+import app.visionov.visionwidget.ui.theme.UserFontChoice
 import app.visionov.visionwidget.ui.theme.UserFonts
 import app.visionov.visionwidget.ui.theme.VisionType
 import app.visionov.visionwidget.widget.Slot
 import app.visionov.visionwidget.widget.WidgetSize
+
+/** The empty card's own fill, a shade off the canvas as the plan row is. */
+private val EmptyCardFill = Color(0xFFF0ECE5)
 
 /**
  * The designs kept for the home screen.
@@ -55,6 +65,8 @@ fun LibraryScreen(
     onRemove: (String) -> Unit,
     onPlace: (WidgetSize, Slot) -> Unit,
     onBrowse: () -> Unit,
+    /** The directions for placing a widget, which the host shows as a page of its own. */
+    onHowToAdd: () -> Unit,
     onBack: () -> Unit,
     contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier
@@ -71,6 +83,8 @@ fun LibraryScreen(
 
     // Which tile is showing its "Add to screen" button, if any.
     var offering by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val userFont = UserFonts[UserFonts.DEFAULT_ID]
 
     // The design being placed, if any — shown large in its own sheet so the last
     // thing seen before the launcher's generic confirmation is the real face.
@@ -97,25 +111,33 @@ fun LibraryScreen(
                         .clickable(onClick = onBack)
                         .padding(vertical = 6.dp, horizontal = 2.dp)
                 )
-                Text(
-                    text = "? HOW TO ADD",
-                    style = VisionType.eyebrow,
-                    color = OnCanvasMuted,
-                    modifier = Modifier
-                        .clickable(onClick = onBrowse)
-                        .padding(vertical = 6.dp, horizontal = 2.dp)
-                )
+                // The directions for getting a widget onto the home screen, which is the
+                // one thing this screen cannot do for the user — a launcher only takes
+                // that from its own picker. Same sheet the settings row opens.
+                HowToAddPill(userFont = userFont, onClick = onHowToAdd)
             }
+            Spacer(Modifier.height(14.dp))
+        }
 
+        HorizontalDivider(color = Rule, thickness = 1.dp)
+
+        Column(Modifier.fillMaxWidth(ContentWidthFraction)) {
             Spacer(Modifier.height(18.dp))
             Text(text = "MY LIBRARY", style = VisionType.eyebrow, color = OnCanvasMuted)
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "Total (${designs.size})",
-                style = VisionType.greeting(UserFonts[UserFonts.DEFAULT_ID]),
+                style = VisionType.greeting(userFont),
                 color = OnCanvas
             )
             Spacer(Modifier.height(18.dp))
+
+            // Nothing kept yet. The shelf is where designs are found, so the empty
+            // library says where to go rather than sitting as an empty grid — there is
+            // no gesture on this screen that would ever fill it.
+            if (designs.isEmpty()) {
+                EmptyLibrary(userFont = userFont, onBrowse = onBrowse)
+            }
         }
 
         LazyVerticalGrid(
@@ -148,6 +170,81 @@ fun LibraryScreen(
         }
     }
 
+}
+
+/** The way to the directions, sat opposite the way back. */
+@Composable
+private fun HowToAddPill(userFont: UserFontChoice, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(percent = 50)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(Canvas)
+            .border(1.dp, OnCanvas.copy(alpha = 0.14f), shape)
+            .clickable(onClick = onClick)
+            .padding(start = 5.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(OnCanvas),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "?", style = VisionType.fieldLabel, color = Canvas)
+        }
+        Spacer(Modifier.size(8.dp))
+        Text(
+            text = "How to add",
+            style = VisionType.userFace(userFont, 14.sp, 18.sp),
+            color = OnCanvas
+        )
+    }
+}
+
+/** The card that stands where the shelf would be, and the way to fill it. */
+@Composable
+private fun EmptyLibrary(userFont: UserFontChoice, onBrowse: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(EmptyCardFill)
+            .padding(horizontal = 22.dp, vertical = 24.dp)
+    ) {
+        Text(text = "NOTHING SAVED YET", style = VisionType.eyebrow, color = OnCanvasMuted)
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "Find one you like\nin the Gallery.",
+            style = VisionType.screenPromptTitle(userFont),
+            color = OnCanvas
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "Tap Save widget on any design.\nIt waits here until you add it.",
+            style = VisionType.sheetLead(userFont),
+            color = OnCanvasMuted
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(percent = 50))
+                .background(OnCanvas)
+                .clickable(onClick = onBrowse)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Browse the Gallery",
+                style = VisionType.buttonLabel(userFont),
+                color = Canvas
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(text = "→", style = VisionType.glyph, color = Canvas)
+        }
+    }
 }
 
 /** Which cell a design belongs in — the catalogue only draws them at two sizes. */

@@ -121,6 +121,7 @@ import app.visionov.visionwidget.billing.BillingManager
 import app.visionov.visionwidget.billing.PaywallSheet
 import app.visionov.visionwidget.ui.components.PromptDialog
 import app.visionov.visionwidget.ui.components.SettingsButton
+import app.visionov.visionwidget.ui.components.SettingsRoutes
 import app.visionov.visionwidget.ui.components.SettingsSheet
 import app.visionov.visionwidget.ui.components.croppedPhotoBackground
 import app.visionov.visionwidget.ui.components.rememberWidgetPhoto
@@ -392,6 +393,8 @@ fun StudioScreen(
     libraryIds: List<String> = emptyList(),
     onSaveToLibrary: (String) -> Unit = {},
     onOpenLibrary: () -> Unit = {},
+    /** Where the settings sheet's rows go — see [SettingsRoutes]. */
+    settingsRoutes: SettingsRoutes = SettingsRoutes(),
     /**
      * Somewhere else in the app has been asked for and is waiting on an answer.
      *
@@ -849,7 +852,11 @@ fun StudioScreen(
     }
 
     if (showSettings) {
-        SettingsSheet(userFont = userFont, onDismiss = { showSettings = false })
+        SettingsSheet(
+            userFont = userFont,
+            routes = settingsRoutes,
+            onDismiss = { showSettings = false }
+        )
     }
 
     if (showPaywall) {
