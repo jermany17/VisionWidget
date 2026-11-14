@@ -171,6 +171,7 @@ import app.visionov.visionwidget.widget.canScheduleExactAlarms
 import app.visionov.visionwidget.widget.exactAlarmSettings
 import app.visionov.visionwidget.widget.needsExactAlarms
 import app.visionov.visionwidget.widget.Slot
+import app.visionov.visionwidget.widget.PLAN_HINT
 import app.visionov.visionwidget.widget.WidgetSize
 import app.visionov.visionwidget.widget.requestPinWidget
 
@@ -2932,6 +2933,19 @@ private fun TopThreeWidget(
         )
         if (shown.isEmpty()) {
             EmptyWidgetLine(skin = skin, userFont = userFont, align = align)
+
+            // The gap the widget gets from its cell, which a preview sized by its own
+            // content has none of — without it the hint would sit under the line above
+            // rather than on the floor, which is not where the widget puts it.
+            Spacer(Modifier.height(34.dp))
+            Text(
+                text = align.format(PLAN_HINT),
+                style = widgetLine(userFont),
+                color = skin.onSurface,
+                textAlign = align.textAlign,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth()
+            )
         } else {
             shown.forEach { index ->
                 WidgetTaskRow(

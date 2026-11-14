@@ -574,6 +574,14 @@ private fun drawCheck(
  * left off without a word: the eyebrow already counts the whole set, so a strip saying
  * so again only takes room from the rows it is counting against.
  */
+/**
+ * What an empty Top 3 offers instead of three blank rows.
+ *
+ * Written once so the two sizes that show it, and the preview in Studio, cannot drift
+ * apart — this is the only line on these cards that asks for something.
+ */
+const val PLAN_HINT = "Tap to plan  →"
+
 fun renderTopThreeCard(
     context: Context,
     widthPx: Int,
@@ -614,6 +622,21 @@ fun renderTopThreeCard(
                 ),
                 left, y
             )
+            // On the floor of the card rather than under the line above it. An empty
+            // card is the one that most needs saying what to do about it, and the foot
+            // is where a card's action belongs — the words above say what is missing,
+            // this says where to go.
+            val hint = textBlock(
+                align.format(PLAN_HINT), ink.face, MEDIUM_ROW * s, MEDIUM_ROW_LINE * s,
+                ink.onSurface, inner, style.alignId, maxLines = 1
+            )
+            // Only where the card is deep enough for it to be a foot rather than a
+            // second line crowding the first. A cell flatter than a 4x2 has room for
+            // what is missing or for what to do about it, not both.
+            val hintTop = h - padY - hint.height
+            if (hintTop >= y + MEDIUM_ROW_LINE * s + MEDIUM_SPACING * s) {
+                canvas.draw(hint, left, hintTop)
+            }
         } else {
             // How many rows the card's own height has room for, which is not always the
             // three it means to show: a flatter cell than the usual 4x2 would otherwise
@@ -904,6 +927,16 @@ fun renderTopThreeCardLarge(
                 ),
                 left, y
             )
+            // Just above the rule rather than on the card's own floor: the foot below
+            // it already belongs to the streak and the week.
+            val hint = textBlock(
+                align.format(PLAN_HINT), ink.face, LARGE_ROW * s, rowLine,
+                ink.onSurface, inner, style.alignId, maxLines = 1
+            )
+            val hintTop = footRule - LARGE_SPACING * s - hint.height
+            if (hintTop >= y + rowLine + LARGE_SPACING * s) {
+                canvas.draw(hint, left, hintTop)
+            }
         } else {
             // As on the medium card: the rows take the room between the two rules
             // rather than stacking against the top one.
