@@ -2,6 +2,7 @@ package app.visionov.visionwidget.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.res.Configuration
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
 import kotlin.math.sqrt
 
@@ -71,30 +72,75 @@ fun GalleryWidget.pictureHeightPx(widthPx: Int): Int =
  * keeps it current as the cell is resized. That is the only honest source for this: the
  * provider's own declared minimum is what the widget may shrink to, not what it was
  * actually handed.
+ *
+ * The four figures it writes are not two corners of one rectangle. Each pair spans the
+ * two ways the phone can be held: the width runs from its narrowest in portrait to its
+ * widest in landscape, and the height the other way about, from a landscape row to a
+ * taller portrait one. So the cell as it stands now is MIN_WIDTH by MAX_HEIGHT upright
+ * and MAX_WIDTH by MIN_HEIGHT on its side — never a min with a min. Reading both minimums
+ * described a cell shorter than any the widget is ever shown in, and a design painted to
+ * that was stretched back up by the launcher to fill the real one.
  */
 fun cellPxOf(context: Context, placed: PlacedWidget): Pair<Int, Int>? {
     val appWidgetId = appWidgetIdOf(context, placed.id) ?: return null
     val manager = runCatching { AppWidgetManager.getInstance(context) }.getOrNull() ?: return null
     val options = runCatching { manager.getAppWidgetOptions(appWidgetId) }.getOrNull() ?: return null
 
-    val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-    val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+    val upright =
+        context.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+    val widthKey = if (upright) {
+        AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH
+    } else {
+        AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH
+    }
+    val heightKey = if (upright) {
+        AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
+    } else {
+        AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
+    }
+
+    val widthDp = options.getInt(widthKey, 0)
+    val heightDp = options.getInt(heightKey, 0)
     if (widthDp <= 0 || heightDp <= 0) return null
 
     val density = context.resources.displayMetrics.density
     return (widthDp * density).toInt() to (heightDp * density).toInt()
 }
 
+/** How many cells across the home screen is taken to be, where it has not said. */
+private const val HOME_COLUMNS = 4
+
 /**
  * The cell to paint for when the launcher has not said yet.
  *
  * A widget placed a moment ago has no size written against it until the launcher gets
- * round to it, and a design still has to be drawn for it in the meantime. Half the screen
- * square is a 2x2 on the usual four-column grid, which is the commonest cell there is and
- * close enough to be redrawn at the right size on the next minute.
+ * round to it, and a design still has to be drawn for it in the meantime. What it is
+ * drawn at is the cell the design asks for, counted off the usual four-column grid —
+ * which for a 2x2 is half the screen square, as it has always been, and for a 4x2 the
+ * full width.
+ *
+ * Assuming the square for everything is what made the wide designs soft. A 4x2 was
+ * painted 540 across to sit in a cell near 1080, and since the picture is only redrawn
+ * when the design itself moves on, a calendar kept that first undersized painting until
+ * the date changed.
  */
-fun defaultCellPx(context: Context): Pair<Int, Int> {
+fun GalleryWidget.defaultCellPx(context: Context): Pair<Int, Int> {
     val metrics = context.resources.displayMetrics
-    val side = (metrics.widthPixels / 2).coerceAtLeast(1)
-    return side to side
+    val unit = (metrics.widthPixels / HOME_COLUMNS).coerceAtLeast(1)
+    val (across, down) = cellCount()
+    return (across * unit).coerceAtLeast(1) to (down * unit).coerceAtLeast(1)
+}
+
+/**
+ * [GalleryWidget.cells] as the two numbers it reads as — "4x2" as four by two.
+ *
+ * Falls back to the square, which is what every design was measured against before this
+ * and is right for the twelve that are 2x2.
+ */
+private fun GalleryWidget.cellCount(): Pair<Int, Int> {
+    val parts = cells.lowercase().split("x")
+    val across = parts.getOrNull(0)?.trim()?.toIntOrNull()
+    val down = parts.getOrNull(1)?.trim()?.toIntOrNull()
+    if (across == null || down == null || across <= 0 || down <= 0) return 2 to 2
+    return across to down
 }

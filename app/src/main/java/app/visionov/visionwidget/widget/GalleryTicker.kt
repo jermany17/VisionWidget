@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.ui.gallery.GalleryWidget
@@ -69,6 +70,14 @@ object GalleryTicker {
 
     private const val MINUTE_MS = 60_000L
 
+    /**
+     * How far under the cell a picture may be before it counts as too small.
+     *
+     * Rounding between dp and pixels moves the figure by a pixel or two either way, and
+     * a repaint triggered by that would start again on the next draw and never settle.
+     */
+    private const val UNDERSIZE_SLACK_PX = 8
+
     /** The minute the pictures that are up were drawn for. */
     @Volatile
     private var shownMinute = 0L
@@ -96,8 +105,33 @@ object GalleryTicker {
             .maxOfOrNull { (cellWidth, cellHeight) ->
                 design.pictureWidthPx(cellWidth, cellHeight)
             }
-            ?: defaultCellPx(context).let { (w, h) -> design.pictureWidthPx(w, h) }
+            ?: design.defaultCellPx(context).let { (w, h) -> design.pictureWidthPx(w, h) }
         return width to design.pictureHeightPx(width)
+    }
+
+    /**
+     * Whether the picture [design] already has is narrower than the cell it is in now.
+     *
+     * A picture is painted once and then only repainted when the design moves on, which
+     * for a clock is the next minute and for a calendar is the next day. So a design
+     * first painted for a cell the launcher had not described yet, or painted before the
+     * cell was resized, would otherwise keep a picture too small for it until whatever
+     * it shows happens to change.
+     *
+     * Measured off the file's own header rather than by decoding it: the pixels are of
+     * no interest here, only how many of them across there are.
+     */
+    fun isUndersized(context: Context, design: GalleryWidget): Boolean {
+        val file = DesignRenderer.fileFor(context, design)
+        if (!file.exists()) return false
+        val header = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        runCatching { BitmapFactory.decodeFile(file.path, header) }
+        val have = header.outWidth
+        if (have <= 0) return false
+        val (want, _) = paintedSize(context, design)
+        // A hair under counts as the same picture — rounding between dp and pixels moves
+        // the figure by one or two, and repainting over that would never settle.
+        return have < want - UNDERSIZE_SLACK_PX
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

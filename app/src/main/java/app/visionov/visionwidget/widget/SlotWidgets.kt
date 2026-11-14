@@ -181,8 +181,19 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
      */
     private suspend fun pictureOf(context: Context, designId: String): Uri? {
         val design = GalleryCatalog.load(context).firstOrNull { it.id == designId } ?: return null
-        WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))?.let { return it }
-        if (!GalleryTicker.paintWithin(context, design, FIRST_PAINT_WAIT_MS)) return null
+        // A picture already painted will do, unless it was painted for a smaller cell
+        // than this one — the first painting of a freshly placed widget is made before
+        // the launcher has said how big the cell is, and a design is otherwise only
+        // repainted when what it shows moves on. For a calendar that is the next day.
+        if (!GalleryTicker.isUndersized(context, design)) {
+            WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))
+                ?.let { return it }
+        }
+        if (!GalleryTicker.paintWithin(context, design, FIRST_PAINT_WAIT_MS)) {
+            // Repainting is an improvement, not a requirement: whatever is already there
+            // is still this design, so it is shown rather than the cell left empty.
+            return WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))
+        }
         return WidgetPictures.uriFor(context, DesignRenderer.fileFor(context, design))
     }
 
