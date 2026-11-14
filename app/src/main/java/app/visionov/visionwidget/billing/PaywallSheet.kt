@@ -1,5 +1,6 @@
 package app.visionov.visionwidget.billing
 
+import android.content.Intent
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,8 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.visionov.visionwidget.ui.theme.UserFontChoice
 import app.visionov.visionwidget.ui.theme.VisionType
@@ -45,6 +48,15 @@ private val PlanBorder = PaywallInk.copy(alpha = 0.16f)
 private val PlanBorderChosen = PaywallInk.copy(alpha = 0.85f)
 
 private val PlanShape = RoundedCornerShape(16.dp)
+
+/**
+ * What the subscription is sold under.
+ *
+ * Reachable from the sheet itself rather than from Settings alone: this is where the
+ * money is asked for, and both stores require the terms to be one tap from the asking.
+ */
+private const val PRIVACY_URL = "https://visionov.app/privacy/"
+private const val TERMS_URL = "https://visionov.app/terms/"
 
 /**
  * What a locked feature opens instead of unlocking.
@@ -178,18 +190,61 @@ fun PaywallSheet(userFont: UserFontChoice, onDismiss: () -> Unit) {
             )
 
             Spacer(Modifier.height(16.dp))
-            Text(
-                text = "Not now",
-                style = VisionType.sheetCancel(userFont),
-                color = PaywallInkMuted,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onDismiss)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-            )
+            // The way out on one side, what is being agreed to on the other. Both have
+            // to be here: a sheet that asks for money has to say what the money is
+            // subject to, and the stores will not take one that does not.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Not now",
+                    style = VisionType.sheetCancel(userFont),
+                    color = PaywallInkMuted,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                LegalLink(label = "PRIVACY", url = PRIVACY_URL)
+                Text(
+                    text = "·",
+                    style = VisionType.eyebrow,
+                    color = PaywallInkMuted
+                )
+                LegalLink(label = "TERMS", url = TERMS_URL)
+            }
         }
     }
+}
+
+/**
+ * One of the two legal links, opened in whatever the phone reads the web with.
+ *
+ * Underlined rather than merely coloured: the sheet is one dark surface and a colour on
+ * it is a style before it is a signal, where an underline is only ever a link.
+ *
+ * A phone with nothing able to open a page would throw on the way out, which is not
+ * worth taking the sheet down over — the subscription it is selling does not depend on
+ * either page being read.
+ */
+@Composable
+private fun LegalLink(label: String, url: String) {
+    val context = LocalContext.current
+    Text(
+        text = label,
+        style = VisionType.eyebrow.copy(textDecoration = TextDecoration.Underline),
+        color = PaywallInkMuted,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                }
+            }
+            .padding(horizontal = 8.dp, vertical = 10.dp)
+    )
 }
 
 @Composable
