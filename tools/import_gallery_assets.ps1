@@ -345,6 +345,23 @@ main.preview > .caption {
 .widget {
   margin: 0 !important;
 }
+
+/* What is taken from these pages is one still frame, so nothing in them is ever seen
+   moving — an animation that starts as the page loads is not a thing to be shown but a
+   chance to be copied half way through one.
+
+   The flip clock was: the page carries a time of its own, its script replaces it with
+   the real one, and every digit that changes starts a 450ms turn. The frame was taken
+   120ms in, which is why those two came out with the numbers squashed edge-on and
+   faded to grey instead of standing square and solid.
+
+   Held at rest rather than waited out, because a wait has to guess how long and some
+   motion never ends. The flips are the only designs that animate at all, and the state
+   their turn finishes in is the one they are written to sit in anyway. */
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+}
 '@
 [System.IO.File]::WriteAllText((Join-Path $Dest "embed.css"), $embed, (New-Object System.Text.UTF8Encoding $false))
 
