@@ -42,6 +42,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.visionov.visionwidget.MainActivity
 import app.visionov.visionwidget.data.AppPreferences
+import app.visionov.visionwidget.ui.theme.CardThemes
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.widget.config.WidgetConfigActivity
@@ -81,8 +82,17 @@ private const val FIRST_PAINT_WAIT_MS = 6_000L
 const val OpenGalleryExtra = "open_gallery"
 
 /** The cell a notice is drawn on — the app's own plum, so it reads as ours. */
-private val NoticeFill = Color(0xFF4A3A52)
-private val NoticeInk = Color(0xFFF2EDE6)
+/**
+ * What a cell with nothing to show is painted in — the colour a widget wears before one
+ * is chosen for it.
+ *
+ * Read off [CardThemes.default] rather than written out again. These were a plum, which
+ * is what the app opened on when they were set; the default moved to Cacao and this did
+ * not follow it, so a cell waiting to be set up, or waiting on a subscription, sat on
+ * the home screen in a colour nothing else in the app uses any more.
+ */
+private val NoticeFill = CardThemes.default.surface
+private val NoticeInk = CardThemes.default.onSurface
 
 open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
 
