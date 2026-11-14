@@ -187,6 +187,21 @@ private fun leadInFor(room: Float, slots: Int, rowLine: Float, gap: Float): Floa
 /** Everything a card draws with, resolved from what was applied to it. */
 private class CardInk(
     val face: Typeface?,
+    /**
+     * The weight axis the face is to be drawn on, as the paint takes it.
+     *
+     * Most of these are variable fonts shipped as a single file, and a file holds every
+     * weight at once rather than the one the choice asks for. Which weight is drawn is
+     * decided by this, and left unsaid it is whatever the file happens to open at —
+     * which is 100 for Outfit and Public Sans, 200 for Manrope, 300 for Space Grotesk.
+     * So "Geometric", "Neutral", "Rounded", "Grotesque", "Stamped" and "Brutal" all
+     * came out as thin as the file could draw them, and "Display" and "Soft Serif",
+     * whose files open at 800 and 900, came out heavier than asked.
+     *
+     * Compose sets the same axis on the screens, which is why the app showed the right
+     * weight all along and only the widgets did not.
+     */
+    val variation: String,
     /** The chosen face's own size correction — see [UserFontChoice.sizeScale]. */
     val textScale: Float,
     val onSurface: Int,
@@ -222,6 +237,9 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
     val theme = themeOf(style)
     val font = UserFonts[style.fontId]
     val face = ResourcesCompat.getFont(context, font.resId)
+    // The axis the file is to be drawn on. Harmless on the three faces that ship one
+    // weight apiece: a file with no axis to set simply ignores it.
+    val variation = "'wght' ${font.weight.weight}"
 
     // Photo hands back its own ink: what the picture underneath looks like is unknown,
     // so the scrim is what guarantees contrast and the text colour has to match it.
@@ -229,6 +247,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
         val photoInk = 0xFFF7F4EE.toInt()
         return CardInk(
             face = face,
+            variation = variation,
             textScale = font.sizeScale,
             onSurface = photoInk,
             onSurfaceMuted = withAlpha(photoInk, 0.76f),
@@ -239,6 +258,7 @@ private fun cardInk(context: Context, style: WidgetStyle): CardInk {
     }
     return CardInk(
         face = face,
+        variation = variation,
         textScale = font.sizeScale,
         onSurface = theme.onSurface.toArgb(),
         onSurfaceMuted = theme.onSurfaceMuted.toArgb(),
@@ -361,6 +381,7 @@ private fun textBlock(
 ): StaticLayout {
     val paint = TextPaint(CardPaintFlags).apply {
         typeface = ink.face
+        fontVariationSettings = ink.variation
         textSize = sizePx * ink.textScale
         color = colour
         this.letterSpacing = letterSpacing
@@ -536,6 +557,7 @@ fun renderVisionCard(
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = MEDIUM_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
@@ -567,6 +589,7 @@ private fun drawCheck(
         paint.color = ink.onInk
         paint.textSize = tick
         paint.typeface = ink.face
+        paint.fontVariationSettings = ink.variation
         paint.textAlign = Paint.Align.CENTER
         canvas.drawTextLine("✓", cx, cy - tick / 2f, tick, paint)
     } else {
@@ -759,6 +782,7 @@ fun renderVisionCardLarge(
         }
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
@@ -888,6 +912,7 @@ fun renderTopThreeCardLarge(
         }
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
@@ -902,6 +927,7 @@ fun renderTopThreeCardLarge(
         val countHeight = LARGE_COUNT_LINE * s
         val count = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = LARGE_COUNT * s * ink.textScale
             color = ink.onSurface
             textAlign = Paint.Align.RIGHT
@@ -999,6 +1025,7 @@ fun renderWisdomCardLarge(
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = LARGE_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
@@ -1062,6 +1089,7 @@ fun renderVisionCardSmall(
 
         val meta = Paint(CardPaintFlags).apply {
             typeface = ink.face
+            fontVariationSettings = ink.variation
             textSize = SMALL_META * s * ink.textScale
             color = ink.onSurfaceMuted
             letterSpacing = 0.18f
