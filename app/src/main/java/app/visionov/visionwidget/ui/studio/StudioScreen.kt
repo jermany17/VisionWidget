@@ -1486,17 +1486,14 @@ private fun ColumnScope.GalleryTab(
 
     askingExactAlarms?.let { design ->
         PromptDialog(
-            eyebrow = "PERMISSION NEEDED",
-            title = "Clocks need alarms & reminders",
-            body = "A clock face only keeps time if this app may wake on the exact " +
-                "minute, and Android asks you to allow that in Settings. Without it " +
-                "the hands drift behind — so clocks can't be saved until it's on.\n\n" +
-                "Allow \"Alarms & reminders\", and this face is saved the moment you " +
-                "come back.",
+            eyebrow = "WIDGETS",
+            title = "Keep your widgets on time?",
+            body = "Allow alarms & reminders in Settings so your widgets update " +
+                "right on time.",
             userFont = UserFonts[UserFonts.DEFAULT_ID],
-            quietLabel = "Cancel",
+            quietLabel = "Not now",
             onQuiet = { askingExactAlarms = null },
-            loudLabel = "Open settings",
+            loudLabel = "Allow",
             onLoud = {
                 askingExactAlarms = null
                 // Saved on the way back, once the answer is known — see [grantedFor].

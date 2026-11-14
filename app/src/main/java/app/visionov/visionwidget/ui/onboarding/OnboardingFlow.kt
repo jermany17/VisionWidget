@@ -301,11 +301,9 @@ fun OnboardingFlow(
     if (askingNotifications) {
         PromptDialog(
             eyebrow = "BEFORE YOU GO",
-            title = "Shall we remind you?",
-            body = "Vision Widget can nudge you about today's three, say when a " +
-                "milestone is coming up, and bring you the day's line each morning. " +
-                "Turn notifications on and you'll get them.\n\n" +
-                "Android will ask next. You can change your mind any time in Settings.",
+            title = "Stay on track with daily reminders.",
+            body = "Get reminders to prepare for tomorrow, start your morning with " +
+                "intention, and reflect on your daily progress.",
             userFont = userFont,
             quietLabel = "No thanks",
             // Not asked at all rather than asked and refused. The system offers its
