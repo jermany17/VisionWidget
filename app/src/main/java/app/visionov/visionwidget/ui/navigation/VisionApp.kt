@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.visionov.visionwidget.billing.BillingManager
+import app.visionov.visionwidget.billing.PlusStatus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.visionov.visionwidget.data.VisionAppViewModel
@@ -150,7 +151,27 @@ fun VisionApp(
         onPauseOrDispose { }
     }
 
-    val libraryDesignIds by viewModel.libraryDesignIds.collectAsStateWithLifecycle()
+    val storedLibraryIds by viewModel.libraryDesignIds.collectAsStateWithLifecycle()
+    val plusStatus by billing.status.collectAsStateWithLifecycle()
+
+    /**
+     * The library as the screens are allowed to see it.
+     *
+     * A Gallery design is kept by the subscription rather than bought outright, so
+     * without one there is nothing to show — the shelf is still there to browse, but
+     * the kept set is not the user's to hold any more.
+     *
+     * Emptied here rather than deleted in the store, so that coming back to Vision+
+     * brings the collection back with it. What was kept is a record of choices made;
+     * throwing it away would mean a lapsed month costs the user all of them.
+     *
+     * Only a plain [PlusStatus.None] empties it. [PlusStatus.Unknown] is the second
+     * before Play answers, and a subscriber would otherwise watch their library blink
+     * out and back on every launch.
+     */
+    val libraryDesignIds = remember(storedLibraryIds, plusStatus) {
+        if (plusStatus is PlusStatus.None) emptyList() else storedLibraryIds
+    }
 
     val wisdomCategory by viewModel.wisdomCategory.collectAsStateWithLifecycle()
 

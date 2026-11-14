@@ -185,10 +185,19 @@ private fun ChooseWidgetScreen(
 
     // Only what the user put in the library, and only what fits a cell this size. A
     // large cell has no Gallery designs at all — they are all drawn at 2x2 or 4x2.
+    //
+    // Nothing at all without Vision+: these are kept by the subscription, so offering
+    // one here while the library itself is empty would be offering what cannot be had.
+    // Read from the note Play's last answer was left in, as the widgets do — this
+    // screen is opened from the launcher and has no billing connection of its own.
     val designs = remember(size) {
-        val saved = AppPreferences(context).libraryDesignIds
-        val byId = GalleryCatalog.load(context).associateBy { it.id }
-        saved.mapNotNull { byId[it] }.filter { size.holds(it) }
+        val preferences = AppPreferences(context)
+        if (!preferences.plusHeld) {
+            emptyList()
+        } else {
+            val byId = GalleryCatalog.load(context).associateBy { it.id }
+            preferences.libraryDesignIds.mapNotNull { byId[it] }.filter { size.holds(it) }
+        }
     }
 
     // A square cell takes two across; the wide and tall ones are shown one to a row, at

@@ -41,6 +41,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.visionov.visionwidget.MainActivity
+import app.visionov.visionwidget.data.AppPreferences
 import app.visionov.visionwidget.ui.gallery.DesignRenderer
 import app.visionov.visionwidget.ui.gallery.GalleryCatalog
 import app.visionov.visionwidget.widget.config.WidgetConfigActivity
@@ -224,6 +225,13 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
         when {
             design == null -> Notice("Unknown design")
 
+            // A Gallery design is kept by the subscription, so a cell showing one stops
+            // when that ends. Read from the note Play's last answer was left in — see
+            // [AppPreferences.plusHeld] — because nothing out here can ask Play itself.
+            // The cell says what it is waiting for rather than going blank: an empty
+            // square on a home screen reads as a broken widget, not as a lapsed one.
+            !AppPreferences(context).plusHeld -> Notice("Vision+ required", toApp = true)
+
             // Still being painted. The painting carries on past this and bumps the
             // revision when it lands, which brings the real picture here.
             picture == null -> Pending()
@@ -265,13 +273,17 @@ open class SlotWidget(private val size: WidgetSize) : GlanceAppWidget() {
      * unfinished setup, and the point is that it can be read off the home screen.
      */
     @Composable
-    private fun Notice(text: String) {
+    private fun Notice(text: String, toApp: Boolean = false) {
         val context = LocalContext.current
         val id = appWidgetIdOf(context, LocalGlanceId.current)
 
         // A cell that was never told what to hold opens the screen that tells it, for
         // the one it is actually about rather than the app's front door.
-        val open = if (id == null) {
+        //
+        // [toApp] is for the states that screen cannot answer. A lapsed subscription is
+        // one: what this cell was told to hold is not the problem, so offering to
+        // change it would be answering a question nobody asked.
+        val open = if (toApp || id == null) {
             actionStartActivity<MainActivity>()
         } else {
             actionStartActivity<WidgetConfigActivity>(
@@ -430,5 +442,22 @@ suspend fun updateDesignWidgets(context: Context) {
             bumpRevision(context, placed.id)
             runCatching { SlotWidgets.of(placed.size).update(context, placed.id) }
                 .onFailure { Log.w("VisionWidget", "card redraw failed", it) }
+        }
+}
+
+/**
+ * Redraws every Gallery design on a home screen.
+ *
+ * The counterpart to [updateDesignWidgets], and the one that matters when Vision+ comes
+ * or goes: these are the cells that stop showing a design and start showing the notice,
+ * and nothing about them has changed except whether they may still be drawn.
+ */
+suspend fun updateGalleryWidgets(context: Context) {
+    placedSlots(context)
+        .filter { it.slot is Slot.Design }
+        .forEach { placed ->
+            bumpRevision(context, placed.id)
+            runCatching { SlotWidgets.of(placed.size).update(context, placed.id) }
+                .onFailure { Log.w("VisionWidget", "design redraw failed", it) }
         }
 }

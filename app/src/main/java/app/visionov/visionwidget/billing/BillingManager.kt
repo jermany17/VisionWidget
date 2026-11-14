@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import app.visionov.visionwidget.data.AppPreferences
+import app.visionov.visionwidget.widget.updateGalleryWidgets
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
@@ -201,6 +202,7 @@ class BillingManager private constructor(context: Context) {
 
         if (held == null) {
             _status.value = PlusStatus.None
+            noteForWidgets(false)
             return
         }
 
@@ -220,6 +222,27 @@ class BillingManager private constructor(context: Context) {
             basePlanId = preferences.purchasedBasePlanId,
             autoRenewing = held.isAutoRenewing
         )
+        noteForWidgets(true)
+    }
+
+    /**
+     * Leaves Play's answer where the home screen can read it, and says so if it moved.
+     *
+     * A widget is drawn with no activity up and cannot ask Play itself, so it goes by
+     * this note — see [AppPreferences.plusHeld]. Only written where Play has actually
+     * answered: a dropped connection leaves the last answer standing, which is the same
+     * care [refresh] takes with the status itself.
+     *
+     * The redraw is what makes a subscription ending, or coming back, show up on the
+     * home screen rather than at the next time something else happened to repaint.
+     */
+    private fun noteForWidgets(held: Boolean) {
+        if (preferences.plusHeld == held) return
+        preferences.plusHeld = held
+        scope.launch {
+            runCatching { updateGalleryWidgets(app) }
+                .onFailure { Log.w(TAG, "Design redraw after plus change failed", it) }
+        }
     }
 
     /**

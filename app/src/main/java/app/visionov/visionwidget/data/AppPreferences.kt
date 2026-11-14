@@ -175,6 +175,24 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_PURCHASED_PLAN, value).apply()
 
     /**
+     * What Play last answered about Vision+, for the widgets to read.
+     *
+     * Not a second opinion on whether the subscription is held — Play's answer is the
+     * only one, and [BillingManager] is where it is asked for. This is a note of that
+     * answer left where a widget can reach it: a widget is drawn with no activity up
+     * and often with the app never opened, and opening a billing connection on every
+     * redraw to re-ask a question already answered is not something a home screen
+     * should be made to pay for.
+     *
+     * Starts held. A cell that has been drawing a design for months must not go behind
+     * a notice on the strength of nothing having been asked yet — only on Play actually
+     * saying the subscription has gone.
+     */
+    var plusHeld: Boolean
+        get() = prefs.getBoolean(KEY_PLUS_HELD, true)
+        set(value) = prefs.edit().putBoolean(KEY_PLUS_HELD, value).apply()
+
+    /**
      * How one widget renders the user's own words — face, colour, layout, fill and
      * corner. Held per widget, so the three can be styled apart or together. The rest of
      * the app stays on the default face, so this is a choice about the widgets alone.
@@ -260,6 +278,7 @@ class AppPreferences(context: Context) {
         const val KEY_PLANNED_TASKS = "planned_tasks"
         const val KEY_LIBRARY = "library_design_ids"
         const val KEY_PURCHASED_PLAN = "purchased_base_plan"
+        const val KEY_PLUS_HELD = "plus_held"
         const val KEY_WIDGET_FONT = "widget_font_id"
         const val KEY_WIDGET_THEME = "widget_theme_id"
         const val KEY_WIDGET_CUSTOM_COLOUR = "widget_custom_colour"
